@@ -67,9 +67,14 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
 
         {/* Visual & Lock Statuses */}
         <div className="p-5 space-y-4 bg-stone-950/80">
-          <p className="text-xs text-stone-300">
-            Una pesada puerta de roble cerrada con gruesas cadenas de acero y tres mecanismos independientes.
-          </p>
+          <div className="p-2.5 rounded-lg border border-red-900/60 bg-red-950/20 text-center">
+            <span className="text-xs font-mono font-bold text-red-500 uppercase tracking-widest block">
+              "Don't go out!! — Walter"
+            </span>
+            <span className="text-[11px] text-stone-400 mt-0.5 block">
+              Inscripción ensangrentada debajo de la mirilla. Placas de acero y maraña de cadenas remachadas a las paredes.
+            </span>
+          </div>
 
           {/* Peephole Action Button */}
           <button

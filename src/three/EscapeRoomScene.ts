@@ -42,9 +42,9 @@ export class EscapeRoomScene {
 
   // Chains & Locks meshes on main door
   private chainGroup: THREE.Group = new THREE.Group();
-  private keyLockMesh: THREE.Mesh | null = null;
-  private codeLockMesh: THREE.Mesh | null = null;
-  private fuseLockMesh: THREE.Mesh | null = null;
+  private keyLockMesh: THREE.Object3D | null = null;
+  private codeLockMesh: THREE.Object3D | null = null;
+  private fuseLockMesh: THREE.Object3D | null = null;
 
   // Callbacks
   private onInteractionUpdate: SceneInteractionCallback | null = null;
@@ -197,7 +197,14 @@ export class EscapeRoomScene {
   }
 
   /**
-   * The Main Chained Door (Puerta Principal) with Peephole, heavy chains, padlocks
+   * The Main Chained Door (Puerta Principal) based on the Room 302 Silent Hill 4 reference:
+   * - Stepped grungy off-white architrave and crown molding.
+   * - Peeling door slab with 3D recessed upper and lower beveled panels.
+   * - Blood-red handwritten "Don't go out!! Walter" under the brass peephole.
+   * - Dual light switch plate on right wall.
+   * - Heavy bolted cast-iron anchor plates on walls and door panels.
+   * - Dense tangled web of interlocking 3D steel chain links crossing horizontally and diagonally.
+   * - Authentic hanging padlocks (brass key lock on left, combination lock on center junction, and fuse lock).
    */
   private buildMainChainedDoor() {
     const doorGroup = new THREE.Group();
@@ -206,94 +213,388 @@ export class EscapeRoomScene {
     const doorTex = TextureGenerator.createDoorTexture();
     const doorMat = new THREE.MeshStandardMaterial({
       map: doorTex,
-      roughness: 0.7,
-      metalness: 0.25,
+      roughness: 0.78,
+      metalness: 0.15,
       emissive: new THREE.Color(0x000000),
     });
     this.highlightMaterials.set('main_door', doorMat);
 
-    // Door Slab (1.5m wide x 2.7m tall)
-    const doorSlab = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.7, 0.12), doorMat);
-    doorGroup.add(doorSlab);
+    // 1. Surrounding Wall Architecture from Reference
+    // Crown Molding above door header
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x4a4339, roughness: 0.85 });
+    const crownMolding = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 0.08), crownMat);
+    crownMolding.position.set(0, 1.62, 0.03);
+    doorGroup.add(crownMolding);
 
-    // Door Frame
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x15100c, roughness: 0.8 });
-    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.15, 0.18), frameMat);
-    topFrame.position.set(0, 1.4, 0);
+    // Baseboard moldings at bottom of wall on left and right
+    const baseboardMat = new THREE.MeshStandardMaterial({ color: 0x3d352c, roughness: 0.85 });
+    const baseboardLeft = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.16, 0.06), baseboardMat);
+    baseboardLeft.position.set(-1.5, -1.26, 0.03);
+    doorGroup.add(baseboardLeft);
+
+    const baseboardRight = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.16, 0.06), baseboardMat);
+    baseboardRight.position.set(1.5, -1.26, 0.03);
+    doorGroup.add(baseboardRight);
+
+    // Dual Light Switch Plate on Right Wall (exactly as in reference photo)
+    const switchGroup = new THREE.Group();
+    switchGroup.position.set(1.32, 0.08, 0.02);
+    const switchPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.18, 0.025),
+      new THREE.MeshStandardMaterial({ color: 0xb5a894, roughness: 0.6 })
+    );
+    switchGroup.add(switchPlate);
+    // 2 small dark switch toggles
+    const toggleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
+    const toggle1 = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.035, 0.02), toggleMat);
+    toggle1.position.set(-0.025, 0.01, 0.015);
+    const toggle2 = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.035, 0.02), toggleMat);
+    toggle2.position.set(0.025, -0.01, 0.015);
+    switchGroup.add(toggle1, toggle2);
+    doorGroup.add(switchGroup);
+
+    // Dedicated Amber Horror Downlight from above door (matches dramatic lighting in reference)
+    const doorTopLight = new THREE.PointLight(0xffa24c, 2.2, 5.2, 1.4);
+    doorTopLight.position.set(0, 1.65, 0.35);
+    doorGroup.add(doorTopLight);
+
+    // 2. Stepped Door Architrave (Wood Trim Frame)
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x5a5043, roughness: 0.85 });
+    // Top header architrave
+    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.18, 0.22), frameMat);
+    topFrame.position.set(0, 1.41, 0);
     doorGroup.add(topFrame);
-    const leftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.7, 0.18), frameMat);
+    // Left and right side jambs
+    const leftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.7, 0.22), frameMat);
     leftFrame.position.set(-0.85, 0, 0);
     doorGroup.add(leftFrame);
-    const rightFrame = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.7, 0.18), frameMat);
+    const rightFrame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.7, 0.22), frameMat);
     rightFrame.position.set(0.85, 0, 0);
     doorGroup.add(rightFrame);
 
+    // Inner stepped bead trim
+    const innerFrameMat = new THREE.MeshStandardMaterial({ color: 0x483e32, roughness: 0.9 });
+    const innerTop = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.04, 0.06), innerFrameMat);
+    innerTop.position.set(0, 1.31, 0.08);
+    doorGroup.add(innerTop);
+    const innerLeft = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.62, 0.06), innerFrameMat);
+    innerLeft.position.set(-0.75, 0, 0.08);
+    doorGroup.add(innerLeft);
+    const innerRight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.62, 0.06), innerFrameMat);
+    innerRight.position.set(0.75, 0, 0.08);
+    doorGroup.add(innerRight);
+
+    // 3. Door Slab with 3D Recessed Panels
+    // Main door slab (1.48m x 2.64m x 0.11m)
+    const doorSlab = new THREE.Mesh(new THREE.BoxGeometry(1.48, 2.64, 0.11), doorMat);
+    doorGroup.add(doorSlab);
+
+    // 3D Recessed Upper Panel Moldings
+    const panelBevelMat = new THREE.MeshStandardMaterial({ color: 0x7a6c58, roughness: 0.85 });
+    const upperPanelFrame = new THREE.Group();
+    upperPanelFrame.position.set(0, 0.54, 0.056);
+    // Inner bevel borders for upper panel
+    const uTop = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.03, 0.02), panelBevelMat);
+    uTop.position.set(0, 0.46, 0);
+    const uBot = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.03, 0.02), panelBevelMat);
+    uBot.position.set(0, -0.46, 0);
+    const uLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.92, 0.02), panelBevelMat);
+    uLeft.position.set(-0.56, 0, 0);
+    const uRight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.92, 0.02), panelBevelMat);
+    uRight.position.set(0.56, 0, 0);
+    upperPanelFrame.add(uTop, uBot, uLeft, uRight);
+    doorGroup.add(upperPanelFrame);
+
+    // 3D Recessed Lower Panel Moldings
+    const lowerPanelFrame = new THREE.Group();
+    lowerPanelFrame.position.set(0, -0.62, 0.056);
+    const lTop = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.03, 0.02), panelBevelMat);
+    lTop.position.set(0, 0.48, 0);
+    const lBot = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.03, 0.02), panelBevelMat);
+    lBot.position.set(0, -0.48, 0);
+    const lLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.96, 0.02), panelBevelMat);
+    lLeft.position.set(-0.56, 0, 0);
+    const lRight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.96, 0.02), panelBevelMat);
+    lRight.position.set(0.56, 0, 0);
+    lowerPanelFrame.add(lTop, lBot, lLeft, lRight);
+    doorGroup.add(lowerPanelFrame);
+
     // Brass Peephole (Visor de la puerta)
     const peepholeMat = new THREE.MeshStandardMaterial({
-      color: 0xb58d3d,
+      color: 0xcca048,
       metalness: 0.9,
-      roughness: 0.2,
-      emissive: new THREE.Color(0x1a1200),
+      roughness: 0.25,
+      emissive: new THREE.Color(0x221805),
     });
-    const peepholeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.14, 16), peepholeMat);
+    const peepholeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.045, 24), peepholeMat);
     peepholeRing.rotation.x = Math.PI / 2;
-    peepholeRing.position.set(0, 0.25, 0.06);
+    peepholeRing.position.set(0, -0.02, 0.065);
     doorGroup.add(peepholeRing);
 
-    // Dark peephole glass
+    // Dark peephole convex glass
     const peepholeGlass = new THREE.Mesh(
-      new THREE.CircleGeometry(0.04, 16),
-      new THREE.MeshBasicMaterial({ color: 0x030305 })
+      new THREE.SphereGeometry(0.032, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x050508 })
     );
-    peepholeGlass.position.set(0, 0.25, 0.135);
+    peepholeGlass.rotation.x = -Math.PI / 2;
+    peepholeGlass.position.set(0, -0.02, 0.082);
     doorGroup.add(peepholeGlass);
 
-    // Chain group across the door
+    // Deadbolt latch mechanism on right middle edge
+    const deadboltMat = new THREE.MeshStandardMaterial({ color: 0x2e2c29, metalness: 0.8, roughness: 0.4 });
+    const deadboltPlate = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.055, 0.025), deadboltMat);
+    deadboltPlate.position.set(0.62, -0.02, 0.065);
+    const deadboltCylinder = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, 0.08, 12),
+      new THREE.MeshStandardMaterial({ color: 0x5a5855, metalness: 0.9, roughness: 0.2 })
+    );
+    deadboltCylinder.rotation.z = Math.PI / 2;
+    deadboltCylinder.position.set(0.64, -0.02, 0.075);
+    doorGroup.add(deadboltPlate, deadboltCylinder);
+
+    // 4. Heavy Bolted Cast-Iron Mounting Brackets (Plates)
     this.chainGroup = new THREE.Group();
-    const chainMat = new THREE.MeshStandardMaterial({ color: 0x3d3f44, metalness: 0.8, roughness: 0.4 });
 
-    // Diagonal crossing chains
-    const chain1 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.1, 8), chainMat);
-    chain1.rotation.z = Math.PI / 4;
-    chain1.position.set(0, 0, 0.12);
-    this.chainGroup.add(chain1);
+    const bracketTex = TextureGenerator.createRustedBracketTexture();
+    const bracketMat = new THREE.MeshStandardMaterial({
+      map: bracketTex,
+      metalness: 0.8,
+      roughness: 0.4,
+    });
+    const boltMat = new THREE.MeshStandardMaterial({ color: 0x1f1d1a, metalness: 0.9, roughness: 0.3 });
+    const clevisMat = new THREE.MeshStandardMaterial({ color: 0x4a4742, metalness: 0.85, roughness: 0.35 });
 
-    const chain2 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.1, 8), chainMat);
-    chain2.rotation.z = -Math.PI / 4;
-    chain2.position.set(0, 0, 0.13);
-    this.chainGroup.add(chain2);
+    const createBracket = (x: number, y: number, z: number, w = 0.22, h = 0.2, rotZ = 0) => {
+      const bGroup = new THREE.Group();
+      bGroup.position.set(x, y, z);
+      bGroup.rotation.z = rotZ;
 
-    // Padlock 1: Vintage Brass Key Padlock (opened with fridge key)
+      // Baseplate
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.035), bracketMat);
+      bGroup.add(plate);
+
+      // 4 corner hex bolts
+      const boltOffsets = [
+        [-w * 0.38, -h * 0.36],
+        [w * 0.38, -h * 0.36],
+        [-w * 0.38, h * 0.36],
+        [w * 0.38, h * 0.36],
+      ];
+      boltOffsets.forEach(([bx, by]) => {
+        const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.022, 6), boltMat);
+        bolt.rotation.x = Math.PI / 2;
+        bolt.position.set(bx, by, 0.02);
+        bGroup.add(bolt);
+      });
+
+      // Heavy steel U-clevis / ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.014, 8, 16), clevisMat);
+      ring.position.set(0, 0, 0.03);
+      bGroup.add(ring);
+
+      return bGroup;
+    };
+
+    // Build the 8 anchor brackets matching the Silent Hill 4 reference:
+    // Left wall upper, mid, lower
+    this.chainGroup.add(createBracket(-1.18, 0.88, 0.04, 0.22, 0.22, -0.1));
+    this.chainGroup.add(createBracket(-1.26, 0.12, 0.04, 0.24, 0.22, 0.05));
+    this.chainGroup.add(createBracket(-1.18, -0.65, 0.04, 0.22, 0.22, 0.1));
+    // Right wall upper, mid
+    this.chainGroup.add(createBracket(1.18, 0.84, 0.04, 0.22, 0.22, 0.08));
+    this.chainGroup.add(createBracket(1.30, 0.14, 0.04, 0.24, 0.22, -0.05));
+    // Door mounted brackets: Upper panel, Central junction, Lower panel
+    this.chainGroup.add(createBracket(0.28, 0.80, 0.07, 0.24, 0.18, 0.04));
+    this.chainGroup.add(createBracket(0.30, -0.02, 0.07, 0.26, 0.24, 0.0)); // central junction
+    this.chainGroup.add(createBracket(-0.16, -0.68, 0.07, 0.22, 0.2, -0.08));
+
+    // 5. Tangled Multi-Strand 3D Steel Chains
+    // Define 6 authentic paths crossing horizontally, diagonally and drooping
+    const chainPaths: THREE.Vector3[][] = [
+      // 1. Upper horizontal span (drooping slightly through door top bracket)
+      [
+        new THREE.Vector3(-1.18, 0.88, 0.09),
+        new THREE.Vector3(-0.45, 0.82, 0.11),
+        new THREE.Vector3(0.28, 0.80, 0.12),
+        new THREE.Vector3(0.75, 0.83, 0.11),
+        new THREE.Vector3(1.18, 0.84, 0.09),
+      ],
+      // 2. Mid horizontal span across center
+      [
+        new THREE.Vector3(-1.26, 0.12, 0.09),
+        new THREE.Vector3(-0.55, 0.10, 0.11),
+        new THREE.Vector3(0.05, 0.08, 0.12),
+        new THREE.Vector3(0.30, -0.02, 0.14),
+        new THREE.Vector3(0.85, 0.06, 0.12),
+        new THREE.Vector3(1.30, 0.14, 0.09),
+      ],
+      // 3. Ascending diagonal cross
+      [
+        new THREE.Vector3(-1.18, -0.65, 0.09),
+        new THREE.Vector3(-0.45, -0.32, 0.12),
+        new THREE.Vector3(0.30, -0.02, 0.14),
+        new THREE.Vector3(0.85, 0.08, 0.12),
+        new THREE.Vector3(1.30, 0.14, 0.09),
+      ],
+      // 4. Descending diagonal cross
+      [
+        new THREE.Vector3(-1.18, 0.88, 0.10),
+        new THREE.Vector3(-0.62, 0.42, 0.12),
+        new THREE.Vector3(0.05, 0.08, 0.13),
+        new THREE.Vector3(0.30, -0.02, 0.12),
+        new THREE.Vector3(0.65, -0.35, 0.11),
+        new THREE.Vector3(1.18, -0.65, 0.09),
+      ],
+      // 5. Lower horizontal cross across bottom panel
+      [
+        new THREE.Vector3(-1.18, -0.65, 0.09),
+        new THREE.Vector3(-0.55, -0.66, 0.11),
+        new THREE.Vector3(-0.16, -0.68, 0.12),
+        new THREE.Vector3(0.55, -0.64, 0.11),
+        new THREE.Vector3(1.18, -0.65, 0.09),
+      ],
+      // 6. Dangling loose chain from left lock
+      [
+        new THREE.Vector3(-0.82, 0.06, 0.15),
+        new THREE.Vector3(-0.83, -0.12, 0.15),
+        new THREE.Vector3(-0.82, -0.28, 0.14),
+        new THREE.Vector3(-0.80, -0.42, 0.13),
+      ],
+      // 7. Dangling loose end on right floor
+      [
+        new THREE.Vector3(0.30, -0.02, 0.13),
+        new THREE.Vector3(0.28, -0.45, 0.12),
+        new THREE.Vector3(0.24, -0.92, 0.11),
+        new THREE.Vector3(0.18, -1.25, 0.09),
+      ],
+    ];
+
+    // Compute chain link matrices using InstancedMesh for 60fps mobile performance
+    const linkSpacing = 0.052;
+    const linkGeo = new THREE.TorusGeometry(0.038, 0.012, 8, 14);
+    const chainLinkMat = new THREE.MeshStandardMaterial({
+      color: 0x3d3a36,
+      metalness: 0.85,
+      roughness: 0.35,
+    });
+
+    const linkTransforms: THREE.Matrix4[] = [];
+
+    chainPaths.forEach((pts) => {
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const totalLength = curve.getLength();
+      const count = Math.max(2, Math.floor(totalLength / linkSpacing));
+
+      for (let i = 0; i < count; i++) {
+        const t = i / (count - 1);
+        const pos = curve.getPointAt(t);
+        const tangent = curve.getTangentAt(t).normalize();
+
+        const dummy = new THREE.Object3D();
+        dummy.position.copy(pos);
+
+        // Align with tangent
+        const up = new THREE.Vector3(0, 1, 0);
+        if (Math.abs(tangent.dot(up)) > 0.9) up.set(1, 0, 0);
+        dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent);
+
+        // Alternate link rotation by 90 degrees around tangent
+        if (i % 2 === 1) {
+          dummy.rotateZ(Math.PI / 2);
+        }
+
+        dummy.updateMatrix();
+        linkTransforms.push(dummy.matrix.clone());
+      }
+    });
+
+    const instancedChains = new THREE.InstancedMesh(linkGeo, chainLinkMat, linkTransforms.length);
+    linkTransforms.forEach((matrix, idx) => {
+      instancedChains.setMatrixAt(idx, matrix);
+    });
+    instancedChains.instanceMatrix.needsUpdate = true;
+    this.chainGroup.add(instancedChains);
+
+    // 6. Heavy Hanging Padlocks Matching Reference
+    // Padlock 1: Left Hanging Brass Key Padlock (opened with fridge key)
     const keyLockGroup = new THREE.Group();
+    keyLockGroup.position.set(-0.82, 0.06, 0.16);
+    keyLockGroup.rotation.z = 0.08;
+
     const keyLockBody = new THREE.Mesh(
       new THREE.BoxGeometry(0.14, 0.18, 0.06),
-      new THREE.MeshStandardMaterial({ color: 0xc49a45, metalness: 0.8, roughness: 0.3 })
+      new THREE.MeshStandardMaterial({ color: 0xba943a, metalness: 0.85, roughness: 0.3 })
     );
     const keyLockShackle = new THREE.Mesh(
-      new THREE.TorusGeometry(0.07, 0.018, 8, 16, Math.PI),
-      new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.2 })
+      new THREE.TorusGeometry(0.065, 0.016, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x82848a, metalness: 0.9, roughness: 0.2 })
     );
     keyLockShackle.position.set(0, 0.09, 0);
-    keyLockGroup.add(keyLockBody, keyLockShackle);
-    keyLockGroup.position.set(-0.35, 0, 0.16);
-    this.keyLockMesh = keyLockBody;
+
+    // Keyhole detail
+    const keyhole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.01, 0.01, 0.01, 8),
+      new THREE.MeshBasicMaterial({ color: 0x0a0a0a })
+    );
+    keyhole.rotation.x = Math.PI / 2;
+    keyhole.position.set(0, -0.02, 0.031);
+
+    keyLockGroup.add(keyLockBody, keyLockShackle, keyhole);
+    this.keyLockMesh = keyLockGroup;
     this.chainGroup.add(keyLockGroup);
 
-    // Padlock 2: 4-digit Combination Padlock (opened with 1986 code)
+    // Padlock 2: Central Junction 4-Digit Combination Padlock (opened with 1986 code)
     const codeLockGroup = new THREE.Group();
+    codeLockGroup.position.set(0.30, 0.02, 0.19);
+    codeLockGroup.rotation.z = -0.15;
+
     const codeLockBody = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.08, 0.2, 16),
-      new THREE.MeshStandardMaterial({ color: 0x22252a, metalness: 0.7, roughness: 0.4 })
+      new THREE.CylinderGeometry(0.075, 0.075, 0.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0x24272c, metalness: 0.75, roughness: 0.35 })
     );
     const codeLockShackle = new THREE.Mesh(
       new THREE.TorusGeometry(0.06, 0.016, 8, 16, Math.PI),
-      new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.9, roughness: 0.2 })
+      new THREE.MeshStandardMaterial({ color: 0x989ba0, metalness: 0.9, roughness: 0.2 })
     );
     codeLockShackle.position.set(0, 0.1, 0);
+
+    // Numerical dials simulation rings
+    for (let r = 0; r < 4; r++) {
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.078, 0.078, 0.03, 16),
+        new THREE.MeshStandardMaterial({ color: 0xc49a45, metalness: 0.8, roughness: 0.3 })
+      );
+      ring.position.set(0, -0.06 + r * 0.04, 0);
+      codeLockGroup.add(ring);
+    }
     codeLockGroup.add(codeLockBody, codeLockShackle);
-    codeLockGroup.position.set(0.35, 0, 0.16);
-    this.codeLockMesh = codeLockBody;
+    this.codeLockMesh = codeLockGroup;
     this.chainGroup.add(codeLockGroup);
+
+    // Padlock 3: Lower-Right Diagonal Breaker Lock (opened with fuse box overload)
+    const fuseLockGroup = new THREE.Group();
+    fuseLockGroup.position.set(0.42, -0.24, 0.17);
+    fuseLockGroup.rotation.z = 0.25;
+
+    const fuseLockBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.13, 0.16, 0.055),
+      new THREE.MeshStandardMaterial({ color: 0x1a1c1e, metalness: 0.85, roughness: 0.4 })
+    );
+    const fuseLockShackle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.055, 0.015, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x7a7d82, metalness: 0.9, roughness: 0.2 })
+    );
+    fuseLockShackle.position.set(0, 0.08, 0);
+
+    // Yellow hazard warning stripe
+    const hazardStripe = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.09, 0.04),
+      new THREE.MeshBasicMaterial({ color: 0xd9a41e })
+    );
+    hazardStripe.position.set(0, 0, 0.029);
+    fuseLockGroup.add(fuseLockBody, fuseLockShackle, hazardStripe);
+    this.fuseLockMesh = fuseLockGroup;
+    this.chainGroup.add(fuseLockGroup);
 
     doorGroup.add(this.chainGroup);
     this.scene.add(doorGroup);
@@ -486,6 +787,9 @@ export class EscapeRoomScene {
     }
     if (lockState.codeLock && this.codeLockMesh) {
       this.codeLockMesh.visible = false;
+    }
+    if (lockState.fuseLock && this.fuseLockMesh) {
+      this.fuseLockMesh.visible = false;
     }
     if (lockState.allChainsRemoved) {
       this.chainGroup.visible = false;
