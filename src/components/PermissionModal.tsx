@@ -46,9 +46,9 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({ onStartExperie
           <div className="p-3 rounded-lg bg-stone-950/80 border border-stone-800 flex items-start gap-2.5">
             <Smartphone className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
             <div>
-              <h2 className="text-xs font-mono font-bold text-stone-200 uppercase">Giroscopio Horizontal</h2>
+              <h2 className="text-xs font-mono font-bold text-stone-200 uppercase">Cámara & Giroscopio</h2>
               <p className="text-[11px] text-stone-400 leading-normal">
-                Usa el celular en horizontal (Landscape). La cámara sigue el movimiento suavemente en 360°.
+                Mueve tu celular para mirar en 360° o desliza con el dedo / ratón.
               </p>
             </div>
           </div>
@@ -76,9 +76,9 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({ onStartExperie
           <div className="p-3 rounded-lg bg-stone-950/80 border border-stone-800 flex items-start gap-2.5">
             <Volume2 className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
             <div>
-              <h2 className="text-xs font-mono font-bold text-stone-200 uppercase">Música & Audio 3D</h2>
+              <h2 className="text-xs font-mono font-bold text-stone-200 uppercase">Audio 3D & Háptico</h2>
               <p className="text-[11px] text-stone-400 leading-normal">
-                Banda sonora "Room of Angel" en loop inmersivo con efectos y hápticos.
+                Sonido procedural y vibración en tiempo real. Usa auriculares.
               </p>
             </div>
           </div>

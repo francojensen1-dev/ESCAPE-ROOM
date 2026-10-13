@@ -1,6 +1,0 @@
-{
-  "summary": "Plan de implementación para corregir y perfeccionar el giroscopio en modo horizontal (Landscape 90° y -90°) con seguimiento inmersivo 1 a 1, suavizado Quaternion Slerp sin bloqueos de cardán y recentrado instantáneo.",
-  "updatedAt": "2026-10-13T21:10:23.000896670Z",
-  "requestFeedback": true,
-  "userFacing": true
-}

@@ -30,7 +30,7 @@ import { NotesModal } from './components/NotesModal';
 import { InventoryDrawer } from './components/InventoryDrawer';
 import { JumpscareModal } from './components/JumpscareModal';
 import { VictoryModal } from './components/VictoryModal';
-import { Hand, Eye, Smartphone } from 'lucide-react';
+import { Hand, Eye } from 'lucide-react';
 
 export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -83,21 +83,6 @@ export default function App() {
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [nearTarget, setNearTarget] = useState<InteractiveTargetId>(null);
-  const [isLandscape, setIsLandscape] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : true
-  );
-
-  useEffect(() => {
-    const checkOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
-    return () => {
-      window.removeEventListener('resize', checkOrientation);
-      window.removeEventListener('orientationchange', checkOrientation);
-    };
-  }, []);
 
   // Movement & Look Refs
   const joystickVector = useRef({ x: 0, y: 0 });
@@ -109,9 +94,8 @@ export default function App() {
    * Start Experience: User gesture triggers audio and sensor permissions
    */
   const handleStartExperience = async () => {
-    // 1. Initialize Horror Audio and start looping background music
+    // 1. Initialize Horror Audio
     const audioOk = horrorAudio.init();
-    horrorAudio.playBackgroundMusic();
 
     // 2. Request Gyroscope
     const gyroOk = await sensorManager.requestOrientationPermission();
@@ -252,7 +236,6 @@ export default function App() {
     ]);
     setActiveModal(null);
     setGameStage('playing');
-    horrorAudio.restartBackgroundMusic();
     if (sceneRef.current) {
       sceneRef.current.recenterCamera();
       sceneRef.current.updateLocks({
@@ -327,9 +310,9 @@ export default function App() {
   useEffect(() => {
     if (gameStage !== 'playing') return;
 
-    const unsubscribe = sensorManager.onQuaternionChange((quat) => {
+    const unsubscribe = sensorManager.onOrientationChange((data) => {
       if (sceneRef.current && sensors.useGyro) {
-        sceneRef.current.applyGyroQuaternion(quat);
+        sceneRef.current.applyGyroOrientation(data);
       }
     });
 
@@ -481,14 +464,6 @@ export default function App() {
           }}
           onOpenInventory={() => setActiveModal('inventory')}
         />
-      )}
-
-      {/* Landscape Orientation Hint when phone is held vertically */}
-      {gameStage === 'playing' && !isLandscape && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs font-mono flex items-center gap-2 shadow-xl backdrop-blur-md animate-pulse pointer-events-none">
-          <Smartphone className="w-3.5 h-3.5 rotate-90 text-amber-400" />
-          <span>Gira el celular a horizontal (Landscape)</span>
-        </div>
       )}
 
       {/* Near Object Glowing Prompt Banner */}

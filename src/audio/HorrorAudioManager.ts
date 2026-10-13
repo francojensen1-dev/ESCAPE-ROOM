@@ -1,7 +1,7 @@
 /**
- * Procedural Horror Web Audio Manager with Silent Hill 4 "Room of Angel" Soundtrack
+ * Procedural Horror Web Audio Manager
  * Generates ambient horror drones, rotten fridge buzz, tension heartbeats,
- * chain clicks, footsteps, jump scare sounds, and loops the iconic background music track.
+ * chain clicks, footsteps, and jump scare sounds with zero external audio assets.
  * Exposes AnalyserNode for audioMetrics (volume, bassLevel).
  */
 
@@ -21,12 +21,6 @@ class HorrorAudioManager {
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micGain: GainNode | null = null;
 
-  // Background Music: Room of Angel
-  private bgMusic: HTMLAudioElement | null = null;
-  private musicSource: MediaElementAudioSourceNode | null = null;
-  private musicGain: GainNode | null = null;
-  private isMusicPlaying: boolean = false;
-
   private freqData: Uint8Array | null = null;
   private timeData: Uint8Array | null = null;
 
@@ -35,7 +29,6 @@ class HorrorAudioManager {
       if (this.ctx.state === 'suspended') {
         this.ctx.resume();
       }
-      this.playBackgroundMusic();
       return true;
     }
 
@@ -45,7 +38,7 @@ class HorrorAudioManager {
 
       // Master Gain
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
 
       // Analyser Node
       this.analyser = this.ctx.createAnalyser();
@@ -58,72 +51,14 @@ class HorrorAudioManager {
       this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
       this.timeData = new Uint8Array(this.analyser.frequencyBinCount);
 
-      // Setup and play background music
-      this.setupBackgroundMusic();
-
-      // Start dark ambient drone & fridge hum
+      // Start dark ambient drone
       this.startAmbientDrone();
       this.startFridgeHum();
 
       return true;
     } catch (err) {
       console.warn('AudioContext failed to initialize:', err);
-      // Fallback: still attempt to play music directly via HTMLAudioElement
-      this.setupBackgroundMusic(true);
       return false;
-    }
-  }
-
-  /**
-   * Setup looping background soundtrack: "Room of Angel"
-   */
-  private setupBackgroundMusic(standalone = false) {
-    if (typeof window === 'undefined') return;
-
-    if (!this.bgMusic) {
-      this.bgMusic = new Audio('/audio/room_of_angel.mp3');
-      this.bgMusic.loop = true;
-      this.bgMusic.preload = 'auto';
-      this.bgMusic.volume = 0.6;
-    }
-
-    if (!standalone && this.ctx && this.masterGain && !this.musicSource) {
-      try {
-        this.musicSource = this.ctx.createMediaElementSource(this.bgMusic);
-        this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
-
-        this.musicSource.connect(this.musicGain);
-        this.musicGain.connect(this.masterGain);
-      } catch (err) {
-        console.warn('MediaElementAudioSourceNode creation skipped or already attached:', err);
-      }
-    }
-
-    this.playBackgroundMusic();
-  }
-
-  public playBackgroundMusic() {
-    if (!this.bgMusic) return;
-    this.bgMusic.play().then(() => {
-      this.isMusicPlaying = true;
-    }).catch((err) => {
-      // Browser autoplay policy might need another gesture
-      console.log('Background music autoplay waiting for user interaction:', err);
-    });
-  }
-
-  public pauseBackgroundMusic() {
-    if (this.bgMusic) {
-      this.bgMusic.pause();
-      this.isMusicPlaying = false;
-    }
-  }
-
-  public restartBackgroundMusic() {
-    if (this.bgMusic) {
-      this.bgMusic.currentTime = 0;
-      this.playBackgroundMusic();
     }
   }
 
@@ -131,16 +66,12 @@ class HorrorAudioManager {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
-    this.playBackgroundMusic();
   }
 
   public setMuted(muted: boolean) {
     this.isMuted = muted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(muted ? 0 : 0.75, this.ctx.currentTime, 0.1);
-    }
-    if (this.bgMusic) {
-      this.bgMusic.muted = muted;
+      this.masterGain.gain.setTargetAtTime(muted ? 0 : 0.7, this.ctx.currentTime, 0.1);
     }
   }
 
@@ -157,6 +88,7 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain) return;
 
     try {
+      // Sub-bass drone
       this.droneOsc = this.ctx.createOscillator();
       this.droneGain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
@@ -168,7 +100,7 @@ class HorrorAudioManager {
       filter.frequency.setValueAtTime(140, this.ctx.currentTime);
       filter.Q.setValueAtTime(3.5, this.ctx.currentTime);
 
-      this.droneGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      this.droneGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
 
       this.droneOsc.connect(filter);
       filter.connect(this.droneGain);
@@ -195,7 +127,7 @@ class HorrorAudioManager {
       filter.frequency.setValueAtTime(120, this.ctx.currentTime);
       filter.Q.setValueAtTime(2.0, this.ctx.currentTime);
 
-      this.fridgeGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+      this.fridgeGain.gain.setValueAtTime(0.06, this.ctx.currentTime);
 
       this.fridgeOsc.connect(filter);
       filter.connect(this.fridgeGain);
@@ -209,14 +141,16 @@ class HorrorAudioManager {
 
   /**
    * Adjust tension level (0.0 to 1.0)
+   * As tension increases, heartbeat accelerates and ambient pitch detunes
    */
   public updateTension(tension: number) {
     if (!this.ctx || !this.droneOsc) return;
 
     const baseFreq = 46.25;
-    const detune = tension * 12;
+    const detune = tension * 12; // Slight unsettling pitch drift
     this.droneOsc.frequency.setTargetAtTime(baseFreq + Math.sin(Date.now() * 0.002) * detune, this.ctx.currentTime, 0.5);
 
+    // Dynamic heartbeat rate: from once every 2s up to twice a second
     if (tension > 0.4 && !this.heartbeatTimer) {
       this.scheduleHeartbeat(tension);
     }
@@ -237,7 +171,9 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
+    // Thump 1
     this.triggerThump(now, 55, 0.35);
+    // Thump 2 (slightly softer, 120ms later)
     this.triggerThump(now + 0.14, 48, 0.28);
   }
 
@@ -265,6 +201,7 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
+    // Low wooden floor thud
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
@@ -307,6 +244,7 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
+    // Sharp metallic mechanical click
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
@@ -323,6 +261,7 @@ class HorrorAudioManager {
     osc.start(now);
     osc.stop(now + 0.09);
 
+    // Secondary chain rattle
     setTimeout(() => {
       if (!this.ctx || !this.masterGain) return;
       const rattleNow = this.ctx.currentTime;
@@ -358,14 +297,12 @@ class HorrorAudioManager {
   }
 
   public playJumpscareScreamer() {
-    // Cut background music immediately for high impact
-    this.pauseBackgroundMusic();
-
     if (!this.ctx || !this.masterGain) return;
 
     this.resume();
     const now = this.ctx.currentTime;
 
+    // Screaming dissonant chords
     const freqs = [320, 480, 510, 680, 890, 1250, 1800];
     freqs.forEach((f) => {
       if (!this.ctx || !this.masterGain) return;
@@ -386,6 +323,7 @@ class HorrorAudioManager {
       osc.stop(now + 1.9);
     });
 
+    // Intense low sub impact
     const sub = this.ctx.createOscillator();
     const subGain = this.ctx.createGain();
     sub.type = 'sine';
@@ -403,6 +341,7 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
 
+    // Heavy long creak + cinematic release chord
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
@@ -452,6 +391,7 @@ class HorrorAudioManager {
     this.analyser.getByteFrequencyData(this.freqData as unknown as Uint8Array<ArrayBuffer>);
     this.analyser.getByteTimeDomainData(this.timeData as unknown as Uint8Array<ArrayBuffer>);
 
+    // Calculate RMS Volume
     let sumSquares = 0;
     for (let i = 0; i < this.timeData.length; i++) {
       const norm = (this.timeData[i] - 128) / 128;
@@ -459,6 +399,7 @@ class HorrorAudioManager {
     }
     const volume = Math.min(1.0, Math.sqrt(sumSquares / this.timeData.length) * 2.5);
 
+    // Calculate Bass Level (first 12 frequency bins, ~0-500Hz)
     let bassSum = 0;
     const bassBins = Math.min(12, this.freqData.length);
     for (let i = 0; i < bassBins; i++) {
@@ -471,10 +412,6 @@ class HorrorAudioManager {
 
   public dispose() {
     if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
-    if (this.bgMusic) {
-      this.bgMusic.pause();
-      this.bgMusic.src = '';
-    }
     if (this.micStream) {
       this.micStream.getTracks().forEach((track) => track.stop());
     }
