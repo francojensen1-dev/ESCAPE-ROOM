@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
-import { horrorAudio } from '../audio/HorrorAudioManager';
+import { sensorManager } from '../sensors/SensorManager';
 
 export interface SceneInteractionCallback {
   (targetId: InteractiveTargetId, distance: number): void;
@@ -31,9 +31,9 @@ export class EscapeRoomScene {
   // Player state
   private playerPosition = new THREE.Vector3(0, 1.6, 2.5); // Start in center-back
   private cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  private gyroEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  private touchLookDelta = { x: 0, y: 0 };
-  private moveVelocity = new THREE.Vector3();
+  private targetGyroQuat = new THREE.Quaternion();
+  private hasGyroData = false;
+  private useGyro = true;
   private isFlashlightOn = true;
 
   // Interactive Meshes
@@ -817,14 +817,12 @@ export class EscapeRoomScene {
   public applyMovement(vector: { x: number; y: number }, delta: number) {
     const moveSpeed = 2.4 * delta;
 
-    // Movement forward/back & left/right relative to camera's horizontal yaw
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    // Movement forward/back & left/right relative to camera's horizontal forward direction
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     forward.y = 0;
     forward.normalize();
 
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     right.y = 0;
     right.normalize();
 
@@ -840,7 +838,6 @@ export class EscapeRoomScene {
     // Simple obstacle boxes: Desk & Fridge
     // Desk: X [-4.5, -2.8], Z [-2.5, -0.5]
     if (nextPos.x < -2.8 && nextPos.z > -2.5 && nextPos.z < -0.5) {
-      // Push out
       if (this.playerPosition.x >= -2.8) nextPos.x = -2.8;
       else if (this.playerPosition.z <= -2.5) nextPos.z = -2.5;
       else if (this.playerPosition.z >= -0.5) nextPos.z = -0.5;
@@ -857,19 +854,15 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Apply Gyroscope Orientation with Lerp smoothing
+   * Apply Landscape Gyroscope Orientation Quaternion
    */
-  public applyGyroOrientation(data: OrientationData) {
-    // Gyroscope orientation mapping:
-    // Beta: Pitch (tilt up/down) in radians
-    // Alpha: Yaw (compass rotation) in radians
-    // Gamma: Roll (tilt side-to-side) in radians
-    const degToRad = Math.PI / 180;
-    const pitch = (data.beta - 90) * degToRad * 0.85; // Standard phone held at ~45-90 deg
-    const yaw = -data.alpha * degToRad;
-    const roll = -data.gamma * degToRad * 0.4;
+  public applyGyroQuaternion(quat: THREE.Quaternion) {
+    this.targetGyroQuat.copy(quat);
+    this.hasGyroData = true;
+  }
 
-    this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
+  public setUseGyro(use: boolean) {
+    this.useGyro = use;
   }
 
   /**
@@ -877,13 +870,18 @@ export class EscapeRoomScene {
    */
   public applyLookDelta(dx: number, dy: number) {
     const sensitivity = 0.003;
-    this.cameraEuler.y -= dx * sensitivity;
-    this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x - dy * sensitivity));
+    if (this.hasGyroData && this.useGyro) {
+      // While using gyroscope in horizontal mode, horizontal touch drag fine-adjusts heading
+      sensorManager.adjustYaw(dx * sensitivity);
+    } else {
+      this.cameraEuler.y -= dx * sensitivity;
+      this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x - dy * sensitivity));
+    }
   }
 
   public recenterCamera() {
     this.cameraEuler.set(0, 0, 0, 'YXZ');
-    this.gyroEuler.set(0, 0, 0, 'YXZ');
+    sensorManager.recenter();
   }
 
   /**
@@ -962,21 +960,6 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Distance from player to the main chained escape door
-   */
-  public getDistanceToDoor(): number {
-    return this.playerPosition.distanceTo(new THREE.Vector3(0, 1.4, -5.8));
-  }
-
-  /**
-   * Physical camera shudder when heavy door knocking occurs
-   */
-  public triggerDoorKnockShudder() {
-    this.camera.position.x += (Math.random() - 0.5) * 0.05;
-    this.camera.position.y += (Math.random() - 0.5) * 0.035;
-  }
-
-  /**
    * Main Render Loop
    */
   private animate() {
@@ -984,17 +967,15 @@ export class EscapeRoomScene {
 
     const time = performance.now() * 0.001;
 
-    // 1. Subtle light flicker of ceiling bulb + modulate foco hum
+    // 1. Subtle light flicker of ceiling bulb
     const flicker = 1.0 + (Math.sin(time * 12.0) > 0.85 ? -0.4 : 0.0) + (Math.random() > 0.98 ? -0.3 : 0.0);
     this.centerBulbLight.intensity = Math.max(0.2, flicker * 1.1);
-    horrorAudio.updateFocoFlicker(flicker);
 
-    // 2. Camera Orientation: combine touch yaw with gyro
-    this.camera.quaternion.setFromEuler(this.cameraEuler);
-    // If gyro is active, multiply rotation
-    if (this.gyroEuler.x !== 0 || this.gyroEuler.y !== 0) {
-      const gyroQuat = new THREE.Quaternion().setFromEuler(this.gyroEuler);
-      this.camera.quaternion.multiply(gyroQuat);
+    // 2. Camera Orientation: smooth spherical quaternion tracking in landscape
+    if (this.useGyro && this.hasGyroData) {
+      this.camera.quaternion.slerp(this.targetGyroQuat, 0.22);
+    } else {
+      this.camera.quaternion.setFromEuler(this.cameraEuler);
     }
 
     // 3. Flashlight follows camera look

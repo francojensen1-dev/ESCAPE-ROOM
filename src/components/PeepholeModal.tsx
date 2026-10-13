@@ -41,7 +41,6 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
     // Shadow moves closer after 3.5 seconds
     const shadowTimer = setTimeout(() => {
       setShadowDistance(2);
-      horrorAudio.playDoorKnock(0.85);
       horrorAudio.playHeartbeatSound();
       sensorManager.vibrate([100, 50, 100]);
     }, 3500);
@@ -49,7 +48,7 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
     const twitchTimer = setTimeout(() => {
       setShadowDistance(1);
       setJumpscareTwitch(true);
-      horrorAudio.playDoorKnock(1.0);
+      horrorAudio.playCreak();
       sensorManager.vibrate([200, 100, 300]);
     }, 6500);
 

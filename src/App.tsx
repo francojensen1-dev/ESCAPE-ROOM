@@ -30,7 +30,7 @@ import { NotesModal } from './components/NotesModal';
 import { InventoryDrawer } from './components/InventoryDrawer';
 import { JumpscareModal } from './components/JumpscareModal';
 import { VictoryModal } from './components/VictoryModal';
-import { Hand, Eye } from 'lucide-react';
+import { Hand, Eye, Smartphone } from 'lucide-react';
 
 export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -83,7 +83,21 @@ export default function App() {
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [nearTarget, setNearTarget] = useState<InteractiveTargetId>(null);
-  const [doorKnockAlert, setDoorKnockAlert] = useState<boolean>(false);
+  const [isLandscape, setIsLandscape] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : true
+  );
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
 
   // Movement & Look Refs
   const joystickVector = useRef({ x: 0, y: 0 });
@@ -95,8 +109,9 @@ export default function App() {
    * Start Experience: User gesture triggers audio and sensor permissions
    */
   const handleStartExperience = async () => {
-    // 1. Initialize Horror Audio
+    // 1. Initialize Horror Audio and start looping background music
     const audioOk = horrorAudio.init();
+    horrorAudio.playBackgroundMusic();
 
     // 2. Request Gyroscope
     const gyroOk = await sensorManager.requestOrientationPermission();
@@ -236,9 +251,8 @@ export default function App() {
       },
     ]);
     setActiveModal(null);
-    horrorAudio.init();
-    horrorAudio.resume();
     setGameStage('playing');
+    horrorAudio.restartBackgroundMusic();
     if (sceneRef.current) {
       sceneRef.current.recenterCamera();
       sceneRef.current.updateLocks({
@@ -308,42 +322,14 @@ export default function App() {
   }, [gameStage, timeLeft]);
 
   /**
-   * Random Door Knocking Scheduler:
-   * Triggers randomly when "El Pibe" is near the door or as tension escalates
-   */
-  useEffect(() => {
-    if (gameStage !== 'playing') {
-      horrorAudio.stopRandomDoorKnocks();
-      return;
-    }
-
-    horrorAudio.startRandomDoorKnocks(
-      () => (sceneRef.current ? sceneRef.current.getDistanceToDoor() : 8),
-      () => Math.min(1.0, (900 - timeLeft) / 900),
-      () => {
-        if (sceneRef.current) {
-          sceneRef.current.triggerDoorKnockShudder();
-        }
-        sensorManager.vibrate([120, 50, 180, 50, 240]);
-        setDoorKnockAlert(true);
-        setTimeout(() => setDoorKnockAlert(false), 3800);
-      }
-    );
-
-    return () => {
-      horrorAudio.stopRandomDoorKnocks();
-    };
-  }, [gameStage, timeLeft]);
-
-  /**
    * Sensor Orientation Listener Loop
    */
   useEffect(() => {
     if (gameStage !== 'playing') return;
 
-    const unsubscribe = sensorManager.onOrientationChange((data) => {
+    const unsubscribe = sensorManager.onQuaternionChange((quat) => {
       if (sceneRef.current && sensors.useGyro) {
-        sceneRef.current.applyGyroOrientation(data);
+        sceneRef.current.applyGyroQuaternion(quat);
       }
     });
 
@@ -497,6 +483,14 @@ export default function App() {
         />
       )}
 
+      {/* Landscape Orientation Hint when phone is held vertically */}
+      {gameStage === 'playing' && !isLandscape && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs font-mono flex items-center gap-2 shadow-xl backdrop-blur-md animate-pulse pointer-events-none">
+          <Smartphone className="w-3.5 h-3.5 rotate-90 text-amber-400" />
+          <span>Gira el celular a horizontal (Landscape)</span>
+        </div>
+      )}
+
       {/* Near Object Glowing Prompt Banner */}
       {gameStage === 'playing' && promptInfo && activeModal === null && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
@@ -516,16 +510,6 @@ export default function App() {
               </p>
             </div>
           </button>
-        </div>
-      )}
-
-      {/* Sudden Door Knock Alert Banner */}
-      {doorKnockAlert && gameStage === 'playing' && (
-        <div className="fixed top-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-bounce">
-          <div className="px-4 py-2 rounded-xl bg-red-950/90 border border-red-600/80 shadow-[0_0_25px_rgba(220,38,38,0.6)] backdrop-blur-md flex items-center gap-2.5 text-red-200 font-mono text-xs uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            ¡Golpes en la puerta...! El Pibe está rondando afuera.
-          </div>
         </div>
       )}
 
