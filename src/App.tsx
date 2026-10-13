@@ -83,6 +83,7 @@ export default function App() {
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [nearTarget, setNearTarget] = useState<InteractiveTargetId>(null);
+  const [doorKnockAlert, setDoorKnockAlert] = useState<boolean>(false);
 
   // Movement & Look Refs
   const joystickVector = useRef({ x: 0, y: 0 });
@@ -235,6 +236,8 @@ export default function App() {
       },
     ]);
     setActiveModal(null);
+    horrorAudio.init();
+    horrorAudio.resume();
     setGameStage('playing');
     if (sceneRef.current) {
       sceneRef.current.recenterCamera();
@@ -302,6 +305,34 @@ export default function App() {
     }, 80);
 
     return () => clearInterval(metricsInterval);
+  }, [gameStage, timeLeft]);
+
+  /**
+   * Random Door Knocking Scheduler:
+   * Triggers randomly when "El Pibe" is near the door or as tension escalates
+   */
+  useEffect(() => {
+    if (gameStage !== 'playing') {
+      horrorAudio.stopRandomDoorKnocks();
+      return;
+    }
+
+    horrorAudio.startRandomDoorKnocks(
+      () => (sceneRef.current ? sceneRef.current.getDistanceToDoor() : 8),
+      () => Math.min(1.0, (900 - timeLeft) / 900),
+      () => {
+        if (sceneRef.current) {
+          sceneRef.current.triggerDoorKnockShudder();
+        }
+        sensorManager.vibrate([120, 50, 180, 50, 240]);
+        setDoorKnockAlert(true);
+        setTimeout(() => setDoorKnockAlert(false), 3800);
+      }
+    );
+
+    return () => {
+      horrorAudio.stopRandomDoorKnocks();
+    };
   }, [gameStage, timeLeft]);
 
   /**
@@ -485,6 +516,16 @@ export default function App() {
               </p>
             </div>
           </button>
+        </div>
+      )}
+
+      {/* Sudden Door Knock Alert Banner */}
+      {doorKnockAlert && gameStage === 'playing' && (
+        <div className="fixed top-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-bounce">
+          <div className="px-4 py-2 rounded-xl bg-red-950/90 border border-red-600/80 shadow-[0_0_25px_rgba(220,38,38,0.6)] backdrop-blur-md flex items-center gap-2.5 text-red-200 font-mono text-xs uppercase tracking-wider">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+            ¡Golpes en la puerta...! El Pibe está rondando afuera.
+          </div>
         </div>
       )}
 

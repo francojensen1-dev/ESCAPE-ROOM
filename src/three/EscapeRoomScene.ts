@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
+import { horrorAudio } from '../audio/HorrorAudioManager';
 
 export interface SceneInteractionCallback {
   (targetId: InteractiveTargetId, distance: number): void;
@@ -961,6 +962,21 @@ export class EscapeRoomScene {
   }
 
   /**
+   * Distance from player to the main chained escape door
+   */
+  public getDistanceToDoor(): number {
+    return this.playerPosition.distanceTo(new THREE.Vector3(0, 1.4, -5.8));
+  }
+
+  /**
+   * Physical camera shudder when heavy door knocking occurs
+   */
+  public triggerDoorKnockShudder() {
+    this.camera.position.x += (Math.random() - 0.5) * 0.05;
+    this.camera.position.y += (Math.random() - 0.5) * 0.035;
+  }
+
+  /**
    * Main Render Loop
    */
   private animate() {
@@ -968,9 +984,10 @@ export class EscapeRoomScene {
 
     const time = performance.now() * 0.001;
 
-    // 1. Subtle light flicker of ceiling bulb
+    // 1. Subtle light flicker of ceiling bulb + modulate foco hum
     const flicker = 1.0 + (Math.sin(time * 12.0) > 0.85 ? -0.4 : 0.0) + (Math.random() > 0.98 ? -0.3 : 0.0);
     this.centerBulbLight.intensity = Math.max(0.2, flicker * 1.1);
+    horrorAudio.updateFocoFlicker(flicker);
 
     // 2. Camera Orientation: combine touch yaw with gyro
     this.camera.quaternion.setFromEuler(this.cameraEuler);

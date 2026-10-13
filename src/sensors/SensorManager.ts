@@ -1,29 +1,78 @@
 /**
- * Sensor Manager
- * Handles:
- * 1. DeviceOrientationEvent (iOS 13+ permission request + Android/Chrome fallback)
- * 2. Lerp smoothing for pitch, yaw, roll
- * 3. Haptic vibration (navigator.vibrate)
- * 4. WebRTC Camera (navigator.mediaDevices.getUserMedia)
+ * Sensor Manager for Landscape Horizontal Mobile Gyroscope
+ * Implements:
+ * 1. Standard kinematic DeviceOrientation to Camera Quaternion conversion.
+ * 2. Automatic screen orientation compensation for 90° and -90° (270°) landscape.
+ * 3. Silky-smooth spherical quaternion interpolation (slerp) without gimbal lock.
+ * 4. Instant yaw recentering and fine-touch heading calibration.
+ * 5. Haptic vibration (navigator.vibrate).
  */
 
+import * as THREE from 'three';
 import { OrientationData } from '../types/game';
 
-type OrientationCallback = (data: OrientationData) => void;
+type QuaternionCallback = (quat: THREE.Quaternion) => void;
 
 class SensorManager {
   private rawOrientation: OrientationData = { alpha: 0, beta: 0, gamma: 0 };
-  private smoothedOrientation: OrientationData = { alpha: 0, beta: 0, gamma: 0 };
-  private initialOrientation: OrientationData | null = null;
   private hasSensorData: boolean = false;
   private isListening: boolean = false;
-  private callbacks: Set<OrientationCallback> = new Set();
-  private smoothingFactor: number = 0.15; // Lerp factor
+  private callbacks: Set<QuaternionCallback> = new Set();
+
+  // Mathematical orientation matrices
+  private readonly _zee = new THREE.Vector3(0, 0, 1);
+  private readonly _euler = new THREE.Euler();
+  private readonly _q0 = new THREE.Quaternion();
+  private readonly _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+
+  private targetQuat = new THREE.Quaternion();
+  private smoothedQuat = new THREE.Quaternion();
+  private yawOffset: number = 0; // heading offset for recentering
+  private slerpFactor: number = 0.16; // Slerp smoothing factor
+  private screenAngle: number = 90; // Default landscape angle
+  private hasInitializedYaw: boolean = false;
+
   private cameraStream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
 
   constructor() {
     this.handleOrientationEvent = this.handleOrientationEvent.bind(this);
+    this.updateScreenAngle = this.updateScreenAngle.bind(this);
+
+    if (typeof window !== 'undefined') {
+      this.updateScreenAngle();
+      window.addEventListener('orientationchange', this.updateScreenAngle);
+      if (window.screen && window.screen.orientation) {
+        window.screen.orientation.addEventListener('change', this.updateScreenAngle);
+      }
+    }
+  }
+
+  private updateScreenAngle() {
+    if (typeof window === 'undefined') return;
+
+    let angle = 0;
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+      angle = window.screen.orientation.angle;
+    } else if (typeof window.orientation === 'number') {
+      angle = window.orientation;
+    }
+
+    // In desktop or ambiguous states, prefer 90 if width > height
+    if (angle === 0 && window.innerWidth > window.innerHeight) {
+      angle = 90;
+    }
+
+    this.screenAngle = angle;
+  }
+
+  public getScreenAngle(): number {
+    return this.screenAngle;
+  }
+
+  public isLandscape(): boolean {
+    if (typeof window === 'undefined') return true;
+    return window.innerWidth > window.innerHeight;
   }
 
   /**
@@ -43,7 +92,6 @@ class SensorManager {
         }
         return false;
       } else if ('DeviceOrientationEvent' in window) {
-        // Android / non-iOS standard browsers
         this.startListening();
         return true;
       }
@@ -56,6 +104,7 @@ class SensorManager {
 
   public startListening() {
     if (this.isListening) return;
+    this.updateScreenAngle();
     window.addEventListener('deviceorientation', this.handleOrientationEvent, true);
     this.isListening = true;
   }
@@ -77,28 +126,50 @@ class SensorManager {
     const beta = event.beta ?? 0;   // -180..180
     const gamma = event.gamma ?? 0; // -90..90
 
-    if (!this.initialOrientation) {
-      this.initialOrientation = { alpha, beta, gamma };
-    }
-
     this.rawOrientation = { alpha, beta, gamma };
+
+    // Calculate Device Orientation Quaternion with screen orientation compensation
+    const degToRad = Math.PI / 180;
+    const alphaRad = alpha * degToRad;
+    const betaRad = beta * degToRad;
+    const gammaRad = gamma * degToRad;
+    const orientRad = this.screenAngle * degToRad;
+
+    // Standard device orientation Euler order 'YXZ'
+    this._euler.set(betaRad, alphaRad, -gammaRad, 'YXZ');
+    this.targetQuat.setFromEuler(this._euler);
+    this.targetQuat.multiply(this._q1); // Orient camera looking out back of phone
+    this.targetQuat.multiply(this._q0.setFromAxisAngle(this._zee, -orientRad)); // Compensate screen orientation
+
+    // First time receiving sensor data: auto-recenter forward
+    if (!this.hasInitializedYaw) {
+      this.recenter();
+      this.hasInitializedYaw = true;
+    }
   }
 
   /**
-   * Called every frame to smooth orientation using Lerp
+   * Called every frame to smooth orientation using Spherical Linear Interpolation (Slerp)
    */
-  public updateSmoothing(): OrientationData {
-    // Lerp smoothing
-    this.smoothedOrientation.alpha += (this.rawOrientation.alpha - this.smoothedOrientation.alpha) * this.smoothingFactor;
-    this.smoothedOrientation.beta += (this.rawOrientation.beta - this.smoothedOrientation.beta) * this.smoothingFactor;
-    this.smoothedOrientation.gamma += (this.rawOrientation.gamma - this.smoothedOrientation.gamma) * this.smoothingFactor;
+  public updateSmoothing(): THREE.Quaternion {
+    if (!this.hasSensorData) {
+      return this.smoothedQuat;
+    }
 
-    this.callbacks.forEach((cb) => cb(this.smoothedOrientation));
-    return this.smoothedOrientation;
+    // Apply yawOffset (heading adjustment for recentering)
+    const finalTarget = new THREE.Quaternion();
+    const yawRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -this.yawOffset);
+    finalTarget.multiplyQuaternions(yawRot, this.targetQuat);
+
+    // Smooth slerp towards finalTarget
+    this.smoothedQuat.slerp(finalTarget, this.slerpFactor);
+
+    this.callbacks.forEach((cb) => cb(this.smoothedQuat));
+    return this.smoothedQuat;
   }
 
-  public getOrientation(): OrientationData {
-    return this.smoothedOrientation;
+  public getQuaternion(): THREE.Quaternion {
+    return this.smoothedQuat;
   }
 
   public getRawOrientation(): OrientationData {
@@ -109,14 +180,37 @@ class SensorManager {
     return this.hasSensorData;
   }
 
+  /**
+   * Recenter camera forward direction to 0 yaw (looking at the main door)
+   */
   public recenter() {
-    this.initialOrientation = { ...this.rawOrientation };
-    this.smoothedOrientation = { ...this.rawOrientation };
+    this.updateScreenAngle();
+
+    // Extract current horizontal yaw from targetQuat
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.targetQuat);
+    forward.y = 0;
+    forward.normalize();
+
+    // Current yaw angle
+    this.yawOffset = Math.atan2(forward.x, -forward.z);
+
+    // Snap smoothed quaternion directly to current recentered orientation
+    const yawRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -this.yawOffset);
+    this.smoothedQuat.multiplyQuaternions(yawRot, this.targetQuat);
   }
 
-  public onOrientationChange(cb: OrientationCallback) {
+  /**
+   * Fine horizontal adjustment from touch drag
+   */
+  public adjustYaw(deltaRadians: number) {
+    this.yawOffset += deltaRadians;
+  }
+
+  public onQuaternionChange(cb: QuaternionCallback) {
     this.callbacks.add(cb);
-    return () => this.callbacks.delete(cb);
+    return () => {
+      this.callbacks.delete(cb);
+    };
   }
 
   /**
@@ -180,6 +274,12 @@ class SensorManager {
     this.stopListening();
     this.stopCamera();
     this.callbacks.clear();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('orientationchange', this.updateScreenAngle);
+      if (window.screen && window.screen.orientation) {
+        window.screen.orientation.removeEventListener('change', this.updateScreenAngle);
+      }
+    }
   }
 }
 
