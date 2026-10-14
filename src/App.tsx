@@ -358,6 +358,10 @@ export default function App() {
   useEffect(() => {
     if (gameStage !== 'playing') return;
 
+    if (typeof sensorManager?.onOrientationChange !== 'function') {
+      return;
+    }
+
     const unsubscribe = sensorManager.onOrientationChange((data) => {
       if (sceneRef.current && sensors.useGyro) {
         sceneRef.current.applyGyroOrientation(data);
@@ -365,7 +369,9 @@ export default function App() {
     });
 
     return () => {
-      unsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [gameStage, sensors.useGyro]);
 
