@@ -29,8 +29,17 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
   onEscapeSuccess,
   onClose,
 }) => {
+  const [knockImpact, setKnockImpact] = React.useState(false);
   const hasKey = inventory.some((item) => item.id === 'key_fridge');
   const allUnlocked = lockState.keyLock && lockState.codeLock && lockState.fuseLock;
+
+  React.useEffect(() => {
+    const unregister = horrorAudio.onDoorKnock(() => {
+      setKnockImpact(true);
+      setTimeout(() => setKnockImpact(false), 450);
+    });
+    return () => unregister();
+  }, []);
 
   const handleUseKey = () => {
     if (!hasKey || lockState.keyLock) return;
@@ -48,7 +57,18 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
+      <div
+        className={`w-full max-w-md bg-stone-900 border rounded-xl overflow-hidden shadow-2xl flex flex-col transition-all duration-75 ${
+          knockImpact
+            ? 'border-red-600 scale-[1.02] shadow-[0_0_40px_rgba(239,68,68,0.4)]'
+            : 'border-stone-800'
+        }`}
+      >
+        {knockImpact && (
+          <div className="bg-red-950/90 border-b border-red-600/60 py-1.5 px-3 text-center text-xs font-mono text-red-300 font-bold tracking-widest animate-pulse">
+            ⚠️ ¡EL PIBE ESTÁ GOLPEANDO LA PUERTA DESDE AFUERA!
+          </div>
+        )}
         {/* Header */}
         <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
           <div className="flex items-center gap-2">

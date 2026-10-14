@@ -18,10 +18,18 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
   const [shadowDistance, setShadowDistance] = useState<number>(3); // 3: far, 2: medium, 1: terrifyingly close
   const [jumpscareTwitch, setJumpscareTwitch] = useState<boolean>(false);
 
+  const [knockShake, setKnockShake] = useState<boolean>(false);
+
   useEffect(() => {
     // Heighten tension audio and heartbeat
     horrorAudio.updateTension(0.75);
     sensorManager.vibrate([40, 80, 40]);
+
+    // Listen for door knocks to shake the lens
+    const unregisterKnock = horrorAudio.onDoorKnock(() => {
+      setKnockShake(true);
+      setTimeout(() => setKnockShake(false), 380);
+    });
 
     // Hallway light flicker & shadow progression intervals
     const interval = setInterval(() => {
@@ -38,21 +46,24 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
       }
     }, 450);
 
-    // Shadow moves closer after 3.5 seconds
+    // Shadow moves closer after 3.2 seconds
     const shadowTimer = setTimeout(() => {
       setShadowDistance(2);
       horrorAudio.playHeartbeatSound();
+      horrorAudio.playDoorKnocks(0.85);
       sensorManager.vibrate([100, 50, 100]);
-    }, 3500);
+    }, 3200);
 
     const twitchTimer = setTimeout(() => {
       setShadowDistance(1);
       setJumpscareTwitch(true);
       horrorAudio.playCreak();
+      horrorAudio.playDoorKnocks(1.0);
       sensorManager.vibrate([200, 100, 300]);
-    }, 6500);
+    }, 6200);
 
     return () => {
+      unregisterKnock();
       clearInterval(interval);
       clearTimeout(shadowTimer);
       clearTimeout(twitchTimer);
@@ -79,7 +90,9 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
       </div>
 
       {/* Fisheye Peephole Vignette Frame */}
-      <div className="relative w-72 h-72 sm:w-96 sm:h-96 rounded-full overflow-hidden border-8 border-stone-800 shadow-[0_0_60px_rgba(0,0,0,0.9),inset_0_0_80px_rgba(0,0,0,1)] bg-stone-950 flex items-center justify-center">
+      <div className={`relative w-72 h-72 sm:w-96 sm:h-96 rounded-full overflow-hidden border-8 border-stone-800 shadow-[0_0_60px_rgba(0,0,0,0.9),inset_0_0_80px_rgba(0,0,0,1)] bg-stone-950 flex items-center justify-center transition-transform duration-75 ${
+        knockShake ? 'scale-105 translate-x-1 -translate-y-1' : 'scale-100'
+      }`}>
         {/* Hallway Perspective Container */}
         <div
           style={{

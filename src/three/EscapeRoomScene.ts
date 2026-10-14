@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
+import { horrorAudio } from '../audio/HorrorAudioManager';
 
 export interface SceneInteractionCallback {
   (targetId: InteractiveTargetId, distance: number): void;
@@ -23,9 +24,15 @@ export class EscapeRoomScene {
   // Lighting
   private ambientLight: THREE.AmbientLight;
   private centerBulbLight: THREE.PointLight;
+  private bulbMesh: THREE.Mesh | null = null;
   private flashlight: THREE.SpotLight;
   private flashlightTarget: THREE.Object3D;
   private fridgeGlowLight: THREE.PointLight;
+
+  // Door Mesh & Knock Impact
+  private doorGroup: THREE.Group | null = null;
+  private doorBaseZ: number = -5.92;
+  private doorShakeStartTime: number = 0;
 
   // Player state
   private playerPosition = new THREE.Vector3(0, 1.6, 2.5); // Start in center-back
@@ -192,6 +199,7 @@ export class EscapeRoomScene {
       new THREE.MeshBasicMaterial({ color: 0xffeaad })
     );
     bulbMesh.position.y = 2.8;
+    this.bulbMesh = bulbMesh;
     bulbGroup.add(bulbMesh);
     this.scene.add(bulbGroup);
   }
@@ -209,6 +217,7 @@ export class EscapeRoomScene {
   private buildMainChainedDoor() {
     const doorGroup = new THREE.Group();
     doorGroup.position.set(0, 1.35, -5.92);
+    this.doorGroup = doorGroup;
 
     const doorTex = TextureGenerator.createDoorTexture();
     const doorMat = new THREE.MeshStandardMaterial({
@@ -961,6 +970,23 @@ export class EscapeRoomScene {
   }
 
   /**
+   * Distance from player camera to Main Chained Door
+   */
+  public getDistanceToDoor(): number {
+    return this.camera.position.distanceTo(new THREE.Vector3(0, 1.35, this.doorBaseZ));
+  }
+
+  /**
+   * Visual recoil & camera tremor when heavy door knocks occur
+   */
+  public triggerDoorKnockImpact() {
+    this.doorShakeStartTime = performance.now();
+    // Micro camera tremor
+    this.cameraEuler.x += (Math.random() - 0.5) * 0.02;
+    this.cameraEuler.y += (Math.random() - 0.5) * 0.02;
+  }
+
+  /**
    * Main Render Loop
    */
   private animate() {
@@ -968,11 +994,34 @@ export class EscapeRoomScene {
 
     const time = performance.now() * 0.001;
 
-    // 1. Subtle light flicker of ceiling bulb
-    const flicker = 1.0 + (Math.sin(time * 12.0) > 0.85 ? -0.4 : 0.0) + (Math.random() > 0.98 ? -0.3 : 0.0);
-    this.centerBulbLight.intensity = Math.max(0.2, flicker * 1.1);
+    // 1. Light flicker of ceiling bulb synchronized with "sonido de foco"
+    const isDip = Math.sin(time * 12.0) > 0.82 || Math.random() > 0.96;
+    const flicker = 1.0 + (isDip ? -0.45 : 0.0) + (Math.random() > 0.95 ? -0.2 : 0.0);
+    const bulbIntensity = Math.max(0.2, flicker * 1.15);
+    this.centerBulbLight.intensity = bulbIntensity;
 
-    // 2. Camera Orientation: combine touch yaw with gyro
+    if (this.bulbMesh) {
+      (this.bulbMesh.material as THREE.MeshBasicMaterial).color.setHex(
+        isDip ? 0xb59e66 : 0xffeaad
+      );
+    }
+
+    // Synchronize ceiling light with lower-volume foco electrical sound
+    horrorAudio.syncCeilingLight(bulbIntensity, isDip);
+
+    // 2. Physical door vibration on knock impact
+    if (this.doorGroup && this.doorShakeStartTime > 0) {
+      const elapsed = performance.now() - this.doorShakeStartTime;
+      if (elapsed < 400) {
+        const decay = 1.0 - elapsed / 400;
+        const joltZ = Math.sin(elapsed * 0.08) * 0.018 * decay;
+        this.doorGroup.position.z = this.doorBaseZ + joltZ;
+      } else {
+        this.doorGroup.position.z = this.doorBaseZ;
+      }
+    }
+
+    // 3. Camera Orientation: combine touch yaw with gyro
     this.camera.quaternion.setFromEuler(this.cameraEuler);
     // If gyro is active, multiply rotation
     if (this.gyroEuler.x !== 0 || this.gyroEuler.y !== 0) {
@@ -980,15 +1029,15 @@ export class EscapeRoomScene {
       this.camera.quaternion.multiply(gyroQuat);
     }
 
-    // 3. Flashlight follows camera look
+    // 4. Flashlight follows camera look
     this.flashlight.position.copy(this.camera.position);
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     this.flashlightTarget.position.copy(this.camera.position).add(forward.multiplyScalar(4));
 
-    // 4. Check proximity and glow
+    // 5. Check proximity and glow
     this.checkProximityAndHighlights(time);
 
-    // 5. Render
+    // 6. Render
     this.renderer.render(this.scene, this.camera);
   }
 

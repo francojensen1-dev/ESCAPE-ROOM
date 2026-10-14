@@ -305,6 +305,54 @@ export default function App() {
   }, [gameStage, timeLeft]);
 
   /**
+   * "El Pibe" Stalker Proximity & Random Door Knocks ("Golpes en la puerta")
+   * Whenever "el pibe" is near the door (due to player approaching the door or periodic hallway stalking),
+   * sudden heavy knocks sound randomly against the door.
+   */
+  useEffect(() => {
+    if (gameStage !== 'playing') return;
+
+    let knockTimeout: number | undefined;
+    let isStalkerRoamingNearDoor = false;
+
+    // Periodic roaming cycle: El Pibe walks up to the door every ~22 seconds
+    const stalkerCycle = window.setInterval(() => {
+      isStalkerRoamingNearDoor = true;
+      setTimeout(() => {
+        isStalkerRoamingNearDoor = false;
+      }, 10000);
+    }, 22000);
+
+    const triggerKnockCheck = () => {
+      const dist = sceneRef.current ? sceneRef.current.getDistanceToDoor() : 6.0;
+      const isPlayerAtDoor = dist < 3.8 || activeModal === 'main_door' || activeModal === 'peephole';
+      const isPibeNearDoor = isPlayerAtDoor || isStalkerRoamingNearDoor;
+
+      if (isPibeNearDoor) {
+        // Distance-scaled volume: loud and punchy when near, slightly muffled if across the room
+        const volumeFactor = Math.max(0.35, Math.min(1.0, 1.0 - (dist - 1.2) * 0.12));
+        horrorAudio.playDoorKnocks(volumeFactor);
+        if (sceneRef.current) {
+          sceneRef.current.triggerDoorKnockImpact();
+        }
+        sensorManager.vibrate([70, 45, 70, 45, 95]);
+      }
+
+      // Next random knock in 3.5s to 9.0s
+      const nextDelay = 3500 + Math.random() * 5500;
+      knockTimeout = window.setTimeout(triggerKnockCheck, nextDelay);
+    };
+
+    // First knock check after initial 3.5 seconds
+    knockTimeout = window.setTimeout(triggerKnockCheck, 3500);
+
+    return () => {
+      if (knockTimeout) clearTimeout(knockTimeout);
+      clearInterval(stalkerCycle);
+    };
+  }, [gameStage, activeModal]);
+
+  /**
    * Sensor Orientation Listener Loop
    */
   useEffect(() => {
