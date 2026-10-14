@@ -508,4 +508,456 @@ export class TextureGenerator {
 
     return new THREE.CanvasTexture(canvas);
   }
+
+  /**
+   * Decaying moldy bathroom tile texture (East room bathroom)
+   */
+  public static createBathroomTileTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Base dirty porcelain / sickly cyan-gray
+    ctx.fillStyle = '#2a3b38';
+    ctx.fillRect(0, 0, 512, 512);
+
+    const tileSize = 64;
+    for (let x = 0; x < 512; x += tileSize) {
+      for (let y = 0; y < 512; y += tileSize) {
+        // Tile gradient
+        const tGrad = ctx.createLinearGradient(x, y, x + tileSize, y + tileSize);
+        const hueVar = (Math.sin(x * 0.1) + Math.cos(y * 0.1)) * 10;
+        tGrad.addColorStop(0, `rgb(${45 + hueVar}, ${65 + hueVar}, ${62 + hueVar})`);
+        tGrad.addColorStop(1, `rgb(${30 + hueVar}, ${48 + hueVar}, ${45 + hueVar})`);
+        ctx.fillStyle = tGrad;
+        ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+        // Mold & water stain splatter on some tiles
+        if (Math.random() > 0.6) {
+          ctx.fillStyle = 'rgba(15, 30, 25, 0.45)';
+          ctx.beginPath();
+          ctx.arc(x + tileSize * 0.5, y + tileSize * 0.5, Math.random() * 20 + 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Dark dirty moldy grout grid
+    ctx.strokeStyle = '#0e1715';
+    ctx.lineWidth = 3;
+    for (let i = 0; i <= 512; i += tileSize) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 512);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(512, i);
+      ctx.stroke();
+    }
+
+    // Dripping vertical dark sludge streaks
+    for (let s = 0; s < 8; s++) {
+      const sx = Math.random() * 512;
+      const sGrad = ctx.createLinearGradient(sx, 0, sx, 400);
+      sGrad.addColorStop(0, 'rgba(10, 20, 15, 0.8)');
+      sGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = sGrad;
+      ctx.fillRect(sx, 0, Math.random() * 14 + 6, 400);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  /**
+   * Broken wall tile displaying carved code "MORIR"
+   */
+  public static createBrokenTileTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Cracked tile background
+    ctx.fillStyle = '#1c2825';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Surrounding intact tile borders
+    ctx.strokeStyle = '#0e1715';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(4, 4, 504, 504);
+
+    // Deep jagged broken recess in plaster
+    ctx.fillStyle = '#080808';
+    ctx.beginPath();
+    ctx.moveTo(60, 80);
+    ctx.lineTo(440, 60);
+    ctx.lineTo(470, 360);
+    ctx.lineTo(380, 450);
+    ctx.lineTo(120, 460);
+    ctx.lineTo(50, 280);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#351818';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Jagged cracks spreading
+    ctx.strokeStyle = '#111816';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(60, 80); ctx.lineTo(10, 10);
+    ctx.moveTo(440, 60); ctx.lineTo(500, 20);
+    ctx.moveTo(380, 450); ctx.lineTo(480, 500);
+    ctx.moveTo(120, 460); ctx.lineTo(20, 500);
+    ctx.stroke();
+
+    // Bloody, desperate fingernail carving: "M O R I R"
+    ctx.fillStyle = '#ba1e1e';
+    ctx.font = 'bold 52px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 12;
+    ctx.fillText('M O R I R', 256, 260);
+
+    // Blood drips down from the letters
+    ctx.fillStyle = '#800e0e';
+    ctx.shadowBlur = 0;
+    for (let d = 0; d < 5; d++) {
+      const dx = 130 + d * 64;
+      ctx.fillRect(dx, 275, 4, Math.random() * 50 + 20);
+    }
+
+    ctx.font = 'italic 16px sans-serif';
+    ctx.fillStyle = '#6e5e5e';
+    ctx.fillText('(CÓDIGO DE 5 LETRAS)', 256, 340);
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  /**
+   * White Square Ceramic Tiles matching the photo reference
+   * Dirty off-white porcelain, dark dirty grout, mold, water leaks, and crawling roaches
+   */
+  public static createWhiteTileTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Base dirty wall
+    ctx.fillStyle = '#22201d';
+    ctx.fillRect(0, 0, 512, 512);
+
+    const tileSize = 64; // 8x8 grid of square tiles
+    for (let x = 0; x < 512; x += tileSize) {
+      for (let y = 0; y < 512; y += tileSize) {
+        // Individual tile shading (subtle variations in off-white / light beige)
+        const shade = 210 + Math.floor((Math.sin(x * 12.3 + y * 7.1) + Math.cos(x * 3.4)) * 14);
+        const redShade = Math.min(245, shade + 2);
+        const greenShade = Math.min(240, shade);
+        const blueShade = Math.max(180, shade - 10);
+
+        ctx.fillStyle = `rgb(${redShade}, ${greenShade}, ${blueShade})`;
+        ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+        // Dirty water smudge or mold on some tiles
+        if (Math.random() > 0.5) {
+          ctx.fillStyle = 'rgba(70, 60, 48, 0.18)';
+          ctx.beginPath();
+          ctx.arc(x + tileSize * (0.3 + Math.random() * 0.4), y + tileSize * (0.3 + Math.random() * 0.4), Math.random() * 14 + 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Small grime spots in tile corners
+        ctx.fillStyle = 'rgba(30, 24, 18, 0.35)';
+        ctx.fillRect(x + 2, y + 2, 6, 6);
+      }
+    }
+
+    // Dark dirty grout lines
+    ctx.strokeStyle = '#2b2722';
+    ctx.lineWidth = 3;
+    for (let i = 0; i <= 512; i += tileSize) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+    }
+
+    // Cockroach / insect silhouettes scattered on tiles (matching the reference photo!)
+    const roachSpots = [
+      { x: 95, y: 130, angle: 0.6 },
+      { x: 260, y: 75, angle: -0.8 },
+      { x: 395, y: 190, angle: 1.4 },
+      { x: 180, y: 310, angle: -0.3 },
+      { x: 440, y: 380, angle: 0.9 },
+      { x: 110, y: 440, angle: -1.2 },
+      { x: 320, y: 470, angle: 2.1 },
+    ];
+
+    roachSpots.forEach((r) => {
+      ctx.save();
+      ctx.translate(r.x, r.y);
+      ctx.rotate(r.angle);
+
+      // Body (oval)
+      ctx.fillStyle = '#1c1008';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(0, -11, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Legs
+      ctx.strokeStyle = '#180d06';
+      ctx.lineWidth = 1.2;
+      for (let leg = -1; leg <= 1; leg++) {
+        // Left legs
+        ctx.beginPath();
+        ctx.moveTo(-4, leg * 6);
+        ctx.lineTo(-12, leg * 7 - 2);
+        ctx.stroke();
+        // Right legs
+        ctx.beginPath();
+        ctx.moveTo(4, leg * 6);
+        ctx.lineTo(12, leg * 7 - 2);
+        ctx.stroke();
+      }
+
+      // Antennae
+      ctx.beginPath();
+      ctx.moveTo(-2, -13);
+      ctx.lineTo(-9, -24);
+      ctx.moveTo(2, -13);
+      ctx.lineTo(9, -24);
+      ctx.stroke();
+
+      ctx.restore();
+    });
+
+    // Dark water drippings / streaks from ceiling
+    for (let s = 0; s < 6; s++) {
+      const sx = 60 + s * 75 + Math.random() * 20;
+      const grad = ctx.createLinearGradient(sx, 0, sx, 320);
+      grad.addColorStop(0, 'rgba(40, 32, 22, 0.7)');
+      grad.addColorStop(0.6, 'rgba(60, 48, 35, 0.3)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx, 0, 8, 320);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  /**
+   * Vintage Black and White Mosaic Floor Tile (matching reference photo)
+   */
+  public static createBathroomFloorMosaicTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Base dirty grout
+    ctx.fillStyle = '#22201e';
+    ctx.fillRect(0, 0, 512, 512);
+
+    const step = 32;
+    for (let x = 0; x < 512; x += step) {
+      for (let y = 0; y < 512; y += step) {
+        // White octagonal / square mosaic tile
+        const isBlackDot = (x / step) % 2 === 0 && (y / step) % 2 === 0;
+
+        if (isBlackDot) {
+          // Small black accent dot
+          ctx.fillStyle = '#141416';
+          ctx.fillRect(x + 4, y + 4, step - 8, step - 8);
+        } else {
+          // Off-white mosaic tile with grunge
+          const w = 215 + Math.floor((Math.random() - 0.5) * 16);
+          ctx.fillStyle = `rgb(${w}, ${w - 4}, ${w - 10})`;
+          ctx.fillRect(x + 2, y + 2, step - 4, step - 4);
+        }
+      }
+    }
+
+    // Water stains and muddy footsteps on the floor
+    for (let p = 0; p < 8; p++) {
+      ctx.fillStyle = 'rgba(25, 18, 12, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(
+        Math.random() * 512,
+        Math.random() * 512,
+        30 + Math.random() * 50,
+        20 + Math.random() * 30,
+        Math.random() * Math.PI,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  /**
+   * Water heater / Boiler label ("Postmeslip")
+   */
+  public static createWaterHeaterTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Enameled off-white metal
+    ctx.fillStyle = '#dedacf';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Rust & grime stains
+    for (let i = 0; i < 500; i++) {
+      ctx.fillStyle = 'rgba(120, 80, 50, 0.05)';
+      ctx.beginPath();
+      ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Brand "Postmeslip" script on upper right (from reference photo)
+    ctx.font = 'italic bold 28px sans-serif';
+    ctx.fillStyle = '#3a3834';
+    ctx.fillText('Postmeslip', 310, 110);
+
+    // Temperature panel (black oval with dials)
+    ctx.fillStyle = '#1c1c1e';
+    ctx.beginPath();
+    ctx.roundRect(380, 240, 75, 140, 20);
+    ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Two dial knobs
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(417, 280, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(417, 340, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Red LED
+    ctx.fillStyle = '#ff2222';
+    ctx.beginPath();
+    ctx.arc(417, 252, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+  /**
+   * Moldy shower curtain texture
+   */
+  public static createShowerCurtainTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dirty plastic translucent tone
+    ctx.fillStyle = '#9c9a92';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Vertical curtain folds / shadow wrinkles
+    for (let x = 0; x < 512; x += 32) {
+      const grad = ctx.createLinearGradient(x, 0, x + 32, 0);
+      grad.addColorStop(0, 'rgba(40, 40, 36, 0.6)');
+      grad.addColorStop(0.5, 'rgba(180, 178, 170, 0.3)');
+      grad.addColorStop(1, 'rgba(30, 30, 26, 0.7)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, 0, 32, 512);
+    }
+
+    // Mildew and mold at the bottom
+    const moldGrad = ctx.createLinearGradient(0, 300, 0, 512);
+    moldGrad.addColorStop(0, 'rgba(20, 35, 25, 0.0)');
+    moldGrad.addColorStop(0.7, 'rgba(25, 45, 30, 0.6)');
+    moldGrad.addColorStop(1, 'rgba(15, 30, 20, 0.9)');
+    ctx.fillStyle = moldGrad;
+    ctx.fillRect(0, 300, 512, 212);
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  /**
+   * Subtle broken tile texture that blends seamlessly with the white tiled wall
+   * Has fine hairline cracks and a chipped corner, NOT obvious from across the room!
+   */
+  public static createSubtleBrokenTileTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Same dirty white porcelain as the surrounding tiles
+    ctx.fillStyle = '#dcdad1';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Dark dirty grout border around the tile
+    ctx.strokeStyle = '#2b2722';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, 250, 250);
+
+    // Subtle fine spiderweb cracks (realistic hairline fractures)
+    ctx.strokeStyle = '#3d3730';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(40, 30);
+    ctx.lineTo(95, 110);
+    ctx.lineTo(145, 135);
+    ctx.lineTo(215, 220);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(95, 110);
+    ctx.lineTo(60, 185);
+    ctx.lineTo(40, 230);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(145, 135);
+    ctx.lineTo(220, 120);
+    ctx.stroke();
+
+    // Chipped corner with exposed dark plaster
+    ctx.fillStyle = '#1c1916';
+    ctx.beginPath();
+    ctx.moveTo(190, 256);
+    ctx.lineTo(256, 190);
+    ctx.lineTo(256, 256);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dried blood stain around the crack
+    ctx.fillStyle = 'rgba(100, 20, 20, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(140, 140, 45, 25, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(canvas);
+  }
 }

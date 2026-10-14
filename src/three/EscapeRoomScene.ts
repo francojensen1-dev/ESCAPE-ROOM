@@ -47,11 +47,16 @@ export class EscapeRoomScene {
   private highlightMaterials: Map<InteractiveTargetId, THREE.MeshStandardMaterial> = new Map();
   private currentNearTarget: InteractiveTargetId = null;
 
-  // Chains & Locks meshes on main door
+  // Chains & Locks meshes on main door (4 locks)
   private chainGroup: THREE.Group = new THREE.Group();
-  private keyLockMesh: THREE.Object3D | null = null;
   private codeLockMesh: THREE.Object3D | null = null;
   private fuseLockMesh: THREE.Object3D | null = null;
+  private toiletLockMesh: THREE.Object3D | null = null;
+  private letterLockMesh: THREE.Object3D | null = null;
+
+  // Bathroom dividing door
+  private bathroomDoorPivot: THREE.Group = new THREE.Group();
+  private isBathroomUnlocked: boolean = false;
 
   // Callbacks
   private onInteractionUpdate: SceneInteractionCallback | null = null;
@@ -114,6 +119,7 @@ export class EscapeRoomScene {
     this.buildRottenFridge();
     this.buildStudyDesk();
     this.buildElectricalFuseBox();
+    this.buildBathroom();
     this.buildWallDecorations();
 
     // 6. Bind resize
@@ -173,11 +179,24 @@ export class EscapeRoomScene {
     southWall.rotation.y = Math.PI;
     this.scene.add(southWall);
 
-    // East Wall (X = 5, kitchen area & fusebox)
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), wallMat);
-    eastWall.position.set(5, 1.7, 0);
-    eastWall.rotation.y = -Math.PI / 2;
-    this.scene.add(eastWall);
+    // East Wall with Bathroom Doorway opening (between Z: 0.4 and 2.4)
+    // 1. North Segment (Z: -6 to 0.4, length 6.4m, center Z = -2.8)
+    const eastWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), wallMat);
+    eastWallNorth.position.set(5, 1.7, -2.8);
+    eastWallNorth.rotation.y = -Math.PI / 2;
+    this.scene.add(eastWallNorth);
+
+    // 2. South Segment (Z: 2.4 to 6.0, length 3.6m, center Z = 4.2)
+    const eastWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.4), wallMat);
+    eastWallSouth.position.set(5, 1.7, 4.2);
+    eastWallSouth.rotation.y = -Math.PI / 2;
+    this.scene.add(eastWallSouth);
+
+    // 3. Header Wall above bathroom doorway (Z: 0.4 to 2.4, Y: 2.3 to 3.4)
+    const eastWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1), wallMat);
+    eastWallHeader.position.set(5, 2.85, 1.4);
+    eastWallHeader.rotation.y = -Math.PI / 2;
+    this.scene.add(eastWallHeader);
 
     // West Wall (X = -5, study desk & calendar)
     const westWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), wallMat);
@@ -524,35 +543,8 @@ export class EscapeRoomScene {
     instancedChains.instanceMatrix.needsUpdate = true;
     this.chainGroup.add(instancedChains);
 
-    // 6. Heavy Hanging Padlocks Matching Reference
-    // Padlock 1: Left Hanging Brass Key Padlock (opened with fridge key)
-    const keyLockGroup = new THREE.Group();
-    keyLockGroup.position.set(-0.82, 0.06, 0.16);
-    keyLockGroup.rotation.z = 0.08;
-
-    const keyLockBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.18, 0.06),
-      new THREE.MeshStandardMaterial({ color: 0xba943a, metalness: 0.85, roughness: 0.3 })
-    );
-    const keyLockShackle = new THREE.Mesh(
-      new THREE.TorusGeometry(0.065, 0.016, 8, 16, Math.PI),
-      new THREE.MeshStandardMaterial({ color: 0x82848a, metalness: 0.9, roughness: 0.2 })
-    );
-    keyLockShackle.position.set(0, 0.09, 0);
-
-    // Keyhole detail
-    const keyhole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.01, 0.01, 0.01, 8),
-      new THREE.MeshBasicMaterial({ color: 0x0a0a0a })
-    );
-    keyhole.rotation.x = Math.PI / 2;
-    keyhole.position.set(0, -0.02, 0.031);
-
-    keyLockGroup.add(keyLockBody, keyLockShackle, keyhole);
-    this.keyLockMesh = keyLockGroup;
-    this.chainGroup.add(keyLockGroup);
-
-    // Padlock 2: Central Junction 4-Digit Combination Padlock (opened with 1986 code)
+    // 6. Heavy Hanging Padlocks (4 Locks: 4-digit code, 220V breaker, toilet iron key, 5-letter word)
+    // Padlock 1: Central Junction 4-Digit Combination Padlock (opened with 1986 code)
     const codeLockGroup = new THREE.Group();
     codeLockGroup.position.set(0.30, 0.02, 0.19);
     codeLockGroup.rotation.z = -0.15;
@@ -604,6 +596,60 @@ export class EscapeRoomScene {
     fuseLockGroup.add(fuseLockBody, fuseLockShackle, hazardStripe);
     this.fuseLockMesh = fuseLockGroup;
     this.chainGroup.add(fuseLockGroup);
+
+    // Padlock 4: Lower-Left Heavy Rusted Iron Padlock (opened with toilet key)
+    const toiletLockGroup = new THREE.Group();
+    toiletLockGroup.position.set(-0.35, -0.22, 0.18);
+    toiletLockGroup.rotation.z = -0.3;
+
+    const toiletLockBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.17, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0x3d2822, metalness: 0.8, roughness: 0.7 })
+    );
+    const toiletLockShackle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.055, 0.016, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x4a3b32, metalness: 0.85, roughness: 0.5 })
+    );
+    toiletLockShackle.position.set(0, 0.08, 0);
+
+    const toiletKeyhole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.01, 8),
+      new THREE.MeshBasicMaterial({ color: 0x0a0a0a })
+    );
+    toiletKeyhole.rotation.x = Math.PI / 2;
+    toiletKeyhole.position.set(0, -0.02, 0.031);
+
+    toiletLockGroup.add(toiletLockBody, toiletLockShackle, toiletKeyhole);
+    this.toiletLockMesh = toiletLockGroup;
+    this.chainGroup.add(toiletLockGroup);
+
+    // Padlock 5: Upper-Right 5-Letter Word Tumbler Padlock (opened with MORIR)
+    const letterLockGroup = new THREE.Group();
+    letterLockGroup.position.set(0.36, 0.40, 0.18);
+    letterLockGroup.rotation.z = 0.2;
+
+    const letterLockBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 0.24, 16),
+      new THREE.MeshStandardMaterial({ color: 0x222625, metalness: 0.7, roughness: 0.4 })
+    );
+    const letterLockShackle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.06, 0.016, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x8a9290, metalness: 0.9, roughness: 0.25 })
+    );
+    letterLockShackle.position.set(0, 0.12, 0);
+
+    // 5 Letter dial rings (A-Z)
+    for (let r = 0; r < 5; r++) {
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.073, 0.073, 0.035, 16),
+        new THREE.MeshStandardMaterial({ color: 0x889e96, metalness: 0.75, roughness: 0.3 })
+      );
+      ring.position.set(0, -0.08 + r * 0.04, 0);
+      letterLockGroup.add(ring);
+    }
+    letterLockGroup.add(letterLockBody, letterLockShackle);
+    this.letterLockMesh = letterLockGroup;
+    this.chainGroup.add(letterLockGroup);
 
     doorGroup.add(this.chainGroup);
     this.scene.add(doorGroup);
@@ -722,7 +768,7 @@ export class EscapeRoomScene {
    */
   private buildElectricalFuseBox() {
     const fuseBoxGroup = new THREE.Group();
-    fuseBoxGroup.position.set(4.9, 1.6, 1.5);
+    fuseBoxGroup.position.set(4.9, 1.6, -0.6);
     fuseBoxGroup.rotation.y = -Math.PI / 2;
 
     const boxMat = new THREE.MeshStandardMaterial({
@@ -760,6 +806,427 @@ export class EscapeRoomScene {
   }
 
   /**
+   * Build Second Room: Horror Bathroom (El Baño)
+   * Faithfully crafted in accordance with the user's photo reference:
+   * - Dirty white square tiles with cockroach silhouettes and dark grout
+   * - Black & white vintage octagonal/square mosaic floor
+   * - Dividing wooden door between rooms that unlocks with the fridge key
+   * - Wall-mounted "Postmeslip" boiler / water heater with dual copper pipes
+   * - Glowing spherical frosted sconce lamp casting warm eerie light
+   * - Dirty mirror, wire rack, and pedestal washbasin with bloody basin
+   * - Decrepit toilet with murky water and submerged key
+   * - Bathtub with teal apron, murky blood water, bloody handprints, shower rod & moldy curtain
+   * - Realistic subtle broken tile that blends seamlessly with the wall (requires searching closely)
+   */
+  private buildBathroom() {
+    // 1. Textures
+    const floorTex = TextureGenerator.createBathroomFloorMosaicTexture();
+    floorTex.repeat.set(5, 4);
+
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: floorTex,
+      roughness: 0.55,
+      metalness: 0.1,
+    });
+
+    const whiteTileTex = TextureGenerator.createWhiteTileTexture();
+    whiteTileTex.repeat.set(4, 3);
+
+    const whiteTileMat = new THREE.MeshStandardMaterial({
+      map: whiteTileTex,
+      roughness: 0.45,
+      metalness: 0.08,
+    });
+
+    const subtleBrokenTex = TextureGenerator.createSubtleBrokenTileTexture();
+    const brokenTileMat = new THREE.MeshStandardMaterial({
+      map: subtleBrokenTex,
+      roughness: 0.6,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x000000), // Zero neon glow from afar!
+    });
+
+    // 2. Bathroom Floor (X: 5.0 to 9.5, Z: -0.5 to 3.2, Y: 0)
+    const floorGeo = new THREE.PlaneGeometry(4.5, 3.7);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.set(7.25, 0.005, 1.35);
+    floor.rotation.x = -Math.PI / 2;
+    this.scene.add(floor);
+
+    // 3. Bathroom Ceiling (Y: 3.4)
+    const ceilGeo = new THREE.PlaneGeometry(4.5, 3.7);
+    const ceil = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x181816, roughness: 0.95 }));
+    ceil.position.set(7.25, 3.395, 1.35);
+    ceil.rotation.x = Math.PI / 2;
+    this.scene.add(ceil);
+
+    // 4. White Tiled Walls (matching reference photo)
+    // North Wall (Z = -0.5, length 4.5m)
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 3.4), whiteTileMat);
+    northWall.position.set(7.25, 1.7, -0.5);
+    this.scene.add(northWall);
+
+    // South Wall (Z = 3.2, length 4.5m)
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 3.4), whiteTileMat);
+    southWall.position.set(7.25, 1.7, 3.2);
+    southWall.rotation.y = Math.PI;
+    this.scene.add(southWall);
+
+    // East Wall (X = 9.5, length 3.7m - wall behind the bathtub)
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.4), whiteTileMat);
+    eastWall.position.set(9.5, 1.7, 1.35);
+    eastWall.rotation.y = -Math.PI / 2;
+    this.scene.add(eastWall);
+
+    // West Partition Walls (framing doorway at X = 5.0):
+    // North partition: Z from -0.5 to 0.4 (length 0.9)
+    const westNorth = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 3.4), whiteTileMat);
+    westNorth.position.set(5.0, 1.7, -0.05);
+    westNorth.rotation.y = Math.PI / 2;
+    this.scene.add(westNorth);
+
+    // South partition: Z from 2.4 to 3.2 (length 0.8)
+    const westSouth = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 3.4), whiteTileMat);
+    westSouth.position.set(5.0, 1.7, 2.8);
+    westSouth.rotation.y = Math.PI / 2;
+    this.scene.add(westSouth);
+
+    // 5. Doorway Frame and Dividing Bathroom Door
+    const doorFrameMat = new THREE.MeshStandardMaterial({ color: 0x1f1914, roughness: 0.9 });
+    const topBeam = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 2.1), doorFrameMat);
+    topBeam.position.set(5.0, 2.25, 1.4);
+    const leftPost = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.3, 0.12), doorFrameMat);
+    leftPost.position.set(5.0, 1.15, 0.4);
+    const rightPost = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.3, 0.12), doorFrameMat);
+    rightPost.position.set(5.0, 1.15, 2.4);
+    this.scene.add(topBeam, leftPost, rightPost);
+
+    // The Dividing Door (Pivot at hinge post X = 5.0, Z = 0.46)
+    this.bathroomDoorPivot = new THREE.Group();
+    this.bathroomDoorPivot.position.set(5.0, 0, 0.46);
+
+    const doorMat = new THREE.MeshStandardMaterial({
+      color: 0x2b221a,
+      roughness: 0.8,
+      metalness: 0.05,
+    });
+    this.highlightMaterials.set('bathroom_door', doorMat);
+
+    // Door Panel (width 1.88m along Z, height 2.18m, depth 0.06m)
+    const doorPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 2.18, 1.88),
+      doorMat
+    );
+    doorPanel.position.set(0, 1.09, 0.94);
+
+    // Recessed panels on the door
+    for (let p = 0; p < 2; p++) {
+      const panelBevel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.075, 0.85, 0.65),
+        new THREE.MeshStandardMaterial({ color: 0x201812, roughness: 0.9 })
+      );
+      panelBevel.position.set(0, 0.55 + p * 1.05, 0.94);
+      this.bathroomDoorPivot.add(panelBevel);
+    }
+
+    // Brass Lever Handle & Escutcheon Plate (with Keyhole for fridge brass key)
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xb5923b, metalness: 0.85, roughness: 0.3 });
+    const lockPlate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.24, 0.08), handleMat);
+    lockPlate.position.set(0, 1.05, 1.72);
+
+    const leverHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 8), handleMat);
+    leverHandle.rotation.z = Math.PI / 2;
+    leverHandle.position.set(0.06, 1.08, 1.72);
+
+    const keyhole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.09, 8),
+      new THREE.MeshBasicMaterial({ color: 0x050505 })
+    );
+    keyhole.rotation.z = Math.PI / 2;
+    keyhole.position.set(0, 1.0, 1.72);
+
+    this.bathroomDoorPivot.add(doorPanel, lockPlate, leverHandle, keyhole);
+    this.scene.add(this.bathroomDoorPivot);
+    this.interactiveMeshes.set('bathroom_door', this.bathroomDoorPivot);
+
+    // 6. Wall-Mounted Water Heater / Boiler ("Postmeslip") on Left (North) Wall
+    const boilerGroup = new THREE.Group();
+    boilerGroup.position.set(6.25, 2.15, -0.2);
+
+    const boilerMat = new THREE.MeshStandardMaterial({
+      map: TextureGenerator.createWaterHeaterTexture(),
+      roughness: 0.35,
+      metalness: 0.2,
+    });
+    // Main boiler cylinder with rounded shape
+    const boilerBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.24, 0.82, 24),
+      boilerMat
+    );
+    boilerBody.rotation.y = Math.PI / 2;
+
+    const boilerTopCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      boilerMat
+    );
+    boilerTopCap.position.y = 0.41;
+
+    const boilerBottomCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+      boilerMat
+    );
+    boilerBottomCap.position.y = -0.41;
+
+    // Steel bracket wall mounts
+    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x222224, metalness: 0.9, roughness: 0.4 });
+    const upperBracket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 0.15), bracketMat);
+    upperBracket.position.set(0, 0.25, -0.15);
+    const lowerBracket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 0.15), bracketMat);
+    lowerBracket.position.set(0, -0.25, -0.15);
+
+    // Two copper/chrome water pipes running down to the floor
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x8a6245, metalness: 0.8, roughness: 0.4 });
+    const leftPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.25, 8), pipeMat);
+    leftPipe.position.set(-0.1, -1.05, 0.0);
+    const rightPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.25, 8), pipeMat);
+    rightPipe.position.set(0.1, -1.05, 0.0);
+
+    boilerGroup.add(boilerBody, boilerTopCap, boilerBottomCap, upperBracket, lowerBracket, leftPipe, rightPipe);
+    this.scene.add(boilerGroup);
+
+    // 7. Spherical Frosted Wall Sconce Lamp (matching reference photo)
+    const sconceGroup = new THREE.Group();
+    sconceGroup.position.set(7.45, 1.95, -0.36);
+
+    const sconceArm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8),
+      bracketMat
+    );
+    sconceArm.rotation.x = Math.PI / 2;
+
+    const sconceBulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0xfff6dd })
+    );
+    sconceBulb.position.z = 0.14;
+
+    sconceGroup.add(sconceArm, sconceBulb);
+    this.scene.add(sconceGroup);
+
+    // Sconce Point Light (Warm glowing illumination matching reference)
+    const sconceLight = new THREE.PointLight(0xffeedd, 1.5, 6.5, 1.7);
+    sconceLight.position.set(7.45, 1.95, -0.18);
+    this.scene.add(sconceLight);
+
+    // Dim eerie cyan ambient fill
+    const fillLight = new THREE.PointLight(0x7dd3fc, 0.35, 6.0, 2.0);
+    fillLight.position.set(7.25, 2.7, 1.5);
+    this.scene.add(fillLight);
+
+    // 8. Stained Mirror & Wire Rack above/below
+    const mirrorMat = new THREE.MeshStandardMaterial({
+      color: 0x6e7674,
+      metalness: 0.9,
+      roughness: 0.25,
+    });
+    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.75), mirrorMat);
+    mirror.position.set(7.45, 1.5, -0.48);
+    this.scene.add(mirror);
+
+    const wireRack = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.06, 0.15),
+      new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.9, roughness: 0.3 })
+    );
+    wireRack.position.set(7.45, 1.08, -0.4);
+    this.scene.add(wireRack);
+
+    // 9. Pedestal Porcelain Sink (Lavabo de pedestal con sangre)
+    const sinkGroup = new THREE.Group();
+    sinkGroup.position.set(7.45, 0, -0.18);
+
+    const sinkPorcelainMat = new THREE.MeshStandardMaterial({
+      color: 0xd4d0c5,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
+
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.16, 0.78, 16),
+      sinkPorcelainMat
+    );
+    pedestal.position.y = 0.39;
+
+    const basinOuter = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.22, 0.46),
+      sinkPorcelainMat
+    );
+    basinOuter.position.y = 0.82;
+
+    // Blood stains in basin bowl
+    const basinBlood = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.48, 0.32),
+      new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: 0.4, metalness: 0.2 })
+    );
+    basinBlood.position.set(0, 0.85, 0);
+    basinBlood.rotation.x = -Math.PI / 2;
+
+    // Chrome faucet
+    const faucetMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.95, roughness: 0.15 });
+    const faucet = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.14, 8), faucetMat);
+    faucet.position.set(0, 0.96, -0.16);
+
+    sinkGroup.add(pedestal, basinOuter, basinBlood, faucet);
+    this.scene.add(sinkGroup);
+
+    // 10. Decrepit Porcelain Toilet (Inodoro) at (5.7, 0, 0.05)
+    const toiletGroup = new THREE.Group();
+    toiletGroup.position.set(5.75, 0, 0.08);
+    toiletGroup.rotation.y = -Math.PI / 2.2;
+
+    const porcelainMat = new THREE.MeshStandardMaterial({
+      color: 0xc8c4b7,
+      roughness: 0.45,
+      metalness: 0.1,
+      emissive: new THREE.Color(0x000000),
+    });
+    this.highlightMaterials.set('toilet', porcelainMat);
+
+    const toiletBase = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.62), porcelainMat);
+    toiletBase.position.y = 0.21;
+    toiletGroup.add(toiletBase);
+
+    const toiletBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.20, 0.34, 16), porcelainMat);
+    toiletBowl.position.set(0, 0.42, 0.1);
+    toiletGroup.add(toiletBowl);
+
+    // Murky stagnant water in bowl
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x0a1610,
+      roughness: 0.1,
+      metalness: 0.7,
+    });
+    const waterMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), waterMat);
+    waterMesh.position.set(0, 0.48, 0.1);
+    toiletGroup.add(waterMesh);
+
+    // Glint of submerged iron key
+    const keyGlint = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.015, 0.09),
+      new THREE.MeshStandardMaterial({ color: 0x8a7042, metalness: 0.85, roughness: 0.3 })
+    );
+    keyGlint.position.set(0.03, 0.49, 0.11);
+    keyGlint.rotation.y = 0.4;
+    toiletGroup.add(keyGlint);
+
+    const toiletTank = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.52, 0.22), porcelainMat);
+    toiletTank.position.set(0, 0.65, -0.22);
+    toiletGroup.add(toiletTank);
+
+    this.scene.add(toiletGroup);
+    this.interactiveMeshes.set('toilet', toiletGroup);
+
+    // 11. Bathtub (Bañera con Sangre) along East Wall (matching reference photo)
+    const tubGroup = new THREE.Group();
+    tubGroup.position.set(9.05, 0.31, 1.35);
+
+    // Outer cyan/teal apron panel (exact teal shade from photo)
+    const tubApronMat = new THREE.MeshStandardMaterial({
+      color: 0x325e68,
+      roughness: 0.45,
+      metalness: 0.15,
+    });
+    const tubApron = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.62, 2.3),
+      tubApronMat
+    );
+    tubGroup.add(tubApron);
+
+    // White porcelain rim
+    const tubRim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.82, 0.04, 2.32),
+      sinkPorcelainMat
+    );
+    tubRim.position.y = 0.32;
+    tubGroup.add(tubRim);
+
+    // Dark pool of blood-red stagnant water inside bathtub
+    const bloodWaterMat = new THREE.MeshStandardMaterial({
+      color: 0x5a0c0c,
+      roughness: 0.12,
+      metalness: 0.5,
+    });
+    const bloodWater = new THREE.Mesh(
+      new THREE.BoxGeometry(0.66, 0.02, 2.14),
+      bloodWaterMat
+    );
+    bloodWater.position.y = 0.24;
+    tubGroup.add(bloodWater);
+
+    this.scene.add(tubGroup);
+
+    // Blood splatters on white tile wall above bathtub
+    const bloodDecal = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 0.9),
+      new THREE.MeshBasicMaterial({
+        color: 0x6e0e0e,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+    bloodDecal.position.set(9.48, 1.2, 1.35);
+    bloodDecal.rotation.y = -Math.PI / 2;
+    this.scene.add(bloodDecal);
+
+    // Horizontal shower curtain rod spanning across at Y = 2.15m
+    const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
+    const curtainRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 2.4, 8),
+      rodMat
+    );
+    curtainRod.rotation.x = Math.PI / 2;
+    curtainRod.position.set(8.65, 2.15, 1.35);
+    this.scene.add(curtainRod);
+
+    // Showerhead & flexible hose on wall
+    const showerHead = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 12), rodMat);
+    showerHead.position.set(9.44, 1.9, 0.45);
+    showerHead.rotation.z = Math.PI / 3;
+    this.scene.add(showerHead);
+
+    // Grimy moldy shower curtain hanging half-drawn on the right side (Z: 1.3 to 2.45)
+    const curtainTex = TextureGenerator.createShowerCurtainTexture();
+    const curtainMat = new THREE.MeshStandardMaterial({
+      map: curtainTex,
+      roughness: 0.7,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.92,
+    });
+    const showerCurtain = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.15, 1.65),
+      curtainMat
+    );
+    showerCurtain.position.set(8.65, 1.32, 1.9);
+    showerCurtain.rotation.y = Math.PI / 2;
+    this.scene.add(showerCurtain);
+
+    // 12. Subtle Broken Wall Tile (Azulejo Roto no evidente)
+    // Seamlessly placed low on the East wall beside the bathtub rim at (9.48, 0.68, 0.35)
+    // Sized exactly as one tile (0.24m x 0.24m), with zero neon glow so the player must search for it!
+    const tilePuzzleGroup = new THREE.Group();
+    tilePuzzleGroup.position.set(9.48, 0.68, 0.35);
+
+    this.highlightMaterials.set('broken_tile', brokenTileMat);
+
+    const tileMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26), brokenTileMat);
+    tileMesh.rotation.y = -Math.PI / 2;
+    tilePuzzleGroup.add(tileMesh);
+
+    this.scene.add(tilePuzzleGroup);
+    this.interactiveMeshes.set('broken_tile', tilePuzzleGroup);
+  }
+
+  /**
    * Wall decorations: Blood graffiti & 1986 Calendar
    */
   private buildWallDecorations() {
@@ -791,18 +1258,45 @@ export class EscapeRoomScene {
    * Update Lock Visuals when puzzles are solved
    */
   public updateLocks(lockState: LockState) {
-    if (lockState.keyLock && this.keyLockMesh) {
-      this.keyLockMesh.visible = false;
+    if (lockState.bathroomDoor) {
+      this.unlockBathroomDoor();
+    } else {
+      this.isBathroomUnlocked = false;
+      this.bathroomDoorPivot.rotation.y = 0;
     }
     if (lockState.codeLock && this.codeLockMesh) {
       this.codeLockMesh.visible = false;
+    } else if (this.codeLockMesh) {
+      this.codeLockMesh.visible = true;
     }
     if (lockState.fuseLock && this.fuseLockMesh) {
       this.fuseLockMesh.visible = false;
+    } else if (this.fuseLockMesh) {
+      this.fuseLockMesh.visible = true;
+    }
+    if (lockState.toiletKeyLock && this.toiletLockMesh) {
+      this.toiletLockMesh.visible = false;
+    } else if (this.toiletLockMesh) {
+      this.toiletLockMesh.visible = true;
+    }
+    if (lockState.letterLock && this.letterLockMesh) {
+      this.letterLockMesh.visible = false;
+    } else if (this.letterLockMesh) {
+      this.letterLockMesh.visible = true;
     }
     if (lockState.allChainsRemoved) {
       this.chainGroup.visible = false;
+    } else {
+      this.chainGroup.visible = true;
     }
+  }
+
+  public unlockBathroomDoor() {
+    this.isBathroomUnlocked = true;
+  }
+
+  public getIsBathroomUnlocked(): boolean {
+    return this.isBathroomUnlocked;
   }
 
   /**
@@ -841,23 +1335,68 @@ export class EscapeRoomScene {
 
     const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
 
-    // Collision boundaries (room interior X: -4.3 to 4.3, Z: -5.2 to 5.2)
-    nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
-    nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+    // Doorway opening to bathroom is at X = 5.0, between Z = 0.50 and Z = 2.30
+    const inDoorwayZ = nextPos.z >= 0.50 && nextPos.z <= 2.30;
 
-    // Simple obstacle boxes: Desk & Fridge
+    // Movement zones:
+    // Main room bounds: X [-4.2, 4.2], Z [-5.3, 5.2]
+    // Bathroom room bounds: X [5.1, 9.1], Z [-0.15, 2.85]
+    if (this.playerPosition.x <= 4.5) {
+      // Currently inside main room
+      if (inDoorwayZ && nextPos.x > 4.2) {
+        if (this.isBathroomUnlocked) {
+          // Walking through opened doorway into bathroom
+          nextPos.x = Math.max(-4.2, Math.min(9.1, nextPos.x));
+        } else {
+          // Bathroom door is locked closed! Block player at door
+          nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
+        }
+      } else {
+        nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
+      }
+      nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+    } else {
+      // Currently in doorway or inside bathroom
+      if (inDoorwayZ) {
+        // Can walk back and forth between main room and bathroom
+        nextPos.x = Math.max(-4.2, Math.min(9.1, nextPos.x));
+        if (nextPos.x > 4.8) {
+          nextPos.z = Math.max(-0.15, Math.min(2.85, nextPos.z));
+        } else {
+          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+        }
+      } else {
+        // Confined inside bathroom by West partition wall at X = 5.0
+        nextPos.x = Math.max(5.15, Math.min(9.1, nextPos.x));
+        nextPos.z = Math.max(-0.15, Math.min(2.85, nextPos.z));
+      }
+    }
+
+    // Main room obstacles:
     // Desk: X [-4.5, -2.8], Z [-2.5, -0.5]
     if (nextPos.x < -2.8 && nextPos.z > -2.5 && nextPos.z < -0.5) {
-      // Push out
       if (this.playerPosition.x >= -2.8) nextPos.x = -2.8;
       else if (this.playerPosition.z <= -2.5) nextPos.z = -2.5;
       else if (this.playerPosition.z >= -0.5) nextPos.z = -0.5;
     }
 
     // Fridge: X [2.9, 4.5], Z [-5.5, -3.8]
-    if (nextPos.x > 2.9 && nextPos.z < -3.8) {
+    if (nextPos.x > 2.9 && nextPos.x < 4.8 && nextPos.z < -3.8) {
       if (this.playerPosition.x <= 2.9) nextPos.x = 2.9;
       else if (this.playerPosition.z >= -3.8) nextPos.z = -3.8;
+    }
+
+    // Bathroom obstacles (matching photo layout):
+    // Bathtub against East wall: X > 8.3, Z in [0.1, 2.55]
+    if (nextPos.x > 8.35 && nextPos.z > 0.1 && nextPos.z < 2.55) {
+      nextPos.x = 8.35;
+    }
+
+    // Decrepit Toilet in foreground left: X [5.3, 6.2], Z [-0.3, 0.45]
+    if (nextPos.x > 5.3 && nextPos.x < 6.2 && nextPos.z > -0.3 && nextPos.z < 0.45) {
+      if (this.playerPosition.z >= 0.45) nextPos.z = 0.45;
+      else if (this.playerPosition.x <= 5.3) nextPos.x = 5.3;
+      else nextPos.x = 6.2;
     }
 
     this.playerPosition.copy(nextPos);
@@ -868,12 +1407,8 @@ export class EscapeRoomScene {
    * Apply Gyroscope Orientation with Lerp smoothing
    */
   public applyGyroOrientation(data: OrientationData) {
-    // Gyroscope orientation mapping:
-    // Beta: Pitch (tilt up/down) in radians
-    // Alpha: Yaw (compass rotation) in radians
-    // Gamma: Roll (tilt side-to-side) in radians
     const degToRad = Math.PI / 180;
-    const pitch = (data.beta - 90) * degToRad * 0.85; // Standard phone held at ~45-90 deg
+    const pitch = (data.beta - 90) * degToRad * 0.85;
     const yaw = -data.alpha * degToRad;
     const roll = -data.gamma * degToRad * 0.4;
 
@@ -898,20 +1433,29 @@ export class EscapeRoomScene {
    * Check proximity to interactive items and update glowing reflection highlight
    */
   private checkProximityAndHighlights(time: number) {
-    const INTERACTION_DIST = 2.4;
     let closestTarget: InteractiveTargetId = null;
     let minDistance = 999;
 
-    const targets: { id: InteractiveTargetId; pos: THREE.Vector3 }[] = [
-      { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8) },
-      { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6) },
-      { id: 'study_desk', pos: new THREE.Vector3(-3.6, 0.9, -1.5) },
-      { id: 'fuse_box', pos: new THREE.Vector3(4.8, 1.6, 1.5) },
+    const targets: { id: InteractiveTargetId; pos: THREE.Vector3; maxDist: number }[] = [
+      { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8), maxDist: 2.4 },
+      { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6), maxDist: 2.4 },
+      { id: 'study_desk', pos: new THREE.Vector3(-3.6, 0.9, -1.5), maxDist: 2.4 },
+      { id: 'fuse_box', pos: new THREE.Vector3(4.8, 1.6, 1.5), maxDist: 2.4 },
     ];
+
+    if (!this.isBathroomUnlocked) {
+      // Bathroom door is target when locked
+      targets.push({ id: 'bathroom_door', pos: new THREE.Vector3(4.9, 1.4, 1.4), maxDist: 2.4 });
+    } else {
+      // Inside bathroom targets
+      targets.push({ id: 'toilet', pos: new THREE.Vector3(5.75, 0.6, 0.08), maxDist: 2.2 });
+      // Subtle broken tile requires searching closely near the bathtub wall (only triggers when close):
+      targets.push({ id: 'broken_tile', pos: new THREE.Vector3(9.48, 1.3, 0.35), maxDist: 1.65 });
+    }
 
     targets.forEach((t) => {
       const dist = this.playerPosition.distanceTo(t.pos);
-      if (dist < INTERACTION_DIST && dist < minDistance) {
+      if (dist < t.maxDist && dist < minDistance) {
         minDistance = dist;
         closestTarget = t.id;
       }
@@ -923,9 +1467,15 @@ export class EscapeRoomScene {
     const pulse = 0.5 + Math.sin(time * 3.5) * 0.5; // 0..1 pulse
     this.highlightMaterials.forEach((mat, id) => {
       if (id === closestTarget) {
-        // Active glowing reflection
-        mat.emissive.setHex(0x384a20);
-        mat.emissiveIntensity = 0.6 + pulse * 0.5;
+        if (id === 'broken_tile') {
+          // Very subtle faint highlight to preserve mystery
+          mat.emissive.setHex(0x1a120a);
+          mat.emissiveIntensity = 0.25 + pulse * 0.2;
+        } else {
+          // Standard glowing reflection
+          mat.emissive.setHex(0x384a20);
+          mat.emissiveIntensity = 0.6 + pulse * 0.5;
+        }
       } else {
         mat.emissive.setHex(0x000000);
         mat.emissiveIntensity = 0.0;
@@ -1021,6 +1571,16 @@ export class EscapeRoomScene {
       }
     }
 
+    // Smooth swinging open/closed of the dividing bathroom door
+    if (this.bathroomDoorPivot) {
+      const targetDoorAngle = this.isBathroomUnlocked ? Math.PI * 0.48 : 0.0;
+      this.bathroomDoorPivot.rotation.y = THREE.MathUtils.lerp(
+        this.bathroomDoorPivot.rotation.y,
+        targetDoorAngle,
+        0.08
+      );
+    }
+
     // 3. Camera Orientation: combine touch yaw with gyro
     this.camera.quaternion.setFromEuler(this.cameraEuler);
     // If gyro is active, multiply rotation
@@ -1037,7 +1597,11 @@ export class EscapeRoomScene {
     // 5. Check proximity and glow
     this.checkProximityAndHighlights(time);
 
-    // 6. Render
+    // 6. Update distance to bathroom for subtle weeping audio cue
+    const distToBathroom = this.playerPosition.distanceTo(new THREE.Vector3(7.25, 1.6, 1.35));
+    horrorAudio.updateBathroomDistance(distToBathroom);
+
+    // 7. Render
     this.renderer.render(this.scene, this.camera);
   }
 

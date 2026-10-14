@@ -42,18 +42,24 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
 
           <div className="space-y-3 text-sm leading-relaxed text-stone-300">
             <p>
-              La <strong className="text-amber-400 font-semibold">Puerta Principal</strong> está completamente bloqueada con cadenas y tres seguros. Para abrirla necesitarás:
+              La <strong className="text-amber-400 font-semibold">Puerta Principal</strong> está bloqueada con cadenas macizas y cuatro seguros. Además, la habitación del baño está cerrada con llave:
             </p>
 
-            <ul className="list-disc list-inside space-y-1 text-xs text-stone-300 font-sans pl-1">
+            <ul className="list-disc list-inside space-y-1.5 text-xs text-stone-300 font-sans pl-1">
               <li>
-                <span className="font-semibold text-amber-300">1. Llave Antigua:</span> La escondí dentro de la <strong className="text-amber-400 font-semibold">heladera podrida</strong>. El hedor y el moho evitaron que la encontraran.
+                <span className="font-semibold text-amber-300">🚪 Puerta del Baño:</span> Cerrada con llave. Escondí la <strong className="text-amber-400 font-semibold">llave de latón dentro de la heladera podrida</strong> para que no la encuentren.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">2. Candado de 4 dígitos:</span> El código es el año en que empezó esta pesadilla... está marcado en el <strong className="text-amber-400 font-semibold">calendario de la pared</strong>.
+                <span className="font-semibold text-amber-300">1. Candado de 4 dígitos:</span> El año que inició el horror está marcado en el <strong className="text-amber-400 font-semibold">calendario de la pared</strong>.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">3. Cortacorriente eléctrico:</span> La caja de fusibles en la pared este debe configurarse en: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA]</strong>.
+                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> En la caja de fusibles al lado de la puerta del baño: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA]</strong>.
+              </li>
+              <li>
+                <span className="font-semibold text-amber-300">3. Candado de hierro:</span> Una vez dentro del baño, arrojé la llave pesada al fondo del <strong className="text-amber-400 font-semibold">inodoro sucio</strong>.
+              </li>
+              <li>
+                <span className="font-semibold text-amber-300">4. Candado de 5 letras:</span> Grabé la combinación en el hueco de la pared. Busca con atención el <strong className="text-amber-400 font-semibold">azulejo con fisuras</strong> en el baño... no resalta a simple vista.
               </li>
             </ul>
 

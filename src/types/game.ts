@@ -30,20 +30,25 @@ export interface InventoryItem {
 }
 
 export interface LockState {
-  keyLock: boolean;       // Opened with rusted brass key
+  bathroomDoor: boolean;  // Opened with rusted brass key from fridge
   codeLock: boolean;      // Opened with 4-digit code (1986)
   fuseLock: boolean;      // Opened by fixing electrical fuse box
-  allChainsRemoved: boolean;
+  toiletKeyLock: boolean; // Opened with iron key pulled from the toilet
+  letterLock: boolean;    // Opened with 5-letter word found on the broken tile (MORIR)
+  allChainsRemoved: boolean; // All 4 main door locks opened
 }
 
 export type InteractiveTargetId =
   | 'main_door'
   | 'door_peephole'
+  | 'bathroom_door'
   | 'rotten_fridge'
   | 'study_desk'
   | 'fuse_box'
   | 'vintage_radio'
   | 'wall_graffiti'
+  | 'toilet'
+  | 'broken_tile'
   | null;
 
 export interface InteractiveObject {

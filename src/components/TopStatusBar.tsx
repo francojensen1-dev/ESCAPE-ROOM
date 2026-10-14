@@ -7,10 +7,9 @@
  * - Recenter orientation control
  */
 
-import React, { useRef } from 'react';
-import { Compass, Volume2, VolumeX, Flashlight, RefreshCw, Key, ShieldAlert, Music } from 'lucide-react';
+import React from 'react';
+import { Compass, Volume2, VolumeX, Flashlight, RefreshCw, Key, ShieldAlert } from 'lucide-react';
 import { AudioMetrics, SensorsState, InventoryItem } from '../types/game';
-import { horrorAudio } from '../audio/HorrorAudioManager';
 
 interface TopStatusBarProps {
   sensors: SensorsState;
@@ -42,7 +41,6 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
 
   const isLowTime = timeLeft < 180; // under 3 minutes
   const isCriticalTime = timeLeft < 60;
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-30 px-3 py-2.5 sm:px-5 sm:py-3 bg-stone-950/80 backdrop-blur-md border-b border-white/10 flex items-center justify-between pointer-events-auto">
@@ -121,36 +119,32 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
           <Flashlight className="w-3.5 h-3.5" />
         </button>
 
-        {/* Audio Mute Toggle */}
+        {/* Audio Mute Toggle (The Illuminato & Ambience) */}
         <button
           onClick={onToggleAudioMute}
-          title="Alternar Sonido"
-          className="p-1.5 sm:p-2 rounded border border-stone-800 bg-stone-900/40 text-stone-300 hover:text-white hover:border-stone-700 transition-colors"
+          title={sensors.audioActive ? 'Música: The Illuminato (Sonando) - Toca para silenciar' : 'Música silenciada - Toca para activar'}
+          className={`p-1.5 sm:p-2 rounded border flex items-center gap-1.5 transition-colors ${
+            sensors.audioActive
+              ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50'
+              : 'border-stone-800 bg-stone-900/40 text-stone-500 hover:text-stone-300'
+          }`}
         >
-          {sensors.audioActive ? <Volume2 className="w-3.5 h-3.5 text-stone-200" /> : <VolumeX className="w-3.5 h-3.5 text-stone-500" />}
+          {sensors.audioActive ? (
+            <>
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden lg:inline text-[10px] font-mono font-semibold text-emerald-300">
+                ILLUMINATO
+              </span>
+            </>
+          ) : (
+            <>
+              <VolumeX className="w-3.5 h-3.5 text-stone-500" />
+              <span className="hidden lg:inline text-[10px] font-mono text-stone-500">
+                MUTED
+              </span>
+            </>
+          )}
         </button>
-
-        {/* Custom Background Music Uploader Button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          title="Cargar tu archivo de música (.mp3 / .wav)"
-          className="p-1.5 sm:p-2 rounded border border-amber-600/40 bg-amber-950/25 text-amber-300 hover:text-amber-200 hover:border-amber-500 hover:bg-amber-900/40 transition-colors flex items-center gap-1"
-        >
-          <Music className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline text-[10px] font-mono">CAMBIAR AUDIO</span>
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="audio/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              horrorAudio.setCustomAudioFile(file);
-            }
-          }}
-        />
 
         {/* Recenter Camera Button */}
         <button

@@ -15,17 +15,12 @@ class HorrorAudioManager {
 
   // Background Music ("the illuminato")
   private bgmAudio: HTMLAudioElement | null = null;
-  private bgmSource: MediaElementAudioSourceNode | null = null;
-  private bgmGain: GainNode | null = null;
-  private illuminatoBuffer: AudioBuffer | null = null;
-  private illuminatoSourceNode: AudioBufferSourceNode | null = null;
+  private bgmVolume: number = 0.65;
+  private isBgmPlaying: boolean = false;
 
   // Ceiling Light Bulb Sound ("sonido de foco")
   private focoAudio: HTMLAudioElement | null = null;
-  private focoSource: MediaElementAudioSourceNode | null = null;
   private focoGain: GainNode | null = null;
-  private focoBuffer: AudioBuffer | null = null;
-  private focoSourceNode: AudioBufferSourceNode | null = null;
   private focoSynthOsc: OscillatorNode | null = null;
   private focoSynthGain: GainNode | null = null;
 
@@ -51,6 +46,31 @@ class HorrorAudioManager {
 
   // Door knock listeners (e.g. for visual door rumble / camera jolt)
   private knockListeners: Array<() => void> = [];
+
+  constructor() {
+    // Setup gesture listener to unblock audio on first interaction
+    this.setupGestureUnlock();
+  }
+
+  private setupGestureUnlock() {
+    if (typeof window === 'undefined') return;
+
+    const unlock = () => {
+      this.resume();
+      if (!this.isBgmPlaying && !this.isMuted) {
+        this.startBackgroundMusic();
+      }
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    window.addEventListener('touchstart', unlock, { once: true });
+  }
 
   public init(): boolean {
     if (this.ctx && this.ctx.state !== 'closed') {
@@ -83,34 +103,29 @@ class HorrorAudioManager {
       this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
       this.timeData = new Uint8Array(this.analyser.frequencyBinCount);
 
-      // Setup Background Music Gain
-      this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.setValueAtTime(0.38, this.ctx.currentTime);
-      this.bgmGain.connect(this.masterGain);
-
-      // Setup Foco (Ceiling light) Gain - lower volume
+      // Setup Foco Synth Gain
       this.focoGain = this.ctx.createGain();
       this.focoGain.gain.setValueAtTime(0.10, this.ctx.currentTime);
       this.focoGain.connect(this.masterGain);
 
-      // Preload audio files
-      this.loadAudioFiles();
+      // Preload door knock audio buffer
+      this.loadDoorBuffer();
 
-      // Start "the illuminato" background loop
+      // Start "the illuminato" background loop directly
       this.startBackgroundMusic();
 
       // Start "sonido de foco" synchronized with ceiling light
       this.startCeilingFocoSound();
 
-      // Start ambient synth drone and fridge hum
+      // Start subtle atmospheric ambient synth layers
       this.startAmbientDrone();
       this.startFridgeHum();
 
       return true;
     } catch (err) {
       console.warn('AudioContext failed to initialize:', err);
-      // Fallback simple HTMLAudio elements
-      this.startBackgroundMusicFallback();
+      this.startBackgroundMusic();
+      this.startCeilingFocoSound();
       return false;
     }
   }
@@ -119,10 +134,10 @@ class HorrorAudioManager {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-    if (this.bgmAudio && this.bgmAudio.paused) {
+    if (this.bgmAudio && this.bgmAudio.paused && !this.isMuted) {
       this.bgmAudio.play().catch(() => {});
     }
-    if (this.focoAudio && this.focoAudio.paused) {
+    if (this.focoAudio && this.focoAudio.paused && !this.isMuted) {
       this.focoAudio.play().catch(() => {});
     }
   }
@@ -133,10 +148,26 @@ class HorrorAudioManager {
       this.masterGain.gain.setTargetAtTime(muted ? 0 : 0.75, this.ctx.currentTime, 0.1);
     }
     if (this.bgmAudio) {
-      this.bgmAudio.muted = muted;
+      this.bgmAudio.volume = muted ? 0 : this.bgmVolume;
+      if (muted) {
+        this.bgmAudio.pause();
+      } else {
+        this.bgmAudio.play().catch(() => {});
+      }
     }
     if (this.focoAudio) {
-      this.focoAudio.muted = muted;
+      this.focoAudio.volume = muted ? 0 : 0.025;
+      if (muted) {
+        this.focoAudio.pause();
+      } else {
+        this.focoAudio.play().catch(() => {});
+      }
+    }
+    if (this.bathroomCryAudio) {
+      if (muted) {
+        this.bathroomCryAudio.volume = 0;
+        this.bathroomCryAudio.pause();
+      }
     }
   }
 
@@ -149,220 +180,139 @@ class HorrorAudioManager {
     return this.isMuted;
   }
 
-  /**
-   * Preload audio files into AudioBuffers for zero-latency, high precision playback
-   */
-  private async loadAudioFiles() {
-    if (!this.ctx) return;
+  public getIsBgmPlaying(): boolean {
+    return this.isBgmPlaying;
+  }
 
-    const loadBuffer = async (url: string): Promise<AudioBuffer | null> => {
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) return null;
+  /**
+   * Preload door knock buffer for zero-latency audio
+   */
+  private async loadDoorBuffer() {
+    if (!this.ctx) return;
+    try {
+      const resp = await fetch('/audio/golpes_puerta.wav');
+      if (resp.ok) {
         const arrayBuf = await resp.arrayBuffer();
         if (this.ctx) {
-          return await this.ctx.decodeAudioData(arrayBuf);
+          this.doorBuffer = await this.ctx.decodeAudioData(arrayBuf);
         }
-      } catch (e) {
-        console.warn(`Could not load audio buffer from ${url}:`, e);
       }
-      return null;
-    };
-
-    // Load in parallel
-    Promise.all([
-      loadBuffer('/audio/the_illuminato.wav'),
-      loadBuffer('/audio/sonido_foco.wav'),
-      loadBuffer('/audio/golpes_puerta.wav'),
-    ]).then(([illuminato, foco, puerta]) => {
-      this.illuminatoBuffer = illuminato;
-      this.focoBuffer = foco;
-      this.doorBuffer = puerta;
-
-      // If buffer loaded and audio element isn't playing, switch to buffer source
-      if (this.illuminatoBuffer && (!this.bgmAudio || this.bgmAudio.paused)) {
-        this.playIlluminatoBufferLoop();
-      }
-      if (this.focoBuffer && (!this.focoAudio || this.focoAudio.paused)) {
-        this.playFocoBufferLoop();
-      }
-    });
+    } catch {
+      // Procedural fallback available
+    }
   }
 
   /**
    * Start "the illuminato" background music in a continuous seamless loop
    */
   public startBackgroundMusic() {
-    if (this.bgmAudio) {
-      this.bgmAudio.play().catch(() => {});
-      return;
-    }
+    if (this.isMuted) return;
 
-    try {
+    if (!this.bgmAudio) {
+      // Use clean standard HTML5 Audio element without CORS-hijacking createMediaElementSource
       this.bgmAudio = new Audio('/audio/the_illuminato.wav');
       this.bgmAudio.loop = true;
-      this.bgmAudio.crossOrigin = 'anonymous';
-      this.bgmAudio.volume = 0.45;
+      this.bgmAudio.volume = this.bgmVolume;
+      this.bgmAudio.preload = 'auto';
 
-      if (this.ctx && this.bgmGain) {
-        try {
-          this.bgmSource = this.ctx.createMediaElementSource(this.bgmAudio);
-          this.bgmSource.connect(this.bgmGain);
-        } catch {
-          // If already connected or CORS issue, direct HTML audio playback works
-        }
-      }
-
-      this.bgmAudio.play().catch(() => {
-        // Autoplay policy: will resume on next user touch or click
-        const resumeOnUser = () => {
-          this.bgmAudio?.play().catch(() => {});
-          window.removeEventListener('pointerdown', resumeOnUser);
-          window.removeEventListener('keydown', resumeOnUser);
-        };
-        window.addEventListener('pointerdown', resumeOnUser, { once: true });
-        window.addEventListener('keydown', resumeOnUser, { once: true });
+      this.bgmAudio.addEventListener('play', () => {
+        this.isBgmPlaying = true;
       });
-    } catch {
-      this.startBackgroundMusicFallback();
+      this.bgmAudio.addEventListener('pause', () => {
+        this.isBgmPlaying = false;
+      });
+      this.bgmAudio.addEventListener('error', (e) => {
+        console.warn('the_illuminato.wav error, switching to illuminato.wav:', e);
+        if (this.bgmAudio) {
+          this.bgmAudio.src = '/audio/illuminato.wav';
+          this.bgmAudio.play().catch(() => {});
+        }
+      });
     }
-  }
 
-  private playIlluminatoBufferLoop() {
-    if (!this.ctx || !this.illuminatoBuffer || !this.bgmGain || this.illuminatoSourceNode) return;
-    try {
-      const src = this.ctx.createBufferSource();
-      src.buffer = this.illuminatoBuffer;
-      src.loop = true;
-      src.connect(this.bgmGain);
-      src.start(0);
-      this.illuminatoSourceNode = src;
-    } catch (e) {
-      console.warn('Could not start illuminato buffer loop:', e);
-    }
-  }
-
-  private startBackgroundMusicFallback() {
-    if (this.bgmAudio) return;
-    try {
-      this.bgmAudio = new Audio('/audio/the_illuminato.wav');
-      this.bgmAudio.loop = true;
-      this.bgmAudio.volume = 0.45;
-      this.bgmAudio.play().catch(() => {});
-    } catch {
-      // Fallback
+    const p = this.bgmAudio.play();
+    if (p !== undefined) {
+      p.then(() => {
+        this.isBgmPlaying = true;
+      }).catch((err) => {
+        console.warn('Autoplay waiting for user gesture to play BGM:', err);
+      });
     }
   }
 
   /**
-   * Start "sonido de foco" - Electrical hum and crackle synchronized with ceiling light
+   * Start "sonido de foco" - Lower volume electrical hum synchronized with ceiling light
+   * Strictly calibrated at very low levels (0.006 - 0.014) to eliminate harsh static or hiss
    */
   public startCeilingFocoSound() {
-    if (this.focoAudio || this.focoSourceNode) return;
-
-    try {
+    if (!this.focoAudio) {
       this.focoAudio = new Audio('/audio/sonido_foco.wav');
       this.focoAudio.loop = true;
-      this.focoAudio.crossOrigin = 'anonymous';
-      this.focoAudio.volume = 0.12; // Un sonido más bajo
+      this.focoAudio.volume = this.isMuted ? 0 : 0.008; // Muy suave, sin estática molesta
+      this.focoAudio.preload = 'auto';
 
-      if (this.ctx && this.focoGain) {
-        try {
-          this.focoSource = this.ctx.createMediaElementSource(this.focoAudio);
-          this.focoSource.connect(this.focoGain);
-        } catch {
-          // Direct element volume fallback
+      this.focoAudio.addEventListener('error', () => {
+        if (this.focoAudio) {
+          this.focoAudio.src = '/audio/foco.wav';
+          this.focoAudio.play().catch(() => {});
         }
-      }
-
-      this.focoAudio.play().catch(() => {});
-    } catch {
-      // Use procedural 60Hz hum fallback
-      this.startFocoProceduralHum();
+      });
     }
-  }
 
-  private playFocoBufferLoop() {
-    if (!this.ctx || !this.focoBuffer || !this.focoGain || this.focoSourceNode) return;
-    try {
-      const src = this.ctx.createBufferSource();
-      src.buffer = this.focoBuffer;
-      src.loop = true;
-      src.connect(this.focoGain);
-      src.start(0);
-      this.focoSourceNode = src;
-    } catch (e) {
-      console.warn('Could not start foco buffer loop:', e);
-    }
-  }
-
-  private startFocoProceduralHum() {
-    if (!this.ctx || !this.focoGain || this.focoSynthOsc) return;
-
-    try {
-      this.focoSynthOsc = this.ctx.createOscillator();
-      this.focoSynthGain = this.ctx.createGain();
-      const filter = this.ctx.createBiquadFilter();
-
-      this.focoSynthOsc.type = 'sawtooth';
-      this.focoSynthOsc.frequency.setValueAtTime(60.0, this.ctx.currentTime); // 60Hz mains
-
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(120.0, this.ctx.currentTime);
-      filter.Q.setValueAtTime(3.0, this.ctx.currentTime);
-
-      this.focoSynthGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-
-      this.focoSynthOsc.connect(filter);
-      filter.connect(this.focoSynthGain);
-      this.focoSynthGain.connect(this.focoGain);
-
-      this.focoSynthOsc.start();
-    } catch {
-      // Ignore
-    }
+    this.focoAudio.play().catch(() => {});
   }
 
   /**
    * Synchronize "sonido de foco" with ceiling light flicker
-   * @param lightIntensity Current ceiling light intensity (e.g. 0.2 to 1.4)
-   * @param isFlickerDip True if the bulb is currently flickering or dimming
+   * Soft volume modulation without any harsh static or clicks
    */
   public syncCeilingLight(lightIntensity: number, isFlickerDip: boolean) {
-    if (!this.ctx || !this.focoGain || this.isMuted) return;
+    // Very subtle, quiet background hum: 0.005 to 0.014 max
+    const targetVol = this.isMuted
+      ? 0
+      : isFlickerDip
+      ? 0.014
+      : 0.006 * Math.max(0.2, Math.min(1.0, lightIntensity));
 
-    const now = this.ctx.currentTime;
-    // Base lower volume: 0.06 to 0.14
-    // When the light dims or dips, the electrical transformer buzz crackles
-    const targetGain = isFlickerDip ? 0.16 : 0.08 * Math.max(0.4, Math.min(1.2, lightIntensity));
-    this.focoGain.gain.setTargetAtTime(targetGain, now, 0.04);
+    if (this.focoAudio) {
+      this.focoAudio.volume = Math.max(0, Math.min(1, targetVol));
+    }
 
-    // If a sudden sharp flicker dip occurs, synthesize a micro-filament spark sizzle
-    if (isFlickerDip && Math.random() < 0.25) {
-      this.triggerFilamentSpark(now);
+    if (this.ctx && this.focoGain && !this.isMuted) {
+      const now = this.ctx.currentTime;
+      this.focoGain.gain.setTargetAtTime(targetVol, now, 0.05);
     }
   }
 
-  private triggerFilamentSpark(time: number) {
-    if (!this.ctx || !this.focoGain) return;
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+  // Bathroom Weeping Audio ("LLANTO ATERRADOR")
+  private bathroomCryAudio: HTMLAudioElement | null = null;
 
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(180 + Math.random() * 80, time);
-      osc.frequency.exponentialRampToValueAtTime(60, time + 0.06);
+  /**
+   * Modulate bathroom weeping audio based on distance from player to bathroom
+   */
+  public updateBathroomDistance(distanceToBathroom: number) {
+    if (this.isMuted) {
+      if (this.bathroomCryAudio) this.bathroomCryAudio.volume = 0;
+      return;
+    }
 
-      gain.gain.setValueAtTime(0.06, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+    if (!this.bathroomCryAudio) {
+      this.bathroomCryAudio = new Audio('/audio/llanto.mp3');
+      this.bathroomCryAudio.loop = true;
+      this.bathroomCryAudio.volume = 0;
+      this.bathroomCryAudio.preload = 'auto';
+      this.bathroomCryAudio.play().catch(() => {});
+    }
 
-      osc.connect(gain);
-      gain.connect(this.focoGain);
-
-      osc.start(time);
-      osc.stop(time + 0.07);
-    } catch {
-      // Ignore
+    // Audible when within 7.0 meters, max volume 0.38 when close/inside (< 2.2m)
+    if (distanceToBathroom < 7.0) {
+      const vol = Math.max(0, Math.min(0.38, ((7.0 - distanceToBathroom) / 4.8) * 0.38));
+      this.bathroomCryAudio.volume = vol;
+      if (this.bathroomCryAudio.paused) {
+        this.bathroomCryAudio.play().catch(() => {});
+      }
+    } else {
+      this.bathroomCryAudio.volume = 0;
     }
   }
 
@@ -384,45 +334,38 @@ class HorrorAudioManager {
       }
     });
 
-    // If preloaded AudioBuffer is available, play via Web Audio API
+    // Play dedicated Audio instance for overlapping distinct knocks
+    try {
+      const knockAudio = new Audio('/audio/golpes_puerta.wav');
+      knockAudio.volume = Math.max(0.25, Math.min(1.0, volumeFactor * 0.95));
+      const p = knockAudio.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          this.playDoorKnockBuffer(volumeFactor);
+        });
+      }
+    } catch {
+      this.playDoorKnockBuffer(volumeFactor);
+    }
+  }
+
+  private playDoorKnockBuffer(volumeFactor: number) {
     if (this.ctx && this.masterGain && this.doorBuffer) {
       try {
         const src = this.ctx.createBufferSource();
         const gain = this.ctx.createGain();
-        const filter = this.ctx.createBiquadFilter();
-
         src.buffer = this.doorBuffer;
-        // Subtle pitch variation each time for realism
         src.playbackRate.setValueAtTime(0.96 + Math.random() * 0.08, this.ctx.currentTime);
-
-        // Acoustic muffling based on distance
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(Math.max(800, 3200 * volumeFactor), this.ctx.currentTime);
-
-        const clampedVol = Math.max(0.18, Math.min(1.0, volumeFactor * 0.85));
-        gain.gain.setValueAtTime(clampedVol, this.ctx.currentTime);
-
-        src.connect(filter);
-        filter.connect(gain);
+        gain.gain.setValueAtTime(Math.max(0.2, volumeFactor * 0.85), this.ctx.currentTime);
+        src.connect(gain);
         gain.connect(this.masterGain);
-
         src.start(0);
         return;
-      } catch (err) {
-        console.warn('Error playing door knock buffer:', err);
+      } catch {
+        // Procedural fallback
       }
     }
-
-    // Fallback: Audio element or procedural knocks
-    try {
-      const audio = new Audio('/audio/golpes_puerta.wav');
-      audio.volume = Math.max(0.15, Math.min(1.0, volumeFactor * 0.8));
-      audio.play().catch(() => {
-        this.synthesizeDoorKnocks(volumeFactor);
-      });
-    } catch {
-      this.synthesizeDoorKnocks(volumeFactor);
-    }
+    this.synthesizeDoorKnocks(volumeFactor);
   }
 
   /**
@@ -456,9 +399,6 @@ class HorrorAudioManager {
     });
   }
 
-  /**
-   * Register a callback when door knocks occur (for visual door shake / camera rumble)
-   */
   public onDoorKnock(listener: () => void): () => void {
     this.knockListeners.push(listener);
     return () => {
@@ -470,19 +410,18 @@ class HorrorAudioManager {
     if (!this.ctx || !this.masterGain) return;
 
     try {
-      // Sub-bass drone
       this.droneOsc = this.ctx.createOscillator();
       this.droneGain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
 
-      this.droneOsc.type = 'sawtooth';
-      this.droneOsc.frequency.setValueAtTime(46.25, this.ctx.currentTime); // F#1
+      this.droneOsc.type = 'sine'; // Pure smooth sine (zero harsh buzz)
+      this.droneOsc.frequency.setValueAtTime(46.25, this.ctx.currentTime);
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(140, this.ctx.currentTime);
-      filter.Q.setValueAtTime(3.5, this.ctx.currentTime);
+      filter.frequency.setValueAtTime(120, this.ctx.currentTime);
+      filter.Q.setValueAtTime(1.5, this.ctx.currentTime);
 
-      this.droneGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      this.droneGain.gain.setValueAtTime(0.03, this.ctx.currentTime);
 
       this.droneOsc.connect(filter);
       filter.connect(this.droneGain);
@@ -502,14 +441,14 @@ class HorrorAudioManager {
       this.fridgeGain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
 
-      this.fridgeOsc.type = 'triangle';
+      this.fridgeOsc.type = 'sine';
       this.fridgeOsc.frequency.setValueAtTime(60, this.ctx.currentTime);
 
       filter.type = 'bandpass';
       filter.frequency.setValueAtTime(120, this.ctx.currentTime);
-      filter.Q.setValueAtTime(2.0, this.ctx.currentTime);
+      filter.Q.setValueAtTime(1.5, this.ctx.currentTime);
 
-      this.fridgeGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+      this.fridgeGain.gain.setValueAtTime(0.02, this.ctx.currentTime);
 
       this.fridgeOsc.connect(filter);
       filter.connect(this.fridgeGain);
@@ -524,7 +463,6 @@ class HorrorAudioManager {
   public updateTension(tension: number) {
     if (!this.ctx) return;
 
-    // Detune drone slightly with tension
     if (this.droneOsc) {
       const baseFreq = 46.25;
       const detune = tension * 12;
@@ -535,13 +473,6 @@ class HorrorAudioManager {
       );
     }
 
-    // Slightly increase illuminato presence with tension
-    if (this.bgmGain) {
-      const bgmVol = 0.35 + tension * 0.15;
-      this.bgmGain.gain.setTargetAtTime(bgmVol, this.ctx.currentTime, 0.5);
-    }
-
-    // Heartbeat accelerates with tension
     if (tension > 0.4 && !this.heartbeatTimer) {
       this.scheduleHeartbeat(tension);
     }
@@ -794,6 +725,10 @@ class HorrorAudioManager {
     if (this.focoAudio) {
       this.focoAudio.pause();
       this.focoAudio = null;
+    }
+    if (this.bathroomCryAudio) {
+      this.bathroomCryAudio.pause();
+      this.bathroomCryAudio = null;
     }
     if (this.micStream) {
       this.micStream.getTracks().forEach((track) => track.stop());

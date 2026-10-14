@@ -30,6 +30,10 @@ import { NotesModal } from './components/NotesModal';
 import { InventoryDrawer } from './components/InventoryDrawer';
 import { JumpscareModal } from './components/JumpscareModal';
 import { VictoryModal } from './components/VictoryModal';
+import { ToiletModal } from './components/ToiletModal';
+import { BrokenTileModal } from './components/BrokenTileModal';
+import { LetterLockModal } from './components/LetterLockModal';
+import { BathroomDoorModal } from './components/BathroomDoorModal';
 import { Hand, Eye } from 'lucide-react';
 
 export default function App() {
@@ -58,17 +62,20 @@ export default function App() {
     {
       id: 'note_clues',
       name: 'Diario del Investigador',
-      description: 'Página con anotaciones sobre las 3 cerraduras y la heladera.',
+      description: 'Página con anotaciones sobre las 4 cerraduras, la puerta divisoria y el baño contiguo.',
       icon: 'note',
     },
   ]);
 
   const [lockState, setLockState] = useState<LockState>({
-    keyLock: false,
+    bathroomDoor: false,
     codeLock: false,
     fuseLock: false,
+    toiletKeyLock: false,
+    letterLock: false,
     allChainsRemoved: false,
   });
+  const [hasDiscoveredTileCode, setHasDiscoveredTileCode] = useState<boolean>(false);
 
   // UI Interactive Modals
   type ActiveModalType =
@@ -79,7 +86,11 @@ export default function App() {
     | 'codelock'
     | 'fusebox'
     | 'notes'
-    | 'inventory';
+    | 'inventory'
+    | 'toilet'
+    | 'broken_tile'
+    | 'letterlock'
+    | 'bathroom_door';
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [nearTarget, setNearTarget] = useState<InteractiveTargetId>(null);
@@ -94,8 +105,10 @@ export default function App() {
    * Start Experience: User gesture triggers audio and sensor permissions
    */
   const handleStartExperience = async () => {
-    // 1. Initialize Horror Audio
+    // 1. Initialize Horror Audio and start the illuminato loop
     const audioOk = horrorAudio.init();
+    horrorAudio.startBackgroundMusic();
+    horrorAudio.startCeilingFocoSound();
 
     // 2. Request Gyroscope
     const gyroOk = await sensorManager.requestOrientationPermission();
@@ -117,12 +130,25 @@ export default function App() {
     switch (targetId) {
       case 'main_door':
         return { title: 'Puerta Principal', action: 'Inspeccionar Cadenas y Visor' };
+      case 'bathroom_door':
+        return lockState.bathroomDoor
+          ? { title: 'Puerta del Baño (Abierta)', action: 'Entrar al Baño' }
+          : {
+              title: 'Puerta del Baño (Con Llave)',
+              action: inventory.some((i) => i.id === 'key_fridge')
+                ? 'Usar Llave de Latón de la Heladera'
+                : 'Puerta Cerrada con Llave',
+            };
       case 'rotten_fridge':
         return { title: 'Heladera Podrida', action: 'Abrir y Buscar en el Interior' };
       case 'study_desk':
         return { title: 'Escritorio con Diario', action: 'Leer Pistas del Diario' };
       case 'fuse_box':
         return { title: 'Caja de Fusibles', action: 'Manipular Interruptores 220V' };
+      case 'toilet':
+        return { title: 'Inodoro Decrépito (Baño)', action: 'Revisar Fondo del Agua Turbia' };
+      case 'broken_tile':
+        return { title: 'Azulejo Agrietado (Baño)', action: 'Inspeccionar Hueco en el Muro' };
       default:
         return null;
     }
@@ -140,6 +166,9 @@ export default function App() {
       case 'main_door':
         setActiveModal('main_door');
         break;
+      case 'bathroom_door':
+        setActiveModal('bathroom_door');
+        break;
       case 'rotten_fridge':
         setActiveModal('fridge');
         break;
@@ -149,11 +178,29 @@ export default function App() {
       case 'fuse_box':
         setActiveModal('fusebox');
         break;
+      case 'toilet':
+        setActiveModal('toilet');
+        break;
+      case 'broken_tile':
+        setActiveModal('broken_tile');
+        break;
     }
   }, []);
 
   /**
-   * Pick up key from fridge
+   * Helper to evaluate if all 4 chains and padlocks are removed from the main door
+   */
+  const isEveryLockUnlocked = (state: LockState) => {
+    return (
+      state.codeLock &&
+      state.fuseLock &&
+      state.toiletKeyLock &&
+      state.letterLock
+    );
+  };
+
+  /**
+   * Pick up brass key from fridge (used for bathroom dividing door)
    */
   const handlePickUpKey = () => {
     setInventory((prev) => {
@@ -163,7 +210,7 @@ export default function App() {
         {
           id: 'key_fridge',
           name: 'Llave Antigua de Latón',
-          description: 'Encontrada congelada en la heladera. Abre el candado 1.',
+          description: 'Encontrada congelada en la heladera. Abre la puerta del baño contiguo.',
           icon: 'key',
         },
       ];
@@ -171,36 +218,96 @@ export default function App() {
   };
 
   /**
-   * Unlock key lock on main door
+   * Fish out rusted iron key from toilet (Lock 3)
    */
-  const handleUseKeyOnDoor = () => {
+  const handleRetrieveToiletKey = () => {
+    setInventory((prev) => {
+      if (prev.some((i) => i.id === 'key_toilet')) return prev;
+      return [
+        ...prev,
+        {
+          id: 'key_toilet',
+          name: 'Llave de Hierro Herrumbrosa',
+          description: 'Llave pesada y fangosa recuperada del fondo del inodoro del baño.',
+          icon: 'key',
+        },
+      ];
+    });
+  };
+
+  /**
+   * Discover word MORIR behind broken bathroom tile
+   */
+  const handleDiscoverBrokenTileCode = () => {
+    setHasDiscoveredTileCode(true);
+    setInventory((prev) => {
+      if (prev.some((i) => i.id === 'note_tile_code')) return prev;
+      return [
+        ...prev,
+        {
+          id: 'note_tile_code',
+          name: 'Inscripción del Azulejo',
+          description: 'Palabra de 5 letras grabada tras el azulejo del baño: M-O-R-I-R.',
+          icon: 'note',
+        },
+      ];
+    });
+  };
+
+  /**
+   * Unlock dividing bathroom door with fridge brass key
+   */
+  const handleUnlockBathroomDoor = () => {
     setLockState((prev) => {
-      const next = { ...prev, keyLock: true };
-      next.allChainsRemoved = next.keyLock && next.codeLock && next.fuseLock;
+      const next = { ...prev, bathroomDoor: true };
       if (sceneRef.current) sceneRef.current.updateLocks(next);
       return next;
     });
   };
 
   /**
-   * Unlock code lock on main door
+   * Unlock code lock on main door (Lock 2)
    */
   const handleSolveCodeLock = () => {
     setLockState((prev) => {
       const next = { ...prev, codeLock: true };
-      next.allChainsRemoved = next.keyLock && next.codeLock && next.fuseLock;
+      next.allChainsRemoved = isEveryLockUnlocked(next);
       if (sceneRef.current) sceneRef.current.updateLocks(next);
       return next;
     });
   };
 
   /**
-   * Solve fuse box
+   * Solve fuse box (Lock 3)
    */
   const handleSolveFuseBox = () => {
     setLockState((prev) => {
       const next = { ...prev, fuseLock: true };
-      next.allChainsRemoved = next.keyLock && next.codeLock && next.fuseLock;
+      next.allChainsRemoved = isEveryLockUnlocked(next);
+      if (sceneRef.current) sceneRef.current.updateLocks(next);
+      return next;
+    });
+  };
+
+  /**
+   * Unlock rusted iron padlock with toilet key (Lock 4)
+   */
+  const handleUseToiletKeyOnDoor = () => {
+    setLockState((prev) => {
+      const next = { ...prev, toiletKeyLock: true };
+      next.allChainsRemoved = isEveryLockUnlocked(next);
+      if (sceneRef.current) sceneRef.current.updateLocks(next);
+      return next;
+    });
+  };
+
+  /**
+   * Solve 5-letter word combination padlock (Lock 5: MORIR)
+   */
+  const handleSolveLetterLock = () => {
+    setLockState((prev) => {
+      const next = { ...prev, letterLock: true };
+      next.allChainsRemoved = isEveryLockUnlocked(next);
       if (sceneRef.current) sceneRef.current.updateLocks(next);
       return next;
     });
@@ -221,16 +328,19 @@ export default function App() {
     setTimeLeft(900);
     setTimeElapsed(0);
     setLockState({
-      keyLock: false,
+      bathroomDoor: false,
       codeLock: false,
       fuseLock: false,
+      toiletKeyLock: false,
+      letterLock: false,
       allChainsRemoved: false,
     });
+    setHasDiscoveredTileCode(false);
     setInventory([
       {
         id: 'note_clues',
         name: 'Diario del Investigador',
-        description: 'Página con anotaciones sobre las 3 cerraduras y la heladera.',
+        description: 'Página con anotaciones sobre las 4 cerraduras, la puerta divisoria y el baño contiguo.',
         icon: 'note',
       },
     ]);
@@ -239,9 +349,11 @@ export default function App() {
     if (sceneRef.current) {
       sceneRef.current.recenterCamera();
       sceneRef.current.updateLocks({
-        keyLock: false,
+        bathroomDoor: false,
         codeLock: false,
         fuseLock: false,
+        toiletKeyLock: false,
+        letterLock: false,
         allChainsRemoved: false,
       });
     }
@@ -580,9 +692,43 @@ export default function App() {
           inventory={inventory}
           onOpenPeephole={() => setActiveModal('peephole')}
           onOpenCodeLock={() => setActiveModal('codelock')}
-          onUseKey={handleUseKeyOnDoor}
+          onOpenLetterLock={() => setActiveModal('letterlock')}
+          onUseToiletKey={handleUseToiletKeyOnDoor}
           onEscapeSuccess={handleEscapeSuccess}
           onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'bathroom_door' && (
+        <BathroomDoorModal
+          isUnlocked={lockState.bathroomDoor}
+          hasFridgeKey={inventory.some((i) => i.id === 'key_fridge')}
+          onUnlock={handleUnlockBathroomDoor}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'toilet' && (
+        <ToiletModal
+          hasFoundKey={inventory.some((i) => i.id === 'key_toilet')}
+          onRetrieveKey={handleRetrieveToiletKey}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'broken_tile' && (
+        <BrokenTileModal
+          hasDiscoveredCode={hasDiscoveredTileCode}
+          onDiscoverCode={handleDiscoverBrokenTileCode}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'letterlock' && (
+        <LetterLockModal
+          isUnlocked={lockState.letterLock}
+          onSuccess={handleSolveLetterLock}
+          onClose={() => setActiveModal('main_door')}
         />
       )}
 
