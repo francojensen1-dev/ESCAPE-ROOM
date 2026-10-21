@@ -37,6 +37,7 @@ export class EscapeRoomScene {
   // Lighting
   private ambientLight: THREE.AmbientLight;
   private centerBulbLight: THREE.PointLight;
+  private doorSpotLight: THREE.SpotLight | null = null;
   private bulbMesh: THREE.Mesh | null = null;
   private flashlight: THREE.SpotLight;
   private flashlightTarget: THREE.Object3D;
@@ -105,14 +106,23 @@ export class EscapeRoomScene {
     this.renderer.toneMappingExposure = 1.1;
     this.container.appendChild(this.renderer.domElement);
 
-    // 4. Lights
-    this.ambientLight = new THREE.AmbientLight(0x181a24, 0.35);
+    // 4. Lights (Moody chiaroscuro horror lighting matching reference photos)
+    this.ambientLight = new THREE.AmbientLight(0x0c0e14, 0.22);
     this.scene.add(this.ambientLight);
 
-    // Bare hanging ceiling bulb in center of room
-    this.centerBulbLight = new THREE.PointLight(0xffeaad, 1.2, 9, 1.8);
-    this.centerBulbLight.position.set(0, 3.1, 0);
+    // Warm industrial amber luminaire in center of room (matching Image 1)
+    this.centerBulbLight = new THREE.PointLight(0xff9438, 2.0, 11, 1.7);
+    this.centerBulbLight.position.set(0, 3.05, 0);
     this.scene.add(this.centerBulbLight);
+
+    // Dedicated overhead angled amber wash spotlight on the Main Chained Door (Image 1 aesthetic)
+    this.doorSpotLight = new THREE.SpotLight(0xff9f42, 1.8, 11, Math.PI / 4, 0.5, 1.6);
+    this.doorSpotLight.position.set(0, 3.25, -2.2);
+    const doorLightTarget = new THREE.Object3D();
+    doorLightTarget.position.set(0, 1.4, -5.92);
+    this.scene.add(doorLightTarget);
+    this.doorSpotLight.target = doorLightTarget;
+    this.scene.add(this.doorSpotLight);
 
     // Flashlight mounted to player camera
     this.flashlight = new THREE.SpotLight(0xfff5e6, 3.2, 14, Math.PI / 6, 0.45, 1.2);
@@ -148,22 +158,106 @@ export class EscapeRoomScene {
   /**
    * Build room walls, floor, ceiling
    * Room is 10m wide (X: -5 to +5), 12m deep (Z: -6 to +6), 3.4m tall (Y: 0 to 3.4)
+   * AESTHETICS (from reference images):
+   * - Each wall has its OWN UNIQUE, non-repeating procedural texture and bump map.
+   * - Floor and ceiling are preserved intact as requested ("no el piso ni el techo").
+   * - North Wall has heavy wear and tear detailing flanking the main door.
    */
   private buildRoom() {
-    const wallTex = TextureGenerator.createWallpaperTexture();
+    // 1. Textures: 4 UNIQUE non-repeating wall materials matching reference images
+    const northTex = TextureGenerator.createNorthDoorWallTexture();
+    const southTex = TextureGenerator.createSouthWoodWallTexture();
+    const westTex = TextureGenerator.createWestPlasterWallTexture();
+    const eastTex = TextureGenerator.createEastIndustrialWallTexture();
+
+    // Floor texture preserved exactly as requested
     const floorTex = TextureGenerator.createWoodFloorTexture();
 
-    const wallMat = new THREE.MeshStandardMaterial({
-      map: wallTex,
-      roughness: 0.85,
+    // North Wall Material (Door Wall: heavy chipped plaster, frantic claw scratches, rust drip trails)
+    const northWallMat = new THREE.MeshStandardMaterial({
+      map: northTex.map,
+      bumpMap: northTex.bump,
+      bumpScale: 0.05,
+      roughness: 0.88,
+      metalness: 0.12,
+    });
+
+    // South Wall Material (Decayed horizontal wooden boards with flaking paint and water damage)
+    const southWallMat = new THREE.MeshStandardMaterial({
+      map: southTex.map,
+      bumpMap: southTex.bump,
+      bumpScale: 0.05,
+      roughness: 0.86,
+      metalness: 0.08,
+    });
+
+    // West Wall Material (Left Wall: moldy, pitted concrete with soot & water damage matching user's photo)
+    const westWallMat = new THREE.MeshStandardMaterial({
+      map: westTex.map,
+      bumpMap: westTex.bump,
+      bumpScale: 0.05,
+      roughness: 0.90,
+      metalness: 0.04,
+    });
+
+    const textureLoader = new THREE.TextureLoader();
+
+    // Directly load the user's uploaded reference photo for the Left Wall (West Wall)
+    textureLoader.load(
+      '/assets/aistudio/23bbebee42c774833f1ef951f3d2155f_64cb3b67.jpg',
+      (loadedWestTexture) => {
+        loadedWestTexture.wrapS = THREE.RepeatWrapping;
+        loadedWestTexture.wrapT = THREE.RepeatWrapping;
+        loadedWestTexture.repeat.set(3, 1); // 3 repeats across 12m length, 1 across 3.4m height
+        loadedWestTexture.colorSpace = THREE.SRGBColorSpace;
+        westWallMat.map = loadedWestTexture;
+        westWallMat.bumpMap = loadedWestTexture;
+        westWallMat.bumpScale = 0.055;
+        westWallMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load custom west wall texture image, procedural fallback active:', err);
+      }
+    );
+
+    // East Wall Material (Silent Hill oxidized rusted steel panels with rivets and electrical soot)
+    const eastWallMat = new THREE.MeshStandardMaterial({
+      map: eastTex.map,
+      bumpMap: eastTex.bump,
+      bumpScale: 0.06,
+      roughness: 0.72,
+      metalness: 0.38,
+    });
+
+    // Floor Material (Weathered wood with peeling sage green paint matching user's photo)
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: floorTex,
+      bumpMap: floorTex,
+      bumpScale: 0.045,
+      roughness: 0.78,
       metalness: 0.05,
     });
 
-    const floorMat = new THREE.MeshStandardMaterial({
-      map: floorTex,
-      roughness: 0.75,
-      metalness: 0.1,
-    });
+    // Directly load the user's uploaded high-resolution reference photo for the floor
+    // Scaled down (repeat 6x9) to eliminate the large zoomed-in plank effect
+    textureLoader.load(
+      '/assets/aistudio/maderas_gastadas_b8cf7d6a.jpg',
+      (loadedTexture) => {
+        loadedTexture.wrapS = THREE.RepeatWrapping;
+        loadedTexture.wrapT = THREE.RepeatWrapping;
+        loadedTexture.repeat.set(6, 9); // Scaled down: more realistic, narrower floorboards
+        loadedTexture.colorSpace = THREE.SRGBColorSpace;
+        floorMat.map = loadedTexture;
+        floorMat.bumpMap = loadedTexture;
+        floorMat.bumpScale = 0.045;
+        floorMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load custom floor texture image, procedural fallback active:', err);
+      }
+    );
 
     const ceilingMat = new THREE.MeshStandardMaterial({
       color: 0x1a1a1c,
@@ -182,59 +276,279 @@ export class EscapeRoomScene {
     ceiling.rotation.x = Math.PI / 2;
     this.scene.add(ceiling);
 
-    // North Wall (Z = -6, contains Main Door)
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.4), wallMat);
+    // North Wall (Z = -6, contains Main Door with custom wear detailing)
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.4), northWallMat);
     northWall.position.set(0, 1.7, -6);
     this.scene.add(northWall);
 
-    // South Wall (Z = 6, behind player)
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.4), wallMat);
+    // South Wall (Z = 6, weathered horizontal timber boards)
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.4), southWallMat);
     southWall.position.set(0, 1.7, 6);
     southWall.rotation.y = Math.PI;
     this.scene.add(southWall);
 
-    // East Wall with Bathroom Doorway opening (between Z: 0.4 and 2.4)
+    // East Wall with Bathroom Doorway opening (industrial oxidized steel panels)
     // 1. North Segment (Z: -6 to 0.4, length 6.4m, center Z = -2.8)
-    const eastWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), wallMat);
+    const eastWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), eastWallMat);
     eastWallNorth.position.set(5, 1.7, -2.8);
     eastWallNorth.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallNorth);
 
     // 2. South Segment (Z: 2.4 to 6.0, length 3.6m, center Z = 4.2)
-    const eastWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.4), wallMat);
+    const eastWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.4), eastWallMat);
     eastWallSouth.position.set(5, 1.7, 4.2);
     eastWallSouth.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallSouth);
 
     // 3. Header Wall above bathroom doorway (Z: 0.4 to 2.4, Y: 2.3 to 3.4)
-    const eastWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1), wallMat);
+    const eastWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1), eastWallMat);
     eastWallHeader.position.set(5, 2.85, 1.4);
     eastWallHeader.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallHeader);
 
-    // West Wall (X = -5, study desk & calendar)
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), wallMat);
+    // West Wall (X = -5, peeling vintage wallpaper and crumbling plaster)
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), westWallMat);
     westWall.position.set(-5, 1.7, 0);
     westWall.rotation.y = Math.PI / 2;
     this.scene.add(westWall);
 
-    // Bare hanging light fixture mesh in ceiling center
-    const bulbGroup = new THREE.Group();
-    const cord = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.015, 0.015, 0.6, 6),
-      new THREE.MeshBasicMaterial({ color: 0x111111 })
-    );
-    cord.position.y = 3.1;
-    bulbGroup.add(cord);
+    // Build 3D physical wear & decay relief details flanking the door (Image 1 reference!)
+    this.buildDoorSurroundWearDetails();
 
-    const bulbMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.09, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffeaad })
+    // Industrial hanging cage fixture in ceiling center (Image 1 aesthetic)
+    this.buildCeilingIndustrialFixture();
+  }
+
+  /**
+   * 3D Physical Wear & Decay details on North Wall flanking the Main Door
+   * (Referencing Image 1 and Image 2):
+   * - Bolted industrial steel corner angle-irons anchoring the door frame
+   * - Peeling drywall relief slabs lifting away from the wall plane
+   * - Exposed dark brick/metal backing plates under chipped plaster
+   * - Frantic claw scratch decal plate beside the padlocks
+   * - Drooping oxidized conduit and detached electrical wiring above the door
+   */
+  private buildDoorSurroundWearDetails() {
+    const wearGroup = new THREE.Group();
+
+    const rustMetalMat = new THREE.MeshStandardMaterial({
+      color: 0x2e231c,
+      metalness: 0.85,
+      roughness: 0.4,
+    });
+
+    const chippedPlasterMat = new THREE.MeshStandardMaterial({
+      color: 0x3d362a,
+      roughness: 0.95,
+      metalness: 0.05,
+    });
+
+    const darkHoleMat = new THREE.MeshStandardMaterial({
+      color: 0x12100e,
+      roughness: 0.9,
+      metalness: 0.2,
+    });
+
+    // 1. Heavy Rusted Industrial Angle-Iron Brackets Flanking Door Frame (Image 1 reference)
+    // Left Structural Bracket (X = -1.22)
+    const leftAngleIron = new THREE.Mesh(new THREE.BoxGeometry(0.09, 3.2, 0.03), rustMetalMat);
+    leftAngleIron.position.set(-1.22, 1.6, -5.97);
+    wearGroup.add(leftAngleIron);
+
+    // Right Structural Bracket (X = 1.22)
+    const rightAngleIron = new THREE.Mesh(new THREE.BoxGeometry(0.09, 3.2, 0.03), rustMetalMat);
+    rightAngleIron.position.set(1.22, 1.6, -5.97);
+    wearGroup.add(rightAngleIron);
+
+    // Heavy Industrial Hex Bolts along the angle-irons
+    const boltGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.02, 6);
+    const boltMat = new THREE.MeshStandardMaterial({ color: 0x1f1b17, metalness: 0.9, roughness: 0.3 });
+    for (let by = 0.3; by < 3.1; by += 0.5) {
+      const leftBolt = new THREE.Mesh(boltGeo, boltMat);
+      leftBolt.rotation.x = Math.PI / 2;
+      leftBolt.position.set(-1.22, by, -5.95);
+      wearGroup.add(leftBolt);
+
+      const rightBolt = new THREE.Mesh(boltGeo, boltMat);
+      rightBolt.rotation.x = Math.PI / 2;
+      rightBolt.position.set(1.22, by, -5.95);
+      wearGroup.add(rightBolt);
+    }
+
+    // 2. Physical Peeling Drywall / Plaster Relief Slabs with Curled Edges (3D Depth)
+    // Left Peeling Plaster Slab (X = -1.58, Y = 1.95)
+    const leftPlasterSlab = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.85, 0.022), chippedPlasterMat);
+    leftPlasterSlab.position.set(-1.58, 1.95, -5.965);
+    leftPlasterSlab.rotation.z = -0.06;
+    leftPlasterSlab.rotation.y = 0.03; // Curl off wall
+    wearGroup.add(leftPlasterSlab);
+
+    // Dark under-hole behind left peeling slab
+    const leftUnderHole = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.75), darkHoleMat);
+    leftUnderHole.position.set(-1.58, 1.95, -5.985);
+    wearGroup.add(leftUnderHole);
+
+    // Right Peeling Plaster Slab (X = 1.55, Y = 1.35)
+    const rightPlasterSlab = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.72, 0.02), chippedPlasterMat);
+    rightPlasterSlab.position.set(1.55, 1.35, -5.965);
+    rightPlasterSlab.rotation.z = 0.08;
+    rightPlasterSlab.rotation.y = -0.025; // Curl off wall
+    wearGroup.add(rightPlasterSlab);
+
+    // Dark under-hole behind right peeling slab
+    const rightUnderHole = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.62), darkHoleMat);
+    rightUnderHole.position.set(1.55, 1.35, -5.985);
+    wearGroup.add(rightUnderHole);
+
+    // 3. Frantic Scratch Gouge Decal beside Door Lock Area
+    // A desperate survivor clawed the wall right beside the locks!
+    const scratchCanvas = document.createElement('canvas');
+    scratchCanvas.width = 256;
+    scratchCanvas.height = 256;
+    const sctx = scratchCanvas.getContext('2d')!;
+    sctx.clearRect(0, 0, 256, 256);
+
+    // Deep jagged claw marks and scraped wall plaster
+    sctx.strokeStyle = '#380c0c';
+    sctx.lineWidth = 3.5;
+    for (let c = 0; c < 5; c++) {
+      sctx.beginPath();
+      const sx = 40 + c * 35;
+      sctx.moveTo(sx, 20);
+      sctx.bezierCurveTo(sx + 20, 80, sx - 15, 150, sx + 25, 230);
+      sctx.stroke();
+    }
+    // Blood-stained plaster smudge
+    sctx.fillStyle = 'rgba(70, 12, 12, 0.45)';
+    sctx.beginPath();
+    sctx.ellipse(128, 140, 75, 45, 0.3, 0, Math.PI * 2);
+    sctx.fill();
+
+    const scratchTex = new THREE.CanvasTexture(scratchCanvas);
+    const scratchMat = new THREE.MeshBasicMaterial({
+      map: scratchTex,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const scratchMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.65), scratchMat);
+    scratchMesh.position.set(-1.08, 1.5, -5.955);
+    wearGroup.add(scratchMesh);
+
+    // 4. Overhead Sagging Rusty Conduit & Detached Drooping Wires (Image 1 reference)
+    const conduitMat = new THREE.MeshStandardMaterial({ color: 0x242220, metalness: 0.9, roughness: 0.35 });
+    const wireMat = new THREE.MeshBasicMaterial({ color: 0x0c0c0c });
+
+    // Steel junction box above door
+    const jBox = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.08), conduitMat);
+    jBox.position.set(-0.85, 2.95, -5.94);
+    wearGroup.add(jBox);
+
+    // Curved conduit pipe drooping over the door header
+    const conduitCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.85, 2.95, -5.94),
+      new THREE.Vector3(-0.3, 2.82, -5.92),
+      new THREE.Vector3(0.4, 2.86, -5.92),
+      new THREE.Vector3(1.15, 2.98, -5.94),
+    ]);
+    const conduitGeo = new THREE.TubeGeometry(conduitCurve, 16, 0.016, 8, false);
+    const conduitMesh = new THREE.Mesh(conduitGeo, conduitMat);
+    wearGroup.add(conduitMesh);
+
+    // Dangling detached black wires hanging loose
+    const wireCurve1 = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.82, 2.9, -5.93),
+      new THREE.Vector3(-0.80, 2.65, -5.90),
+      new THREE.Vector3(-0.76, 2.38, -5.88),
+    ]);
+    const wire1 = new THREE.Mesh(new THREE.TubeGeometry(wireCurve1, 10, 0.005, 6, false), wireMat);
+    wearGroup.add(wire1);
+
+    const wireCurve2 = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.38, 2.85, -5.91),
+      new THREE.Vector3(0.42, 2.58, -5.89),
+      new THREE.Vector3(0.40, 2.35, -5.87),
+    ]);
+    const wire2 = new THREE.Mesh(new THREE.TubeGeometry(wireCurve2, 10, 0.005, 6, false), wireMat);
+    wearGroup.add(wire2);
+
+    this.scene.add(wearGroup);
+  }
+
+  /**
+   * Industrial Hanging Cage Luminaire in Ceiling Center
+   * Faithfully references Image 1:
+   * - Hanging cord and steel junction box
+   * - Rusted iron protective wire cage enclosing the Edison filament
+   * - Warm tungsten-amber radiance illuminating the room and casting dramatic chiaroscuro shadows
+   */
+  private buildCeilingIndustrialFixture() {
+    const fixtureGroup = new THREE.Group();
+
+    const ironMat = new THREE.MeshStandardMaterial({
+      color: 0x221e1a,
+      metalness: 0.85,
+      roughness: 0.45,
+    });
+
+    // Ceiling Mount Box
+    const mountBox = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.24), ironMat);
+    mountBox.position.set(0, 3.37, 0);
+    fixtureGroup.add(mountBox);
+
+    // Hanging rusted cord
+    const cord = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.016, 0.42, 8),
+      ironMat
     );
-    bulbMesh.position.y = 2.8;
+    cord.position.set(0, 3.16, 0);
+    fixtureGroup.add(cord);
+
+    // Lamp Cap & Socket
+    const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.1, 12), ironMat);
+    socket.position.set(0, 2.92, 0);
+    fixtureGroup.add(socket);
+
+    // Rectangular/Cylindrical Rusted Wire Cage (Image 1 aesthetic)
+    const cageMat = new THREE.MeshStandardMaterial({
+      color: 0x3d2a1c,
+      metalness: 0.9,
+      roughness: 0.4,
+    });
+
+    // Top and bottom rings
+    const topRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 16), cageMat);
+    topRing.rotation.x = Math.PI / 2;
+    topRing.position.set(0, 2.86, 0);
+    fixtureGroup.add(topRing);
+
+    const midRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 16), cageMat);
+    midRing.rotation.x = Math.PI / 2;
+    midRing.position.set(0, 2.72, 0);
+    fixtureGroup.add(midRing);
+
+    const bottomRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 16), cageMat);
+    bottomRing.rotation.x = Math.PI / 2;
+    bottomRing.position.set(0, 2.58, 0);
+    fixtureGroup.add(bottomRing);
+
+    // Vertical cage rib bars
+    for (let r = 0; r < 8; r++) {
+      const angle = (r / 8) * Math.PI * 2;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 6), cageMat);
+      bar.position.set(Math.cos(angle) * 0.14, 2.72, Math.sin(angle) * 0.14);
+      fixtureGroup.add(bar);
+    }
+
+    // Glowing incandescent Edison bulb inside the cage
+    const bulbMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.095, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xff9438 })
+    );
+    bulbMesh.position.set(0, 2.72, 0);
     this.bulbMesh = bulbMesh;
-    bulbGroup.add(bulbMesh);
-    this.scene.add(bulbGroup);
+    fixtureGroup.add(bulbMesh);
+
+    this.scene.add(fixtureGroup);
   }
 
   /**
@@ -1666,15 +1980,18 @@ export class EscapeRoomScene {
 
     const time = performance.now() * 0.001;
 
-    // 1. Light flicker of ceiling bulb synchronized with "sonido de foco"
+    // 1. Light flicker of industrial ceiling luminaire & door spotlight synchronized with "sonido de foco"
     const isDip = Math.sin(time * 12.0) > 0.82 || Math.random() > 0.96;
     const flicker = 1.0 + (isDip ? -0.45 : 0.0) + (Math.random() > 0.95 ? -0.2 : 0.0);
-    const bulbIntensity = Math.max(0.2, flicker * 1.15);
+    const bulbIntensity = Math.max(0.3, flicker * 1.95);
     this.centerBulbLight.intensity = bulbIntensity;
+    if (this.doorSpotLight) {
+      this.doorSpotLight.intensity = Math.max(0.2, flicker * 1.7);
+    }
 
     if (this.bulbMesh) {
       (this.bulbMesh.material as THREE.MeshBasicMaterial).color.setHex(
-        isDip ? 0xb59e66 : 0xffeaad
+        isDip ? 0xc46424 : 0xff9438
       );
     }
 
