@@ -12,10 +12,12 @@ import { horrorAudio } from '../audio/HorrorAudioManager';
 interface SettingsModalProps {
   useGyro: boolean;
   gyroSensitivity: number;
-  invertPitch: boolean;
+  invertX: boolean;
+  invertY: boolean;
   onToggleGyro: (enabled: boolean) => void;
   onChangeSensitivity: (val: number) => void;
-  onToggleInvertPitch: (inverted: boolean) => void;
+  onToggleInvertX: (inverted: boolean) => void;
+  onToggleInvertY: (inverted: boolean) => void;
   onRecenter: () => void;
   onClose: () => void;
 }
@@ -23,10 +25,12 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   useGyro,
   gyroSensitivity,
-  invertPitch,
+  invertX,
+  invertY,
   onToggleGyro,
   onChangeSensitivity,
-  onToggleInvertPitch,
+  onToggleInvertX,
+  onToggleInvertY,
   onRecenter,
   onClose,
 }) => {
@@ -125,26 +129,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Invert Pitch Toggle */}
+          {/* Invert Axis X (Horizontal) Toggle */}
           <div className="p-3.5 rounded-xl border border-stone-800 bg-stone-900/60 flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-stone-200">Invertir Eje Vertical (Arriba/Abajo)</p>
+              <p className="text-xs font-semibold text-stone-200">Invertir Eje X (Horizontal: Izq / Der)</p>
               <p className="text-[11px] text-stone-400">
-                {invertPitch ? 'Mirada vertical invertida' : 'Mirada vertical natural'}
+                {invertX ? 'Giro horizontal invertido' : 'Giro horizontal natural'}
               </p>
             </div>
             <button
               onClick={() => {
                 sensorManager.vibrate(30);
-                onToggleInvertPitch(!invertPitch);
+                onToggleInvertX(!invertX);
               }}
               className={`w-12 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
-                invertPitch ? 'bg-amber-600' : 'bg-stone-700'
+                invertX ? 'bg-amber-600' : 'bg-stone-700'
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  invertPitch ? 'translate-x-6' : 'translate-x-0'
+                  invertX ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Invert Axis Y (Vertical) Toggle */}
+          <div className="p-3.5 rounded-xl border border-stone-800 bg-stone-900/60 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-stone-200">Invertir Eje Y (Vertical: Arriba / Abajo)</p>
+              <p className="text-[11px] text-stone-400">
+                {invertY ? 'Mirada vertical invertida' : 'Mirada vertical natural'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                sensorManager.vibrate(30);
+                onToggleInvertY(!invertY);
+              }}
+              className={`w-12 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
+                invertY ? 'bg-amber-600' : 'bg-stone-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  invertY ? 'translate-x-6' : 'translate-x-0'
                 }`}
               />
             </button>

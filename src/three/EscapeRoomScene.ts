@@ -778,6 +778,7 @@ export class EscapeRoomScene {
 
   /**
    * Electrical Fuse Box on the East Wall
+   * Accurately proportioned residential breaker box: 0.34m wide, 0.46m high, 0.10m deep
    */
   private buildElectricalFuseBox() {
     const fuseBoxGroup = new THREE.Group();
@@ -792,25 +793,26 @@ export class EscapeRoomScene {
     });
     this.highlightMaterials.set('fuse_box', boxMat);
 
-    // Box casing
-    const casing = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.18), boxMat);
+    // Box casing - Exactly sized to the interactable object (0.34m x 0.46m x 0.10m)
+    const casing = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.46, 0.10), boxMat);
+    casing.name = 'fuse_box_casing';
     fuseBoxGroup.add(casing);
 
     // Hazard lightning sign
     const yellowStripe = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.25, 0.25),
+      new THREE.PlaneGeometry(0.14, 0.14),
       new THREE.MeshBasicMaterial({ color: 0xd4a017 })
     );
-    yellowStripe.position.set(0, 0.1, 0.095);
+    yellowStripe.position.set(0, 0.08, 0.052);
     fuseBoxGroup.add(yellowStripe);
 
     // 3 Fuse Lever slots
     for (let i = 0; i < 3; i++) {
       const lever = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.015, 0.015, 0.08, 8),
+        new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8),
         new THREE.MeshStandardMaterial({ color: 0xc43d2b })
       );
-      lever.position.set(-0.15 + i * 0.15, -0.18, 0.1);
+      lever.position.set(-0.08 + i * 0.08, -0.10, 0.055);
       fuseBoxGroup.add(lever);
     }
 
@@ -1458,12 +1460,14 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Apply Touch Drag or Mouse Look
+   * Apply Touch Drag or Mouse Look with Invert X / Invert Y support
    */
-  public applyLookDelta(dx: number, dy: number) {
+  public applyLookDelta(dx: number, dy: number, invertX: boolean = false, invertY: boolean = false) {
     const sensitivity = 0.003;
-    this.cameraEuler.y -= dx * sensitivity;
-    this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x - dy * sensitivity));
+    const factorX = invertX ? 1 : -1;
+    const factorY = invertY ? 1 : -1;
+    this.cameraEuler.y += dx * sensitivity * factorX;
+    this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x + dy * sensitivity * factorY));
   }
 
   public recenterCamera() {
@@ -1488,7 +1492,7 @@ export class EscapeRoomScene {
       { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8), maxDist: 3.4 },
       { id: 'rotten_fridge', pos: new THREE.Vector3(3.8, 1.2, -4.8), maxDist: 2.8 },
       { id: 'study_desk', pos: new THREE.Vector3(-3.8, 0.9, -1.5), maxDist: 2.8 },
-      { id: 'fuse_box', pos: new THREE.Vector3(4.88, 1.6, 1.5), maxDist: 2.8 },
+      { id: 'fuse_box', pos: new THREE.Vector3(4.88, 1.6, -0.6), maxDist: 2.2 },
     ];
 
     if (!this.isBathroomUnlocked) {
@@ -1587,8 +1591,13 @@ export class EscapeRoomScene {
       }
     }
 
-    // Candidate target is either direct mesh hit or currently illuminated target
-    const candidateId = directHitId || this.currentNearTarget;
+    // Candidate target:
+    // For fuse_box, the hitbox must strictly match the size of the interactable object.
+    // It requires a direct raycast intersection on the fuse box mesh itself.
+    let candidateId = directHitId;
+    if (!candidateId && this.currentNearTarget && this.currentNearTarget !== 'fuse_box') {
+      candidateId = this.currentNearTarget;
+    }
 
     if (!candidateId) {
       return { target: null, success: false, reason: 'miss' };

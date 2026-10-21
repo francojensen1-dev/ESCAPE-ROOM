@@ -84,6 +84,7 @@ export class SensorManager {
   };
 
   private sensitivity: number = 1.0;
+  private invertYaw: boolean = false;
   private invertPitch: boolean = false;
   private baseOffset: OrientationData = { alpha: 0, beta: 75, gamma: 0 };
   private isCalibrated: boolean = false;
@@ -140,7 +141,7 @@ export class SensorManager {
 
   /**
    * Returns calculated yaw, pitch, roll in radians relative to calibrated baseline
-   * Scaled by user-defined sensitivity and pitch inversion setting
+   * Scaled by user-defined sensitivity and axis inversion settings
    */
   public getRelativeAnglesRad = (): { yaw: number; pitch: number; roll: number } => {
     const degToRad = Math.PI / 180;
@@ -148,7 +149,7 @@ export class SensorManager {
     const relBeta = this.diffAngle(this.smoothedOrientation.beta, this.baseOffset.beta);
     const relGamma = this.smoothedOrientation.gamma - this.baseOffset.gamma;
 
-    const yaw = -relAlpha * degToRad * this.sensitivity;
+    const yaw = (this.invertYaw ? relAlpha : -relAlpha) * degToRad * this.sensitivity;
     const pitch = (this.invertPitch ? relBeta : -relBeta) * degToRad * this.sensitivity;
     const roll = Math.max(-0.6, Math.min(0.6, -relGamma * degToRad * this.sensitivity * 0.35));
 
@@ -161,6 +162,14 @@ export class SensorManager {
 
   public getSensitivity = (): number => {
     return this.sensitivity;
+  };
+
+  public setInvertYaw = (inverted: boolean) => {
+    this.invertYaw = inverted;
+  };
+
+  public getInvertYaw = (): boolean => {
+    return this.invertYaw;
   };
 
   public setInvertPitch = (inverted: boolean) => {

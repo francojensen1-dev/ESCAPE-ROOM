@@ -56,7 +56,8 @@ export default function App() {
     audioActive: true,
   });
   const [gyroSensitivity, setGyroSensitivity] = useState<number>(1.0);
-  const [invertPitch, setInvertPitch] = useState<boolean>(false);
+  const [invertX, setInvertX] = useState<boolean>(false);
+  const [invertY, setInvertY] = useState<boolean>(false);
   const [audioMetrics, setAudioMetrics] = useState<AudioMetrics>({ volume: 0, bassLevel: 0 });
   const [isFlashlightOn, setIsFlashlightOn] = useState<boolean>(true);
 
@@ -124,8 +125,13 @@ export default function App() {
     sensorManager.setSensitivity(val);
   };
 
-  const handleInvertPitchToggle = (inv: boolean) => {
-    setInvertPitch(inv);
+  const handleInvertXToggle = (inv: boolean) => {
+    setInvertX(inv);
+    sensorManager.setInvertYaw(inv);
+  };
+
+  const handleInvertYToggle = (inv: boolean) => {
+    setInvertY(inv);
     sensorManager.setInvertPitch(inv);
   };
 
@@ -601,7 +607,7 @@ export default function App() {
       pointerDownInfo.current.moved = true;
     }
 
-    sceneRef.current.applyLookDelta(dx, dy);
+    sceneRef.current.applyLookDelta(dx, dy, invertX, invertY);
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -839,12 +845,14 @@ export default function App() {
         <SettingsModal
           useGyro={sensors.useGyro}
           gyroSensitivity={gyroSensitivity}
-          invertPitch={invertPitch}
+          invertX={invertX}
+          invertY={invertY}
           onToggleGyro={(enabled) => {
             setSensors((prev) => ({ ...prev, useGyro: enabled }));
           }}
           onChangeSensitivity={handleSensitivityChange}
-          onToggleInvertPitch={handleInvertPitchToggle}
+          onToggleInvertX={handleInvertXToggle}
+          onToggleInvertY={handleInvertYToggle}
           onRecenter={handleRecenter}
           onClose={() => setActiveModal(null)}
         />
