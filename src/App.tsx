@@ -152,6 +152,12 @@ export default function App() {
     // 2. Request Gyroscope
     const gyroOk = await sensorManager.requestOrientationPermission();
 
+    // 3. Immediately align camera to face directly at the chained door on start
+    sensorManager.recenter();
+    if (sceneRef.current) {
+      sceneRef.current.recenterCamera();
+    }
+
     setSensors((prev) => ({
       ...prev,
       audioActive: audioOk,
@@ -160,6 +166,14 @@ export default function App() {
     }));
 
     setGameStage('playing');
+
+    // Extra safety pass to calibrate baseline once mobile sensor stream activates
+    setTimeout(() => {
+      sensorManager.recenter();
+      if (sceneRef.current) {
+        sceneRef.current.recenterCamera();
+      }
+    }, 150);
   };
 
   /**
@@ -553,6 +567,8 @@ export default function App() {
       if (sceneRef.current && sensors.useGyro) {
         const { yaw, pitch, roll } = sensorManager.getRelativeAnglesRad();
         sceneRef.current.applyGyroAngles(yaw, pitch, roll);
+      } else if (sceneRef.current) {
+        sceneRef.current.applyGyroAngles(0, 0, 0);
       }
 
       if (sceneRef.current && activeModal === null) {

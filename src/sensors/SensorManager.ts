@@ -7,6 +7,7 @@
  * 4. WebRTC Camera (navigator.mediaDevices.getUserMedia)
  */
 
+import * as THREE from 'three';
 import { OrientationData } from '../types/game';
 
 export type OrientationCallback = (data: OrientationData) => void;
@@ -14,17 +15,44 @@ export type OrientationCallback = (data: OrientationData) => void;
 export class SensorManager {
   private rawOrientation: OrientationData = { alpha: 0, beta: 0, gamma: 0 };
   private smoothedOrientation: OrientationData = { alpha: 0, beta: 0, gamma: 0 };
-  private initialOrientation: OrientationData | null = null;
   private hasSensorData: boolean = false;
   private isListening: boolean = false;
   private callbacks: Set<OrientationCallback> = new Set();
-  private smoothingFactor: number = 0.15; // Lerp factor
+
+  // Sensitivity and Axis Inversions
+  private sensitivity: number = 1.0;
+  private invertYaw: boolean = false;
+  private invertPitch: boolean = false;
+
+  // Unwrapped Angle Tracking for continuous 360-degree rotation without modulus snapping
+  private hasReceivedFirstEvent: boolean = false;
+  private lastRawYaw: number = 0;
+  private unwrappedYaw: number = 0;
+  private unwrappedPitch: number = 0;
+  private calibratedYaw: number = 0;
+  private calibratedPitch: number = 0;
+  private pendingRecenter: boolean = true;
+
+  // Target relative angles (radians)
+  private targetYaw: number = 0;
+  private targetPitch: number = 0;
+  private smoothedYaw: number = 0;
+  private smoothedPitch: number = 0;
+
+  // Reusable Three.js math objects to avoid garbage collection churn
+  private readonly zee = new THREE.Vector3(0, 0, 1);
+  private readonly euler = new THREE.Euler();
+  private readonly q0 = new THREE.Quaternion();
+  private readonly q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90 deg around X
+  private readonly deviceQuat = new THREE.Quaternion();
+  private readonly forwardVec = new THREE.Vector3();
+
+  // WebRTC Camera
   private cameraStream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
 
   constructor() {
     this.handleOrientationEvent = this.handleOrientationEvent.bind(this);
-    this.onOrientationChange = this.onOrientationChange.bind(this);
     this.updateSmoothing = this.updateSmoothing.bind(this);
     this.vibrate = this.vibrate.bind(this);
     this.recenter = this.recenter.bind(this);
@@ -52,7 +80,7 @@ export class SensorManager {
         }
         return false;
       } else if ('DeviceOrientationEvent' in window) {
-        // Android / non-iOS standard browsers
+        // Android / standard desktop browsers
         this.startListening();
         return true;
       }
@@ -83,19 +111,12 @@ export class SensorManager {
     }
   };
 
-  private sensitivity: number = 1.0;
-  private invertYaw: boolean = false;
-  private invertPitch: boolean = false;
-  private baseOffset: OrientationData = { alpha: 0, beta: 75, gamma: 0 };
-  private isCalibrated: boolean = false;
-
-  private diffAngle(target: number, current: number): number {
-    let diff = target - current;
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
-    return diff;
-  }
-
+  /**
+   * Processes raw mobile DeviceOrientationEvent:
+   * 1. Converts (alpha, beta, gamma) into a 3D Device Quaternion (eliminating Euler gimbal lock at 90 deg tilt).
+   * 2. Extracts forward look vector in 3D world space.
+   * 3. Continuously unwraps yaw across the -PI..PI boundary so the player can spin 360 degrees indefinitely.
+   */
   private handleOrientationEvent(event: DeviceOrientationEvent) {
     if (event.alpha === null && event.beta === null && event.gamma === null) {
       return;
@@ -103,31 +124,93 @@ export class SensorManager {
 
     this.hasSensorData = true;
 
-    const alpha = event.alpha ?? 0; // 0..360
-    const beta = event.beta ?? 0;   // -180..180
-    const gamma = event.gamma ?? 0; // -90..90
-
-    if (!this.isCalibrated) {
-      this.baseOffset = { alpha, beta, gamma };
-      this.initialOrientation = { alpha, beta, gamma };
-      this.smoothedOrientation = { alpha, beta, gamma };
-      this.isCalibrated = true;
-    }
-
+    const alpha = event.alpha ?? 0;
+    const beta = event.beta ?? 0;
+    const gamma = event.gamma ?? 0;
     this.rawOrientation = { alpha, beta, gamma };
+
+    const degToRad = Math.PI / 180;
+    const a = alpha * degToRad;
+    const b = beta * degToRad;
+    const g = gamma * degToRad;
+
+    // Screen orientation angle (0 for portrait, 90/-90 for landscape)
+    let screenAngleDeg = 0;
+    if (typeof window !== 'undefined') {
+      if (window.screen?.orientation?.angle !== undefined) {
+        screenAngleDeg = window.screen.orientation.angle;
+      } else if (typeof window.orientation === 'number') {
+        screenAngleDeg = window.orientation;
+      }
+    }
+    const screenAngleRad = screenAngleDeg * degToRad;
+
+    // Convert W3C Device Orientation angles to 3D Device Quaternion (no gimbal lock)
+    this.euler.set(b, a, -g, 'YXZ');
+    this.deviceQuat.setFromEuler(this.euler);
+    this.deviceQuat.multiply(this.q1);
+    this.q0.setFromAxisAngle(this.zee, -screenAngleRad);
+    this.deviceQuat.multiply(this.q0);
+
+    // Compute forward looking direction in world space (camera looks down -Z)
+    this.forwardVec.set(0, 0, -1).applyQuaternion(this.deviceQuat);
+
+    // Raw Heading Yaw in (-PI, PI] and Pitch in (-PI/2, PI/2)
+    const currentRawYaw = Math.atan2(-this.forwardVec.x, -this.forwardVec.z);
+    const currentRawPitch = Math.asin(Math.max(-0.999, Math.min(0.999, this.forwardVec.y)));
+
+    if (!this.hasReceivedFirstEvent) {
+      this.hasReceivedFirstEvent = true;
+      this.lastRawYaw = currentRawYaw;
+      this.unwrappedYaw = currentRawYaw;
+      this.unwrappedPitch = currentRawPitch;
+      this.calibratedYaw = this.unwrappedYaw;
+      this.calibratedPitch = this.unwrappedPitch;
+      this.pendingRecenter = false;
+      this.targetYaw = 0;
+      this.targetPitch = 0;
+      this.smoothedYaw = 0;
+      this.smoothedPitch = 0;
+    } else {
+      // Small delta angle between successive events with [-PI, PI] wrapping protection
+      let deltaYaw = currentRawYaw - this.lastRawYaw;
+      while (deltaYaw > Math.PI) deltaYaw -= 2 * Math.PI;
+      while (deltaYaw < -Math.PI) deltaYaw += 2 * Math.PI;
+      this.lastRawYaw = currentRawYaw;
+
+      // Accumulate into continuous unwrappedYaw (allows infinite 360-degree rotation)
+      this.unwrappedYaw += deltaYaw;
+      this.unwrappedPitch = currentRawPitch;
+
+      if (this.pendingRecenter) {
+        this.calibratedYaw = this.unwrappedYaw;
+        this.calibratedPitch = this.unwrappedPitch;
+        this.pendingRecenter = false;
+        this.targetYaw = 0;
+        this.targetPitch = 0;
+        this.smoothedYaw = 0;
+        this.smoothedPitch = 0;
+      } else {
+        this.targetYaw = this.unwrappedYaw - this.calibratedYaw;
+        this.targetPitch = this.unwrappedPitch - this.calibratedPitch;
+      }
+    }
   }
 
   /**
-   * Called every frame to smooth orientation using Lerp and angle-wrap protection
+   * Called every frame to smooth orientation using Lerp filter
    */
   public updateSmoothing = (): OrientationData => {
-    const deltaAlpha = this.diffAngle(this.rawOrientation.alpha, this.smoothedOrientation.alpha);
-    const deltaBeta = this.diffAngle(this.rawOrientation.beta, this.smoothedOrientation.beta);
-    const deltaGamma = this.rawOrientation.gamma - this.smoothedOrientation.gamma;
+    // Smooth target relative angles with exponential lerp factor (balanced for responsiveness & stability)
+    const lerpFactor = 0.22;
+    this.smoothedYaw += (this.targetYaw - this.smoothedYaw) * lerpFactor;
+    this.smoothedPitch += (this.targetPitch - this.smoothedPitch) * lerpFactor;
 
-    this.smoothedOrientation.alpha += deltaAlpha * this.smoothingFactor;
-    this.smoothedOrientation.beta += deltaBeta * this.smoothingFactor;
-    this.smoothedOrientation.gamma += deltaGamma * this.smoothingFactor;
+    this.smoothedOrientation = {
+      alpha: (this.smoothedYaw * 180) / Math.PI,
+      beta: (this.smoothedPitch * 180) / Math.PI,
+      gamma: 0,
+    };
 
     this.callbacks.forEach((cb) => {
       try {
@@ -136,6 +219,7 @@ export class SensorManager {
         // Safe callback execution
       }
     });
+
     return this.smoothedOrientation;
   };
 
@@ -144,16 +228,9 @@ export class SensorManager {
    * Scaled by user-defined sensitivity and axis inversion settings
    */
   public getRelativeAnglesRad = (): { yaw: number; pitch: number; roll: number } => {
-    const degToRad = Math.PI / 180;
-    const relAlpha = this.diffAngle(this.smoothedOrientation.alpha, this.baseOffset.alpha);
-    const relBeta = this.diffAngle(this.smoothedOrientation.beta, this.baseOffset.beta);
-    const relGamma = this.smoothedOrientation.gamma - this.baseOffset.gamma;
-
-    const yaw = (this.invertYaw ? relAlpha : -relAlpha) * degToRad * this.sensitivity;
-    const pitch = (this.invertPitch ? relBeta : -relBeta) * degToRad * this.sensitivity;
-    const roll = Math.max(-0.6, Math.min(0.6, -relGamma * degToRad * this.sensitivity * 0.35));
-
-    return { yaw, pitch, roll };
+    const yaw = (this.invertYaw ? -1 : 1) * this.smoothedYaw * this.sensitivity;
+    const pitch = (this.invertPitch ? -1 : 1) * this.smoothedPitch * this.sensitivity;
+    return { yaw, pitch, roll: 0 };
   };
 
   public setSensitivity = (val: number) => {
@@ -192,10 +269,21 @@ export class SensorManager {
     return this.hasSensorData;
   };
 
+  /**
+   * Calibrate current device orientation to be (0, 0, 0)
+   * Ensures camera faces straight ahead at the chained door
+   */
   public recenter = () => {
-    this.baseOffset = { ...this.rawOrientation };
-    this.smoothedOrientation = { ...this.rawOrientation };
-    this.isCalibrated = true;
+    this.pendingRecenter = true;
+    if (this.hasReceivedFirstEvent) {
+      this.calibratedYaw = this.unwrappedYaw;
+      this.calibratedPitch = this.unwrappedPitch;
+      this.targetYaw = 0;
+      this.targetPitch = 0;
+      this.smoothedYaw = 0;
+      this.smoothedPitch = 0;
+      this.pendingRecenter = false;
+    }
   };
 
   public onOrientationChange = (cb: OrientationCallback): (() => void) => {

@@ -49,9 +49,10 @@ export class EscapeRoomScene {
 
   // Player state
   private playerPosition = new THREE.Vector3(0, 1.6, 2.5); // Start in center-back
-  private cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  private gyroEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  private touchLookDelta = { x: 0, y: 0 };
+  private touchYaw: number = 0;
+  private touchPitch: number = 0;
+  private gyroYaw: number = 0;
+  private gyroPitch: number = 0;
   private moveVelocity = new THREE.Vector3();
   private isFlashlightOn = true;
 
@@ -1356,13 +1357,14 @@ export class EscapeRoomScene {
     const moveSpeed = 2.4 * delta;
 
     // Movement forward/back & left/right relative to camera's horizontal yaw
+    const currentYaw = this.touchYaw + this.gyroYaw;
     const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), currentYaw);
     forward.y = 0;
     forward.normalize();
 
     const right = new THREE.Vector3(1, 0, 0);
-    right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    right.applyAxisAngle(new THREE.Vector3(0, 1, 0), currentYaw);
     right.y = 0;
     right.normalize();
 
@@ -1447,16 +1449,15 @@ export class EscapeRoomScene {
   /**
    * Apply Gyroscope Orientation in radians (yaw, pitch, roll)
    */
-  public applyGyroAngles(yaw: number, pitch: number, roll: number) {
-    this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
+  public applyGyroAngles(yaw: number, pitch: number, _roll: number = 0) {
+    this.gyroYaw = yaw;
+    this.gyroPitch = pitch;
   }
 
   public applyGyroOrientation(data: OrientationData) {
     const degToRad = Math.PI / 180;
-    const pitch = (data.beta - 75) * degToRad;
-    const yaw = -data.alpha * degToRad;
-    const roll = -data.gamma * degToRad * 0.35;
-    this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
+    this.gyroPitch = (data.beta - 75) * degToRad;
+    this.gyroYaw = -data.alpha * degToRad;
   }
 
   /**
@@ -1466,13 +1467,17 @@ export class EscapeRoomScene {
     const sensitivity = 0.003;
     const factorX = invertX ? 1 : -1;
     const factorY = invertY ? 1 : -1;
-    this.cameraEuler.y += dx * sensitivity * factorX;
-    this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x + dy * sensitivity * factorY));
+    this.touchYaw += dx * sensitivity * factorX;
+    this.touchPitch = Math.max(-1.35, Math.min(1.35, this.touchPitch + dy * sensitivity * factorY));
   }
 
   public recenterCamera() {
-    this.cameraEuler.set(0, 0, 0, 'YXZ');
-    this.gyroEuler.set(0, 0, 0, 'YXZ');
+    this.touchYaw = 0;
+    this.touchPitch = 0;
+    this.gyroYaw = 0;
+    this.gyroPitch = 0;
+    this.camera.rotation.set(0, 0, 0, 'YXZ');
+    this.camera.quaternion.setFromEuler(this.camera.rotation);
   }
 
   /**
@@ -1649,8 +1654,8 @@ export class EscapeRoomScene {
   public triggerDoorKnockImpact() {
     this.doorShakeStartTime = performance.now();
     // Micro camera tremor
-    this.cameraEuler.x += (Math.random() - 0.5) * 0.02;
-    this.cameraEuler.y += (Math.random() - 0.5) * 0.02;
+    this.touchPitch += (Math.random() - 0.5) * 0.015;
+    this.touchYaw += (Math.random() - 0.5) * 0.015;
   }
 
   /**
@@ -1698,13 +1703,12 @@ export class EscapeRoomScene {
       );
     }
 
-    // 3. Camera Orientation: combine touch yaw with gyro
-    this.camera.quaternion.setFromEuler(this.cameraEuler);
-    // If gyro is active, multiply rotation
-    if (this.gyroEuler.x !== 0 || this.gyroEuler.y !== 0) {
-      const gyroQuat = new THREE.Quaternion().setFromEuler(this.gyroEuler);
-      this.camera.quaternion.multiply(gyroQuat);
-    }
+    // 3. Camera Orientation: unified single Euler (touch + gyro)
+    // Continuous 360-degree rotation without gimbal-lock or quaternion drift
+    const totalYaw = this.touchYaw + this.gyroYaw;
+    const totalPitch = Math.max(-1.35, Math.min(1.35, this.touchPitch + this.gyroPitch));
+    this.camera.rotation.set(totalPitch, totalYaw, 0, 'YXZ');
+    this.camera.quaternion.setFromEuler(this.camera.rotation);
 
     // 4. Flashlight follows camera look
     this.flashlight.position.copy(this.camera.position);
