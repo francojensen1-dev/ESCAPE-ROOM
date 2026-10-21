@@ -83,6 +83,18 @@ export class SensorManager {
     }
   };
 
+  private sensitivity: number = 1.0;
+  private invertPitch: boolean = false;
+  private baseOffset: OrientationData = { alpha: 0, beta: 75, gamma: 0 };
+  private isCalibrated: boolean = false;
+
+  private diffAngle(target: number, current: number): number {
+    let diff = target - current;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+    return diff;
+  }
+
   private handleOrientationEvent(event: DeviceOrientationEvent) {
     if (event.alpha === null && event.beta === null && event.gamma === null) {
       return;
@@ -94,28 +106,27 @@ export class SensorManager {
     const beta = event.beta ?? 0;   // -180..180
     const gamma = event.gamma ?? 0; // -90..90
 
-    if (!this.initialOrientation) {
+    if (!this.isCalibrated) {
+      this.baseOffset = { alpha, beta, gamma };
       this.initialOrientation = { alpha, beta, gamma };
+      this.smoothedOrientation = { alpha, beta, gamma };
+      this.isCalibrated = true;
     }
 
     this.rawOrientation = { alpha, beta, gamma };
   }
 
   /**
-   * Called every frame to smooth orientation using Lerp
+   * Called every frame to smooth orientation using Lerp and angle-wrap protection
    */
   public updateSmoothing = (): OrientationData => {
-    // Shortest angular difference for circular alpha (0..360)
-    let diffAlpha = (this.rawOrientation.alpha - this.smoothedOrientation.alpha) % 360;
-    if (diffAlpha > 180) diffAlpha -= 360;
-    if (diffAlpha < -180) diffAlpha += 360;
-    this.smoothedOrientation.alpha = (this.smoothedOrientation.alpha + diffAlpha * this.smoothingFactor) % 360;
-    if (this.smoothedOrientation.alpha < 0) this.smoothedOrientation.alpha += 360;
+    const deltaAlpha = this.diffAngle(this.rawOrientation.alpha, this.smoothedOrientation.alpha);
+    const deltaBeta = this.diffAngle(this.rawOrientation.beta, this.smoothedOrientation.beta);
+    const deltaGamma = this.rawOrientation.gamma - this.smoothedOrientation.gamma;
 
-    this.smoothedOrientation.beta +=
-      (this.rawOrientation.beta - this.smoothedOrientation.beta) * this.smoothingFactor;
-    this.smoothedOrientation.gamma +=
-      (this.rawOrientation.gamma - this.smoothedOrientation.gamma) * this.smoothingFactor;
+    this.smoothedOrientation.alpha += deltaAlpha * this.smoothingFactor;
+    this.smoothedOrientation.beta += deltaBeta * this.smoothingFactor;
+    this.smoothedOrientation.gamma += deltaGamma * this.smoothingFactor;
 
     this.callbacks.forEach((cb) => {
       try {
@@ -125,6 +136,39 @@ export class SensorManager {
       }
     });
     return this.smoothedOrientation;
+  };
+
+  /**
+   * Returns calculated yaw, pitch, roll in radians relative to calibrated baseline
+   * Scaled by user-defined sensitivity and pitch inversion setting
+   */
+  public getRelativeAnglesRad = (): { yaw: number; pitch: number; roll: number } => {
+    const degToRad = Math.PI / 180;
+    const relAlpha = this.diffAngle(this.smoothedOrientation.alpha, this.baseOffset.alpha);
+    const relBeta = this.diffAngle(this.smoothedOrientation.beta, this.baseOffset.beta);
+    const relGamma = this.smoothedOrientation.gamma - this.baseOffset.gamma;
+
+    const yaw = -relAlpha * degToRad * this.sensitivity;
+    const pitch = (this.invertPitch ? relBeta : -relBeta) * degToRad * this.sensitivity;
+    const roll = Math.max(-0.6, Math.min(0.6, -relGamma * degToRad * this.sensitivity * 0.35));
+
+    return { yaw, pitch, roll };
+  };
+
+  public setSensitivity = (val: number) => {
+    this.sensitivity = Math.max(0.2, Math.min(3.0, val));
+  };
+
+  public getSensitivity = (): number => {
+    return this.sensitivity;
+  };
+
+  public setInvertPitch = (inverted: boolean) => {
+    this.invertPitch = inverted;
+  };
+
+  public getInvertPitch = (): boolean => {
+    return this.invertPitch;
   };
 
   public getOrientation = (): OrientationData => {
@@ -140,8 +184,9 @@ export class SensorManager {
   };
 
   public recenter = () => {
-    this.initialOrientation = { ...this.rawOrientation };
+    this.baseOffset = { ...this.rawOrientation };
     this.smoothedOrientation = { ...this.rawOrientation };
+    this.isCalibrated = true;
   };
 
   public onOrientationChange = (cb: OrientationCallback): (() => void) => {

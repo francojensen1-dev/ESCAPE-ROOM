@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { EscapeRoomScene } from './three/EscapeRoomScene';
+import { EscapeRoomScene, InteractionStatus, InteractionTapResult } from './three/EscapeRoomScene';
 import { sensorManager } from './sensors/SensorManager';
 import { horrorAudio } from './audio/HorrorAudioManager';
 import {
@@ -15,7 +15,6 @@ import {
   InventoryItem,
   LockState,
   SensorsState,
-  FocusState,
 } from './types/game';
 
 // Components
@@ -35,7 +34,8 @@ import { ToiletModal } from './components/ToiletModal';
 import { BrokenTileModal } from './components/BrokenTileModal';
 import { LetterLockModal } from './components/LetterLockModal';
 import { BathroomDoorModal } from './components/BathroomDoorModal';
-import { Hand, Eye, AlertTriangle } from 'lucide-react';
+import { SettingsModal } from './components/SettingsModal';
+import { Eye, Flashlight, Sliders } from 'lucide-react';
 
 export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -55,8 +55,14 @@ export default function App() {
     useGyro: true,
     audioActive: true,
   });
+  const [gyroSensitivity, setGyroSensitivity] = useState<number>(1.0);
+  const [invertPitch, setInvertPitch] = useState<boolean>(false);
   const [audioMetrics, setAudioMetrics] = useState<AudioMetrics>({ volume: 0, bassLevel: 0 });
   const [isFlashlightOn, setIsFlashlightOn] = useState<boolean>(true);
+
+  // Interaction feedback toast
+  const [interactionToast, setInteractionToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<number | null>(null);
 
   // Puzzle & Inventory State
   const [inventory, setInventory] = useState<InventoryItem[]>([
@@ -91,39 +97,42 @@ export default function App() {
     | 'toilet'
     | 'broken_tile'
     | 'letterlock'
-    | 'bathroom_door';
+    | 'bathroom_door'
+    | 'settings';
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [nearTarget, setNearTarget] = useState<InteractiveTargetId>(null);
-  const [focusState, setFocusState] = useState<FocusState>({
-    targetId: null,
-    isFrontallyFacing: false,
-    angleDeg: 180,
-    distance: 999,
-    nearObliqueTargetId: null,
-  });
-  const [toastWarning, setToastWarning] = useState<string | null>(null);
-  const toastTimeoutRef = useRef<number | null>(null);
+  const [illuminatedTarget, setIlluminatedTarget] = useState<InteractiveTargetId>(null);
 
   // Movement & Look Refs
   const joystickVector = useRef({ x: 0, y: 0 });
   const keyboardKeys = useRef<{ [key: string]: boolean }>({});
   const isPointerDown = useRef(false);
   const lastPointerPos = useRef({ x: 0, y: 0 });
-  const pointerDownPos = useRef({ x: 0, y: 0 });
-  const pointerDownTime = useRef(0);
+  const pointerDownInfo = useRef({ x: 0, y: 0, time: 0, moved: false });
 
-  /**
-   * Show narrative warning toast when user taps without facing frontally (±30°)
-   */
-  const showNarrativeWarning = useCallback((message: string) => {
-    setToastWarning(message);
-    sensorManager.vibrate([45, 35, 45]);
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+  const showToast = useCallback((msg: string) => {
+    setInteractionToast(msg);
+    if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = window.setTimeout(() => {
-      setToastWarning(null);
+      setInteractionToast(null);
     }, 2800);
   }, []);
+
+  const handleSensitivityChange = (val: number) => {
+    setGyroSensitivity(val);
+    sensorManager.setSensitivity(val);
+  };
+
+  const handleInvertPitchToggle = (inv: boolean) => {
+    setInvertPitch(inv);
+    sensorManager.setInvertPitch(inv);
+  };
+
+  const handleRecenter = () => {
+    if (sceneRef.current) sceneRef.current.recenterCamera();
+    sensorManager.recenter();
+  };
 
   /**
    * Start Experience: User gesture triggers audio and sensor permissions
@@ -389,9 +398,14 @@ export default function App() {
   useEffect(() => {
     if (!canvasContainerRef.current || sceneRef.current) return;
 
-    const scene = new EscapeRoomScene(canvasContainerRef.current, (focus) => {
-      setFocusState(focus);
-      setNearTarget(focus.targetId);
+    const scene = new EscapeRoomScene(canvasContainerRef.current, (status: InteractionStatus) => {
+      if (status.isIlluminated && status.target) {
+        setNearTarget(status.target);
+        setIlluminatedTarget(status.target);
+      } else {
+        setNearTarget(null);
+        setIlluminatedTarget(null);
+      }
     });
     sceneRef.current = scene;
 
@@ -490,29 +504,6 @@ export default function App() {
   }, [gameStage, activeModal]);
 
   /**
-   * Sensor Orientation Listener Loop
-   */
-  useEffect(() => {
-    if (gameStage !== 'playing') return;
-
-    if (typeof sensorManager?.onOrientationChange !== 'function') {
-      return;
-    }
-
-    const unsubscribe = sensorManager.onOrientationChange((data) => {
-      if (sceneRef.current && sensors.useGyro) {
-        sceneRef.current.applyGyroOrientation(data);
-      }
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, [gameStage, sensors.useGyro]);
-
-  /**
    * Keyboard Movement Listener (W, A, S, D & Arrows for Desktop)
    */
   useEffect(() => {
@@ -549,11 +540,17 @@ export default function App() {
       const delta = Math.min(0.1, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
-      // Update Gyro Lerp
+      // Update Gyro Lerp with compass wrapping protection
       sensorManager.updateSmoothing();
 
+      // Apply Gyroscope orientation to camera with user sensitivity & calibration
+      if (sceneRef.current && sensors.useGyro) {
+        const { yaw, pitch, roll } = sensorManager.getRelativeAnglesRad();
+        sceneRef.current.applyGyroAngles(yaw, pitch, roll);
+      }
+
       if (sceneRef.current && activeModal === null) {
-        // Combine Joystick and Keyboard
+        // Player displacement strictly with analog joystick and keyboard
         let vx = joystickVector.current.x;
         let vy = joystickVector.current.y;
 
@@ -579,56 +576,63 @@ export default function App() {
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [gameStage, activeModal]);
+  }, [gameStage, activeModal, sensors.useGyro]);
 
   /**
-   * Touch/Mouse Look & Tap Interaction Handlers on Canvas
+   * Touch & Drag Handlers on Canvas
+   * STRICT 3-POINT VERIFICATION:
+   * Objects can ONLY be activated by direct screen touch tap while illuminated by the flashlight!
    */
   const handlePointerDown = (e: React.PointerEvent) => {
     if (activeModal !== null) return;
     isPointerDown.current = true;
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
-    pointerDownPos.current = { x: e.clientX, y: e.clientY };
-    pointerDownTime.current = performance.now();
+    pointerDownInfo.current = { x: e.clientX, y: e.clientY, time: performance.now(), moved: false };
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isPointerDown.current || activeModal !== null || !sceneRef.current) return;
-    // On mobile with Gyroscope, camera orientation is driven exclusively by the Gyroscope.
-    // Manual touch drag look is only enabled on desktop when gyro is not active.
-    if (!sensors.hasDeviceOrientation || !sensors.useGyro) {
-      const dx = e.clientX - lastPointerPos.current.x;
-      const dy = e.clientY - lastPointerPos.current.y;
-      lastPointerPos.current = { x: e.clientX, y: e.clientY };
-      sceneRef.current.applyLookDelta(dx, dy);
+    const dx = e.clientX - lastPointerPos.current.x;
+    const dy = e.clientY - lastPointerPos.current.y;
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+
+    const dragDist = Math.hypot(e.clientX - pointerDownInfo.current.x, e.clientY - pointerDownInfo.current.y);
+    if (dragDist > 10) {
+      pointerDownInfo.current.moved = true;
     }
+
+    sceneRef.current.applyLookDelta(dx, dy);
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isPointerDown.current) return;
     isPointerDown.current = false;
 
-    if (activeModal !== null || !sceneRef.current) return;
+    const duration = performance.now() - pointerDownInfo.current.time;
+    const isTap = !pointerDownInfo.current.moved && duration < 350;
 
-    const dragDist = Math.hypot(
-      e.clientX - pointerDownPos.current.x,
-      e.clientY - pointerDownPos.current.y
-    );
-    const duration = performance.now() - pointerDownTime.current;
+    // Strict 3-Point Touch Verification:
+    // Only triggers on intentional screen touch tap
+    if (isTap && sceneRef.current && activeModal === null) {
+      const tapResult: InteractionTapResult = sceneRef.current.handleScreenTap(e.clientX, e.clientY);
 
-    // Tap gesture detection: under 28px movement and under 500ms duration
-    if (dragDist < 28 && duration < 500) {
-      const result = sceneRef.current.triggerTouchInteraction(e.clientX, e.clientY);
-      if (result.success && result.targetId) {
-        handleOpenTarget(result.targetId);
-      } else if (result.reason === 'oblique') {
-        showNarrativeWarning('Debes ponerte justo enfrente del objeto para manipularlo');
+      if (tapResult.success && tapResult.target) {
+        handleOpenTarget(tapResult.target);
+      } else if (tapResult.reason === 'flashlight_off') {
+        showToast('🔦 Está demasiado oscuro. Enciende la linterna para poder examinar.');
+        sensorManager.vibrate([60, 40, 60]);
+        horrorAudio.playDoorKnocks(0.2);
+      } else if (tapResult.reason === 'not_illuminated') {
+        showToast('🔦 Alumbra directamente el objeto con el haz de la linterna para examinarlo.');
+        sensorManager.vibrate(40);
+      } else if (tapResult.reason === 'too_far') {
+        showToast('Acércate más usando el analógico de desplazamiento.');
+        sensorManager.vibrate(25);
       }
     }
   };
 
-  const focusedPrompt = focusState.targetId ? getTargetPrompt(focusState.targetId) : null;
-  const obliquePrompt = focusState.nearObliqueTargetId ? getTargetPrompt(focusState.nearObliqueTargetId) : null;
+  const promptInfo = nearTarget ? getTargetPrompt(nearTarget) : null;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black select-none touch-none">
@@ -644,76 +648,14 @@ export default function App() {
         className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing z-0"
       />
 
-      {/* Dynamic Center Reticle HUD (Touch + Vista Frontal Verification) */}
-      {gameStage === 'playing' && activeModal === null && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 flex flex-col items-center">
-          {focusState.isFrontallyFacing && focusState.targetId ? (
-            <div className="flex flex-col items-center">
-              {/* Active Targeting Brackets */}
-              <div className="relative w-16 h-16 flex items-center justify-center animate-pulse">
-                {/* Top-left bracket */}
-                <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-amber-400" />
-                {/* Top-right bracket */}
-                <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-amber-400" />
-                {/* Bottom-left bracket */}
-                <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-amber-400" />
-                {/* Bottom-right bracket */}
-                <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-amber-400" />
-                {/* Glowing Center Dot */}
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,1)]" />
-              </div>
-
-              {/* Frontal Focus Tag */}
-              <div className="mt-3 px-3.5 py-1.5 rounded-lg bg-stone-950/90 border border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.4)] backdrop-blur-md text-center max-w-[260px]">
-                <p className="text-[11px] font-mono font-bold tracking-wider text-amber-400 uppercase">
-                  {focusedPrompt?.title}
-                </p>
-                <p className="text-[10px] font-mono font-semibold text-amber-100 tracking-wide mt-0.5">
-                  TOCA LA PANTALLA PARA INTERACTUAR
-                </p>
-                <div className="mt-1 flex items-center justify-center gap-1.5 text-[9px] font-mono text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
-                  <span>ÁNGULO FRONTAL: {focusState.angleDeg}° (≤ 30°)</span>
-                </div>
-              </div>
-            </div>
-          ) : focusState.nearObliqueTargetId ? (
-            <div className="flex flex-col items-center">
-              {/* Oblique Angle Warning Reticle */}
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border border-dashed border-red-500/60 animate-spin" style={{ animationDuration: '7s' }} />
-                <div className="w-2 h-2 rounded-full bg-red-400/90 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-              </div>
-              <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-stone-950/90 border border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.3)] backdrop-blur-md text-center max-w-[240px]">
-                <p className="text-[10px] font-mono font-bold text-red-400 uppercase">
-                  {obliquePrompt?.title}
-                </p>
-                <p className="text-[9px] font-mono text-stone-300 mt-0.5">
-                  Ángulo oblicuo: {focusState.angleDeg}° (&gt; 30°)
-                </p>
-                <p className="text-[8.5px] font-mono text-amber-400/90 font-medium">
-                  Ponte de frente para interactuar
-                </p>
-              </div>
-            </div>
-          ) : (
-            /* Subtle Minimal Idle Crosshair */
-            <div className="w-1.5 h-1.5 rounded-full bg-white/40 shadow-sm" />
-          )}
-        </div>
-      )}
-
-      {/* Floating Narrative Toast Alert */}
-      {toastWarning && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-bounce">
-          <div className="px-4 py-2.5 rounded-xl bg-red-950/95 border border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.6)] backdrop-blur-md flex items-center gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-xs font-mono font-semibold text-red-100 tracking-wide text-center">
-              {toastWarning}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Crosshair Dot in Center - Expands and glows amber when illuminating an interactive object */}
+      <div
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 transition-all duration-150 ${
+          illuminatedTarget
+            ? 'w-6 h-6 rounded-full border border-amber-400 bg-amber-400/20 shadow-[0_0_12px_rgba(251,191,36,0.8)] scale-110'
+            : 'w-1.5 h-1.5 rounded-full bg-white/40'
+        }`}
+      />
 
       {/* Top Status Bar */}
       {gameStage === 'playing' && (
@@ -733,15 +675,46 @@ export default function App() {
             const muted = horrorAudio.toggleMute();
             setSensors((prev) => ({ ...prev, audioActive: !muted }));
           }}
-          onRecenterCamera={() => {
-            if (sceneRef.current) sceneRef.current.recenterCamera();
-            sensorManager.recenter();
-          }}
+          onRecenterCamera={handleRecenter}
           onOpenInventory={() => setActiveModal('inventory')}
+          onOpenSettings={() => setActiveModal('settings')}
         />
       )}
 
-      {/* Bottom Controls HUD */}
+      {/* Target Illumination Status Banner (Informs the player that object is illuminated and ready for touch) */}
+      {gameStage === 'playing' && promptInfo && activeModal === null && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-all duration-200">
+          <div className="px-4 py-2.5 rounded-xl bg-stone-950/90 border border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.4)] backdrop-blur-md flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
+              <Eye className="w-4 h-4 animate-pulse" />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400">
+                  {promptInfo.title}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">
+                  ILUMINADO
+                </span>
+              </div>
+              <p className="text-xs text-stone-200 font-medium">
+                Toca la pantalla sobre el objeto para examinar
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interaction Toast Feedback (e.g. flashlight off / needs aim / too far) */}
+      {interactionToast && (
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none max-w-sm w-[90%] text-center">
+          <div className="px-4 py-2.5 rounded-xl bg-stone-950/95 border border-amber-500/60 shadow-2xl backdrop-blur-md text-amber-200 text-xs font-mono font-medium flex items-center gap-2 justify-center">
+            <span>{interactionToast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Controls HUD - Joystick strictly for analog movement */}
       {gameStage === 'playing' && activeModal === null && (
         <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 z-20 flex items-end justify-between pointer-events-none">
           {/* Virtual Joystick (Bottom Left) */}
@@ -753,27 +726,11 @@ export default function App() {
             />
           </div>
 
-          {/* Quick Action Button (Bottom Right) */}
-          <div className="pointer-events-auto flex items-center gap-2">
-            {focusState.isFrontallyFacing && focusState.targetId ? (
-              <button
-                onClick={() => handleOpenTarget(focusState.targetId)}
-                className="px-5 py-3 rounded-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 active:scale-95 text-black font-mono text-xs font-bold shadow-[0_0_20px_rgba(245,158,11,0.5)] flex items-center gap-2 transition-transform animate-pulse"
-              >
-                <Hand className="w-4 h-4" />
-                INTERACTUAR
-              </button>
-            ) : focusState.nearObliqueTargetId ? (
-              <button
-                onClick={() =>
-                  showNarrativeWarning('Debes ponerte justo enfrente del objeto para manipularlo')
-                }
-                className="px-4 py-2.5 rounded-full bg-stone-900/90 border border-red-500/60 active:scale-95 text-stone-300 font-mono text-[11px] font-medium shadow-md flex items-center gap-2 transition-transform"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                MIRAR DE FRENTE
-              </button>
-            ) : null}
+          {/* Quick HUD Guide Badge */}
+          <div className="pointer-events-none hidden sm:flex flex-col items-end gap-1 text-[11px] font-mono text-stone-400 bg-stone-950/70 p-2.5 rounded-xl border border-stone-800 backdrop-blur-xs">
+            <span className="text-stone-300 font-bold">🕹️ Analógico: Desplazamiento</span>
+            <span>📱 Giroscopio: Mirada / Vista</span>
+            <span className="text-amber-400 font-semibold">🔦 Linterna + Touch: Interactuar</span>
           </div>
         </div>
       )}
@@ -875,6 +832,22 @@ export default function App() {
 
       {gameStage === 'escaped' && (
         <VictoryModal timeElapsed={timeElapsed} onRestart={handleRestart} />
+      )}
+
+      {/* Settings & Gyroscope Sensitivity Modal */}
+      {activeModal === 'settings' && (
+        <SettingsModal
+          useGyro={sensors.useGyro}
+          gyroSensitivity={gyroSensitivity}
+          invertPitch={invertPitch}
+          onToggleGyro={(enabled) => {
+            setSensors((prev) => ({ ...prev, useGyro: enabled }));
+          }}
+          onChangeSensitivity={handleSensitivityChange}
+          onToggleInvertPitch={handleInvertPitchToggle}
+          onRecenter={handleRecenter}
+          onClose={() => setActiveModal(null)}
+        />
       )}
     </div>
   );

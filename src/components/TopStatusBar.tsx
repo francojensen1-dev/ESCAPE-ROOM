@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { Compass, Volume2, VolumeX, Flashlight, RefreshCw, Key, ShieldAlert } from 'lucide-react';
+import { Compass, Volume2, VolumeX, Flashlight, RefreshCw, Key, ShieldAlert, Sliders } from 'lucide-react';
 import { AudioMetrics, SensorsState, InventoryItem } from '../types/game';
 
 interface TopStatusBarProps {
@@ -21,6 +21,7 @@ interface TopStatusBarProps {
   onToggleAudioMute: () => void;
   onRecenterCamera: () => void;
   onOpenInventory: () => void;
+  onOpenSettings: () => void;
 }
 
 export const TopStatusBar: React.FC<TopStatusBarProps> = ({
@@ -33,6 +34,7 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
   onToggleAudioMute,
   onRecenterCamera,
   onOpenInventory,
+  onOpenSettings,
 }) => {
   // Format MM:SS
   const minutes = Math.floor(timeLeft / 60);
@@ -144,6 +146,16 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
               </span>
             </>
           )}
+        </button>
+
+        {/* Options & Gyroscope Sensitivity Settings */}
+        <button
+          onClick={onOpenSettings}
+          title="Opciones y Sensibilidad de Giroscopio"
+          className="p-1.5 sm:p-2 rounded border border-amber-600/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/50 hover:text-amber-200 transition-colors flex items-center gap-1"
+        >
+          <Sliders className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden sm:inline text-[10px] font-mono font-bold">OPCIONES</span>
         </button>
 
         {/* Recenter Camera Button */}

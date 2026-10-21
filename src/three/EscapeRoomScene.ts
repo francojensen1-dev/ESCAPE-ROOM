@@ -6,19 +6,25 @@
  */
 
 import * as THREE from 'three';
-import { InteractiveTargetId, LockState, OrientationData, FocusState } from '../types/game';
+import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 
-export type FocusUpdateCallback = (state: FocusState) => void;
+export interface InteractionStatus {
+  target: InteractiveTargetId;
+  isFlashlightOn: boolean;
+  isIlluminated: boolean;
+  distance: number;
+}
 
-export interface InteractiveTargetDef {
-  id: InteractiveTargetId;
-  name: string;
-  pos: THREE.Vector3;
-  frontNormal: THREE.Vector3; // Normal vector facing OUTWARD from the interactive surface
-  maxDist: number;            // Distance threshold in meters
-  maxAngleDeg: number;        // Maximum angle in degrees between player gaze and inbound normal (30°)
+export interface InteractionTapResult {
+  target: InteractiveTargetId;
+  success: boolean;
+  reason: 'ok' | 'flashlight_off' | 'not_illuminated' | 'too_far' | 'miss';
+}
+
+export interface SceneInteractionCallback {
+  (status: InteractionStatus): void;
 }
 
 export class EscapeRoomScene {
@@ -45,87 +51,14 @@ export class EscapeRoomScene {
   private playerPosition = new THREE.Vector3(0, 1.6, 2.5); // Start in center-back
   private cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private gyroEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private touchLookDelta = { x: 0, y: 0 };
+  private moveVelocity = new THREE.Vector3();
   private isFlashlightOn = true;
-  private hasGyroInput = false;
-  private gyroAlphaOffset = 0;
-  private initialHeadingSet = false;
 
-  // Interactive Meshes & Target Definitions
+  // Interactive Meshes
   private interactiveMeshes: Map<InteractiveTargetId, THREE.Mesh | THREE.Group> = new Map();
   private highlightMaterials: Map<InteractiveTargetId, THREE.MeshStandardMaterial> = new Map();
-  private onFocusUpdate: FocusUpdateCallback | null = null;
-
-  // Current Focus & Strict Frontal State
-  private currentFocusState: FocusState = {
-    targetId: null,
-    isFrontallyFacing: false,
-    angleDeg: 180,
-    distance: 999,
-    nearObliqueTargetId: null,
-  };
-
-  // Center Raycaster for direct aiming
-  private centerRaycaster = new THREE.Raycaster();
-
-  // Target definitions with strict front surface normals (for ±30° facing verification)
-  private targetDefinitions: InteractiveTargetDef[] = [
-    {
-      id: 'main_door',
-      name: 'Puerta Principal',
-      pos: new THREE.Vector3(0, 1.4, -5.8),
-      frontNormal: new THREE.Vector3(0, 0, 1), // Faces South into the room
-      maxDist: 2.8,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'bathroom_door',
-      name: 'Puerta del Baño',
-      pos: new THREE.Vector3(5.0, 1.4, 1.4),
-      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into the main room
-      maxDist: 2.5,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'rotten_fridge',
-      name: 'Heladera Podrida',
-      pos: new THREE.Vector3(3.8, 1.15, -4.8),
-      frontNormal: new THREE.Vector3(-0.5, 0, 0.866).normalize(), // Angled Southwest
-      maxDist: 2.4,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'study_desk',
-      name: 'Escritorio con Diario',
-      pos: new THREE.Vector3(-3.8, 0.85, -1.5),
-      frontNormal: new THREE.Vector3(1, 0, 0), // Faces East into the room
-      maxDist: 2.4,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'fuse_box',
-      name: 'Caja de Fusibles',
-      pos: new THREE.Vector3(4.9, 1.6, -0.6),
-      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into the room
-      maxDist: 2.2,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'toilet',
-      name: 'Inodoro Decrépito',
-      pos: new THREE.Vector3(7.5, 0.6, 4.35),
-      frontNormal: new THREE.Vector3(0, 0, -1), // Faces North into bathroom
-      maxDist: 2.4,
-      maxAngleDeg: 30,
-    },
-    {
-      id: 'broken_tile',
-      name: 'Azulejo Agrietado',
-      pos: new THREE.Vector3(11.38, 0.72, 0.35),
-      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into bathroom
-      maxDist: 1.8,
-      maxAngleDeg: 30,
-    },
-  ];
+  private currentNearTarget: InteractiveTargetId = null;
 
   // Chains & Locks meshes on main door (4 locks)
   private chainGroup: THREE.Group = new THREE.Group();
@@ -138,9 +71,16 @@ export class EscapeRoomScene {
   private bathroomDoorPivot: THREE.Group = new THREE.Group();
   private isBathroomUnlocked: boolean = false;
 
-  constructor(container: HTMLElement, onFocusUpdate?: FocusUpdateCallback) {
+  // Callbacks
+  private onInteractionUpdate: SceneInteractionCallback | null = null;
+
+  // Raycaster for taps
+  private raycaster = new THREE.Raycaster();
+  private mouse = new THREE.Vector2();
+
+  constructor(container: HTMLElement, onInteractionUpdate: SceneInteractionCallback) {
     this.container = container;
-    this.onFocusUpdate = onFocusUpdate || null;
+    this.onInteractionUpdate = onInteractionUpdate;
 
     // 1. Scene
     this.scene = new THREE.Scene();
@@ -1297,6 +1237,14 @@ export class EscapeRoomScene {
     tileMesh.rotation.y = -Math.PI / 2;
     tilePuzzleGroup.add(tileMesh);
 
+    // Invisible touch hit target (0.55m x 0.55m) for comfortable touchscreen tapping
+    const hitTarget = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.55, 0.55),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitTarget.rotation.y = -Math.PI / 2;
+    tilePuzzleGroup.add(hitTarget);
+
     this.scene.add(tilePuzzleGroup);
     this.interactiveMeshes.set('broken_tile', tilePuzzleGroup);
 
@@ -1405,21 +1353,19 @@ export class EscapeRoomScene {
   public applyMovement(vector: { x: number; y: number }, delta: number) {
     const moveSpeed = 2.4 * delta;
 
-    // Movement forward/back & left/right relative to camera's horizontal gaze in real-time
-    const forward = new THREE.Vector3();
-    this.camera.getWorldDirection(forward);
+    // Movement forward/back & left/right relative to camera's horizontal yaw
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
     forward.y = 0;
-    if (forward.lengthSq() < 0.0001) {
-      forward.set(0, 0, -1);
-    } else {
-      forward.normalize();
-    }
+    forward.normalize();
 
-    const right = new THREE.Vector3();
-    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    const right = new THREE.Vector3(1, 0, 0);
+    right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    right.y = 0;
+    right.normalize();
 
-    const moveX = right.clone().multiplyScalar(vector.x * moveSpeed);
-    const moveZ = forward.clone().multiplyScalar(vector.y * moveSpeed);
+    const moveX = right.multiplyScalar(vector.x * moveSpeed);
+    const moveZ = forward.multiplyScalar(vector.y * moveSpeed);
 
     const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
 
@@ -1497,28 +1443,24 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Apply Gyroscope Orientation with Lerp smoothing
-   * Mobile camera orientation is exclusively driven by the Gyroscope.
+   * Apply Gyroscope Orientation in radians (yaw, pitch, roll)
    */
-  public applyGyroOrientation(data: OrientationData) {
-    this.hasGyroInput = true;
-    const degToRad = Math.PI / 180;
-    // Beta is pitch: looking up/down. Upright vertical phone in hand: beta ~ 90° -> pitch ~ 0.
-    const pitch = (data.beta - 90) * degToRad * 0.95;
-    const yaw = -data.alpha * degToRad;
-    const roll = -data.gamma * degToRad * 0.5;
+  public applyGyroAngles(yaw: number, pitch: number, roll: number) {
+    this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
+  }
 
+  public applyGyroOrientation(data: OrientationData) {
+    const degToRad = Math.PI / 180;
+    const pitch = (data.beta - 75) * degToRad;
+    const yaw = -data.alpha * degToRad;
+    const roll = -data.gamma * degToRad * 0.35;
     this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
   }
 
   /**
    * Apply Touch Drag or Mouse Look
-   * Ignored if Gyroscope is active, adhering to strictly gyro-driven mobile camera navigation.
    */
   public applyLookDelta(dx: number, dy: number) {
-    if (this.hasGyroInput) {
-      return;
-    }
     const sensitivity = 0.003;
     this.cameraEuler.y -= dx * sensitivity;
     this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x - dy * sensitivity));
@@ -1530,108 +1472,70 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Evaluates interactive objects under the strict conditions:
-   * 1. Distance <= target.maxDist
-   * 2. Center Raycast / Screen Area Focus (<= 24° cone or direct ray hit)
-   * 3. Strict Frontal View (Dot Product of gaze vs front normal: facingDot >= cos(30°), player in front of surface plane)
+   * Check flashlight illumination and aim alignment to interactive targets.
+   * STRICT VERIFICATION: Target is illuminated ONLY when Flashlight is ON
+   * and looking directly at it (inside flashlight cone).
    */
-  private checkFocusAndHighlights(time: number) {
-    const gaze = new THREE.Vector3();
-    this.camera.getWorldDirection(gaze);
-    gaze.normalize();
+  private checkProximityAndHighlights(time: number) {
+    let closestTarget: InteractiveTargetId = null;
+    let minDistance = 999;
+    let isTargetInBeam = false;
 
-    let focusedTarget: InteractiveTargetDef | null = null;
-    let minAimAngle = 999;
-    let focusedAngleDeg = 180;
-    let focusedDist = 999;
+    const camPos = this.camera.position;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
 
-    let obliqueTargetId: InteractiveTargetId = null;
-    let obliqueMinDist = 999;
-    let obliqueAngleDeg = 180;
+    const targets: { id: InteractiveTargetId; pos: THREE.Vector3; maxDist: number }[] = [
+      { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8), maxDist: 3.4 },
+      { id: 'rotten_fridge', pos: new THREE.Vector3(3.8, 1.2, -4.8), maxDist: 2.8 },
+      { id: 'study_desk', pos: new THREE.Vector3(-3.8, 0.9, -1.5), maxDist: 2.8 },
+      { id: 'fuse_box', pos: new THREE.Vector3(4.88, 1.6, 1.5), maxDist: 2.8 },
+    ];
 
-    // Center raycast directly from screen center (0, 0)
-    this.centerRaycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-
-    for (const target of this.targetDefinitions) {
-      if (target.id === 'bathroom_door' && this.isBathroomUnlocked) {
-        // Dividing door is already open and unlocked
-        continue;
-      }
-
-      const toTarget = target.pos.clone().sub(this.camera.position);
-      const dist = toTarget.length();
-
-      if (dist > target.maxDist) {
-        continue;
-      }
-
-      const toTargetDir = toTarget.clone().normalize();
-      const aimDot = gaze.dot(toTargetDir);
-      const aimAngleDeg = Math.acos(Math.max(-1, Math.min(1, aimDot))) * (180 / Math.PI);
-
-      // Direct raycast intersection check against target mesh
-      const mesh = this.interactiveMeshes.get(target.id);
-      let directRayHit = false;
-      if (mesh) {
-        const hits = this.centerRaycaster.intersectObject(mesh, true);
-        if (hits.length > 0 && hits[0].distance <= target.maxDist) {
-          directRayHit = true;
-        }
-      }
-
-      const isCenteredInView = directRayHit || aimAngleDeg <= 24;
-
-      if (!isCenteredInView) {
-        continue;
-      }
-
-      // Check condition 1: Frontal Normal Cone (±30°)
-      // The surface normal faces OUTWARD; player incoming gaze faces INWARD.
-      // Therefore, gaze and frontNormal are opposing: facingDot = - (gaze . frontNormal)
-      const facingDot = -gaze.dot(target.frontNormal);
-      const facingAngleDeg = Math.acos(Math.max(-1, Math.min(1, facingDot))) * (180 / Math.PI);
-      const inFrontOfSurface = this.camera.position.clone().sub(target.pos).dot(target.frontNormal) > -0.2;
-
-      const isFrontallyFacing = facingAngleDeg <= target.maxAngleDeg && inFrontOfSurface;
-
-      if (isFrontallyFacing) {
-        if (aimAngleDeg < minAimAngle) {
-          minAimAngle = aimAngleDeg;
-          focusedTarget = target;
-          focusedAngleDeg = Math.round(facingAngleDeg);
-          focusedDist = dist;
-        }
-      } else {
-        // Aiming at or hitting object, but viewed from side/rear or angle > 30°
-        if (dist < obliqueMinDist) {
-          obliqueMinDist = dist;
-          obliqueTargetId = target.id;
-          obliqueAngleDeg = Math.round(facingAngleDeg);
-        }
-      }
+    if (!this.isBathroomUnlocked) {
+      targets.push({ id: 'bathroom_door', pos: new THREE.Vector3(5.0, 1.2, 1.4), maxDist: 2.8 });
+    } else {
+      targets.push({ id: 'toilet', pos: new THREE.Vector3(7.5, 0.6, 4.0), maxDist: 2.8 });
+      targets.push({ id: 'broken_tile', pos: new THREE.Vector3(11.38, 0.72, 0.35), maxDist: 2.2 });
     }
 
-    // Update state
-    this.currentFocusState = {
-      targetId: focusedTarget ? focusedTarget.id : null,
-      isFrontallyFacing: !!focusedTarget,
-      angleDeg: focusedTarget ? focusedAngleDeg : (obliqueTargetId ? obliqueAngleDeg : 180),
-      distance: focusedTarget ? focusedDist : (obliqueTargetId ? obliqueMinDist : 999),
-      nearObliqueTargetId: focusedTarget ? null : obliqueTargetId,
-    };
+    let bestAlignment = -1;
 
-    // Subtle 3D visual feedback: subtle emissive pulse on focused object
-    const pulse = 0.5 + Math.sin(time * 3.5) * 0.5;
+    targets.forEach((t) => {
+      const toTarget = t.pos.clone().sub(camPos);
+      const dist = toTarget.length();
+      toTarget.normalize();
+      const dot = forward.dot(toTarget);
+
+      // Flashlight cone verification:
+      // Object is illuminated if within flashlight cone (dot >= 0.72) and range
+      if (dist <= t.maxDist) {
+        if (dot >= 0.72 && dot > bestAlignment) {
+          bestAlignment = dot;
+          closestTarget = t.id;
+          minDistance = dist;
+          isTargetInBeam = true;
+        } else if (!closestTarget && dist < minDistance && dot > 0.45) {
+          closestTarget = t.id;
+          minDistance = dist;
+          isTargetInBeam = false;
+        }
+      }
+    });
+
+    const isFullyIlluminated = this.isFlashlightOn && isTargetInBeam;
+    const activeTarget = isFullyIlluminated ? closestTarget : null;
+    this.currentNearTarget = activeTarget;
+
+    // Animate glowing reflection highlight ONLY when actively illuminated by the flashlight beam
+    const pulse = 0.5 + Math.sin(time * 4.0) * 0.5;
     this.highlightMaterials.forEach((mat, id) => {
-      if (focusedTarget && id === focusedTarget.id) {
+      if (id === activeTarget) {
         if (id === 'broken_tile') {
-          // Extremely subtle so tile must be searched for
-          mat.emissive.setHex(0x1a120a);
-          mat.emissiveIntensity = 0.2 + pulse * 0.15;
+          mat.emissive.setHex(0x2d1f10);
+          mat.emissiveIntensity = 0.4 + pulse * 0.3;
         } else {
-          // Subtle warm golden/amber focus rim
-          mat.emissive.setHex(0x3d3012);
-          mat.emissiveIntensity = 0.45 + pulse * 0.35;
+          mat.emissive.setHex(0x3e5228);
+          mat.emissiveIntensity = 0.75 + pulse * 0.45;
         }
       } else {
         mat.emissive.setHex(0x000000);
@@ -1639,94 +1543,88 @@ export class EscapeRoomScene {
       }
     });
 
-    if (this.onFocusUpdate) {
-      this.onFocusUpdate(this.currentFocusState);
+    if (this.onInteractionUpdate) {
+      this.onInteractionUpdate({
+        target: closestTarget,
+        isFlashlightOn: this.isFlashlightOn,
+        isIlluminated: isFullyIlluminated,
+        distance: minDistance,
+      });
     }
   }
 
   /**
-   * Evaluates screen touch interaction strictly:
-   * Only returns success: true if frontally facing (±30°) and centered.
-   * If aiming at an object obliquely (>30°), returns reason: 'oblique'.
+   * Raycast tap on screen to interact with 3D objects
+   * STRICT 3-POINT VERIFICATION:
+   * 1. Touch on screen
+   * 2. Flashlight turned ON
+   * 3. Object illuminated by flashlight beam
    */
-  public triggerTouchInteraction(clientX?: number, clientY?: number): {
-    success: boolean;
-    targetId: InteractiveTargetId;
-    reason: 'ok' | 'oblique' | 'none';
-    angleDeg: number;
-  } {
-    // 1. Direct check against current frontally focused target
-    if (this.currentFocusState.targetId && this.currentFocusState.isFrontallyFacing) {
-      return {
-        success: true,
-        targetId: this.currentFocusState.targetId,
-        reason: 'ok',
-        angleDeg: this.currentFocusState.angleDeg,
-      };
-    }
+  public handleScreenTap(clientX: number, clientY: number): InteractionTapResult {
+    const rect = this.container.getBoundingClientRect();
+    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
-    // 2. If center gaze points at an object but angle is oblique (>30°)
-    if (this.currentFocusState.nearObliqueTargetId) {
-      return {
-        success: false,
-        targetId: this.currentFocusState.nearObliqueTargetId,
-        reason: 'oblique',
-        angleDeg: this.currentFocusState.angleDeg,
-      };
-    }
+    this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    // 3. If tap coordinates were provided, raycast specific tap position
-    if (clientX !== undefined && clientY !== undefined && this.container) {
-      const rect = this.container.getBoundingClientRect();
-      const tapX = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const tapY = -((clientY - rect.top) / rect.height) * 2 + 1;
-      const ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2(tapX, tapY), this.camera);
+    const candidates: { id: InteractiveTargetId; object: THREE.Object3D }[] = [];
+    this.interactiveMeshes.forEach((mesh, id) => {
+      candidates.push({ id, object: mesh });
+    });
 
-      const gaze = new THREE.Vector3();
-      this.camera.getWorldDirection(gaze);
-      gaze.normalize();
+    // 1. Raycast direct intersection with interactive 3D object
+    let directHitId: InteractiveTargetId = null;
+    let minRayDist = 999;
 
-      for (const target of this.targetDefinitions) {
-        if (target.id === 'bathroom_door' && this.isBathroomUnlocked) continue;
-        const mesh = this.interactiveMeshes.get(target.id);
-        if (!mesh) continue;
-
-        const hits = ray.intersectObject(mesh, true);
-        if (hits.length > 0 && hits[0].distance <= target.maxDist) {
-          const facingDot = -gaze.dot(target.frontNormal);
-          const facingAngleDeg = Math.acos(Math.max(-1, Math.min(1, facingDot))) * (180 / Math.PI);
-          const inFront = this.camera.position.clone().sub(target.pos).dot(target.frontNormal) > -0.2;
-
-          if (facingAngleDeg <= target.maxAngleDeg && inFront) {
-            return {
-              success: true,
-              targetId: target.id,
-              reason: 'ok',
-              angleDeg: Math.round(facingAngleDeg),
-            };
-          } else {
-            return {
-              success: false,
-              targetId: target.id,
-              reason: 'oblique',
-              angleDeg: Math.round(facingAngleDeg),
-            };
-          }
+    for (const item of candidates) {
+      const intersects = this.raycaster.intersectObject(item.object, true);
+      if (intersects.length > 0) {
+        const dist = intersects[0].distance;
+        if (dist < 3.8 && dist < minRayDist) {
+          minRayDist = dist;
+          directHitId = item.id;
         }
       }
     }
 
-    return {
-      success: false,
-      targetId: null,
-      reason: 'none',
-      angleDeg: 180,
-    };
+    // Candidate target is either direct mesh hit or currently illuminated target
+    const candidateId = directHitId || this.currentNearTarget;
+
+    if (!candidateId) {
+      return { target: null, success: false, reason: 'miss' };
+    }
+
+    // 2. Verification Step 1: Flashlight MUST be turned ON!
+    if (!this.isFlashlightOn) {
+      return { target: candidateId, success: false, reason: 'flashlight_off' };
+    }
+
+    // 3. Verification Step 2: Object must be illuminated by flashlight beam
+    const targetObj = this.interactiveMeshes.get(candidateId);
+    if (targetObj) {
+      const targetWorldPos = new THREE.Vector3();
+      targetObj.getWorldPosition(targetWorldPos);
+      const toObj = targetWorldPos.clone().sub(this.camera.position);
+      const dist = toObj.length();
+      toObj.normalize();
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+      const dot = forward.dot(toObj);
+
+      if (dist > 3.8) {
+        return { target: candidateId, success: false, reason: 'too_far' };
+      }
+
+      if (dot < 0.58 && this.currentNearTarget !== candidateId) {
+        return { target: candidateId, success: false, reason: 'not_illuminated' };
+      }
+    }
+
+    // All verifications passed: Giroscopio/Vista + Linterna Encendida + Touch en pantalla!
+    return { target: candidateId, success: true, reason: 'ok' };
   }
 
-  public getCurrentFocusState(): FocusState {
-    return this.currentFocusState;
+  public getCurrentNearTarget(): InteractiveTargetId {
+    return this.currentNearTarget;
   }
 
   /**
@@ -1791,11 +1689,12 @@ export class EscapeRoomScene {
       );
     }
 
-    // 3. Camera Orientation: Gyroscope is exclusive on mobile; manual Euler fallback for desktop
-    if (this.hasGyroInput) {
-      this.camera.quaternion.setFromEuler(this.gyroEuler);
-    } else {
-      this.camera.quaternion.setFromEuler(this.cameraEuler);
+    // 3. Camera Orientation: combine touch yaw with gyro
+    this.camera.quaternion.setFromEuler(this.cameraEuler);
+    // If gyro is active, multiply rotation
+    if (this.gyroEuler.x !== 0 || this.gyroEuler.y !== 0) {
+      const gyroQuat = new THREE.Quaternion().setFromEuler(this.gyroEuler);
+      this.camera.quaternion.multiply(gyroQuat);
     }
 
     // 4. Flashlight follows camera look
@@ -1803,8 +1702,8 @@ export class EscapeRoomScene {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     this.flashlightTarget.position.copy(this.camera.position).add(forward.multiplyScalar(4));
 
-    // 5. Evaluate strict frontal focus and visual highlight
-    this.checkFocusAndHighlights(time);
+    // 5. Check proximity and glow
+    this.checkProximityAndHighlights(time);
 
     // 6. Update distance to bathroom for subtle weeping audio cue
     const distToBathroom = this.playerPosition.distanceTo(new THREE.Vector3(8.2, 1.6, 1.4));
