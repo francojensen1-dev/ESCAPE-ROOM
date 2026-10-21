@@ -6,12 +6,19 @@
  */
 
 import * as THREE from 'three';
-import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
+import { InteractiveTargetId, LockState, OrientationData, FocusState } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 
-export interface SceneInteractionCallback {
-  (targetId: InteractiveTargetId, distance: number): void;
+export type FocusUpdateCallback = (state: FocusState) => void;
+
+export interface InteractiveTargetDef {
+  id: InteractiveTargetId;
+  name: string;
+  pos: THREE.Vector3;
+  frontNormal: THREE.Vector3; // Normal vector facing OUTWARD from the interactive surface
+  maxDist: number;            // Distance threshold in meters
+  maxAngleDeg: number;        // Maximum angle in degrees between player gaze and inbound normal (30°)
 }
 
 export class EscapeRoomScene {
@@ -38,14 +45,87 @@ export class EscapeRoomScene {
   private playerPosition = new THREE.Vector3(0, 1.6, 2.5); // Start in center-back
   private cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private gyroEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  private touchLookDelta = { x: 0, y: 0 };
-  private moveVelocity = new THREE.Vector3();
   private isFlashlightOn = true;
+  private hasGyroInput = false;
+  private gyroAlphaOffset = 0;
+  private initialHeadingSet = false;
 
-  // Interactive Meshes
+  // Interactive Meshes & Target Definitions
   private interactiveMeshes: Map<InteractiveTargetId, THREE.Mesh | THREE.Group> = new Map();
   private highlightMaterials: Map<InteractiveTargetId, THREE.MeshStandardMaterial> = new Map();
-  private currentNearTarget: InteractiveTargetId = null;
+  private onFocusUpdate: FocusUpdateCallback | null = null;
+
+  // Current Focus & Strict Frontal State
+  private currentFocusState: FocusState = {
+    targetId: null,
+    isFrontallyFacing: false,
+    angleDeg: 180,
+    distance: 999,
+    nearObliqueTargetId: null,
+  };
+
+  // Center Raycaster for direct aiming
+  private centerRaycaster = new THREE.Raycaster();
+
+  // Target definitions with strict front surface normals (for ±30° facing verification)
+  private targetDefinitions: InteractiveTargetDef[] = [
+    {
+      id: 'main_door',
+      name: 'Puerta Principal',
+      pos: new THREE.Vector3(0, 1.4, -5.8),
+      frontNormal: new THREE.Vector3(0, 0, 1), // Faces South into the room
+      maxDist: 2.8,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'bathroom_door',
+      name: 'Puerta del Baño',
+      pos: new THREE.Vector3(5.0, 1.4, 1.4),
+      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into the main room
+      maxDist: 2.5,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'rotten_fridge',
+      name: 'Heladera Podrida',
+      pos: new THREE.Vector3(3.8, 1.15, -4.8),
+      frontNormal: new THREE.Vector3(-0.5, 0, 0.866).normalize(), // Angled Southwest
+      maxDist: 2.4,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'study_desk',
+      name: 'Escritorio con Diario',
+      pos: new THREE.Vector3(-3.8, 0.85, -1.5),
+      frontNormal: new THREE.Vector3(1, 0, 0), // Faces East into the room
+      maxDist: 2.4,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'fuse_box',
+      name: 'Caja de Fusibles',
+      pos: new THREE.Vector3(4.9, 1.6, -0.6),
+      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into the room
+      maxDist: 2.2,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'toilet',
+      name: 'Inodoro Decrépito',
+      pos: new THREE.Vector3(7.5, 0.6, 4.35),
+      frontNormal: new THREE.Vector3(0, 0, -1), // Faces North into bathroom
+      maxDist: 2.4,
+      maxAngleDeg: 30,
+    },
+    {
+      id: 'broken_tile',
+      name: 'Azulejo Agrietado',
+      pos: new THREE.Vector3(11.38, 0.72, 0.35),
+      frontNormal: new THREE.Vector3(-1, 0, 0), // Faces West into bathroom
+      maxDist: 1.8,
+      maxAngleDeg: 30,
+    },
+  ];
 
   // Chains & Locks meshes on main door (4 locks)
   private chainGroup: THREE.Group = new THREE.Group();
@@ -58,16 +138,9 @@ export class EscapeRoomScene {
   private bathroomDoorPivot: THREE.Group = new THREE.Group();
   private isBathroomUnlocked: boolean = false;
 
-  // Callbacks
-  private onInteractionUpdate: SceneInteractionCallback | null = null;
-
-  // Raycaster for taps
-  private raycaster = new THREE.Raycaster();
-  private mouse = new THREE.Vector2();
-
-  constructor(container: HTMLElement, onInteractionUpdate: SceneInteractionCallback) {
+  constructor(container: HTMLElement, onFocusUpdate?: FocusUpdateCallback) {
     this.container = container;
-    this.onInteractionUpdate = onInteractionUpdate;
+    this.onFocusUpdate = onFocusUpdate || null;
 
     // 1. Scene
     this.scene = new THREE.Scene();
@@ -846,48 +919,48 @@ export class EscapeRoomScene {
       emissive: new THREE.Color(0x000000), // Zero neon glow from afar!
     });
 
-    // 2. Bathroom Floor (X: 5.0 to 9.5, Z: -0.5 to 3.2, Y: 0)
-    const floorGeo = new THREE.PlaneGeometry(4.5, 3.7);
+    // 2. Bathroom Floor (X: 5.0 to 11.4, Z: -2.0 to 4.8, Y: 0) - Enlarged spacious layout
+    const floorGeo = new THREE.PlaneGeometry(6.4, 6.8);
     const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.position.set(7.25, 0.005, 1.35);
+    floor.position.set(8.2, 0.005, 1.4);
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
 
     // 3. Bathroom Ceiling (Y: 3.4)
-    const ceilGeo = new THREE.PlaneGeometry(4.5, 3.7);
+    const ceilGeo = new THREE.PlaneGeometry(6.4, 6.8);
     const ceil = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x181816, roughness: 0.95 }));
-    ceil.position.set(7.25, 3.395, 1.35);
+    ceil.position.set(8.2, 3.395, 1.4);
     ceil.rotation.x = Math.PI / 2;
     this.scene.add(ceil);
 
     // 4. White Tiled Walls (matching reference photo)
-    // North Wall (Z = -0.5, length 4.5m)
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 3.4), whiteTileMat);
-    northWall.position.set(7.25, 1.7, -0.5);
+    // North Wall (Z = -2.0, length 6.4m)
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), whiteTileMat);
+    northWall.position.set(8.2, 1.7, -2.0);
     this.scene.add(northWall);
 
-    // South Wall (Z = 3.2, length 4.5m)
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 3.4), whiteTileMat);
-    southWall.position.set(7.25, 1.7, 3.2);
+    // South Wall (Z = 4.8, length 6.4m - toilet placed here)
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), whiteTileMat);
+    southWall.position.set(8.2, 1.7, 4.8);
     southWall.rotation.y = Math.PI;
     this.scene.add(southWall);
 
-    // East Wall (X = 9.5, length 3.7m - wall behind the bathtub)
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.4), whiteTileMat);
-    eastWall.position.set(9.5, 1.7, 1.35);
+    // East Wall (X = 11.4, length 6.8m - bathtub & tile wall)
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 3.4), whiteTileMat);
+    eastWall.position.set(11.4, 1.7, 1.4);
     eastWall.rotation.y = -Math.PI / 2;
     this.scene.add(eastWall);
 
     // West Partition Walls (framing doorway at X = 5.0):
-    // North partition: Z from -0.5 to 0.4 (length 0.9)
-    const westNorth = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 3.4), whiteTileMat);
-    westNorth.position.set(5.0, 1.7, -0.05);
+    // North partition: Z from -2.0 to 0.4 (length 2.4m)
+    const westNorth = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.4), whiteTileMat);
+    westNorth.position.set(5.0, 1.7, -0.8);
     westNorth.rotation.y = Math.PI / 2;
     this.scene.add(westNorth);
 
-    // South partition: Z from 2.4 to 3.2 (length 0.8)
-    const westSouth = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 3.4), whiteTileMat);
-    westSouth.position.set(5.0, 1.7, 2.8);
+    // South partition: Z from 2.4 to 4.8 (length 2.4m)
+    const westSouth = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.4), whiteTileMat);
+    westSouth.position.set(5.0, 1.7, 3.6);
     westSouth.rotation.y = Math.PI / 2;
     this.scene.add(westSouth);
 
@@ -902,6 +975,7 @@ export class EscapeRoomScene {
     this.scene.add(topBeam, leftPost, rightPost);
 
     // The Dividing Door (Pivot at hinge post X = 5.0, Z = 0.46)
+    // Swings open northwards against the north partition wall, completely clear of the toilet!
     this.bathroomDoorPivot = new THREE.Group();
     this.bathroomDoorPivot.position.set(5.0, 0, 0.46);
 
@@ -949,9 +1023,9 @@ export class EscapeRoomScene {
     this.scene.add(this.bathroomDoorPivot);
     this.interactiveMeshes.set('bathroom_door', this.bathroomDoorPivot);
 
-    // 6. Wall-Mounted Water Heater / Boiler ("Postmeslip") on Left (North) Wall
+    // 6. Wall-Mounted Water Heater / Boiler ("Postmeslip") on North Wall
     const boilerGroup = new THREE.Group();
-    boilerGroup.position.set(6.25, 2.15, -0.2);
+    boilerGroup.position.set(6.8, 2.15, -1.72);
 
     const boilerMat = new THREE.MeshStandardMaterial({
       map: TextureGenerator.createWaterHeaterTexture(),
@@ -994,9 +1068,9 @@ export class EscapeRoomScene {
     boilerGroup.add(boilerBody, boilerTopCap, boilerBottomCap, upperBracket, lowerBracket, leftPipe, rightPipe);
     this.scene.add(boilerGroup);
 
-    // 7. Spherical Frosted Wall Sconce Lamp (matching reference photo)
+    // 7. Spherical Frosted Wall Sconce Lamp above Sink
     const sconceGroup = new THREE.Group();
-    sconceGroup.position.set(7.45, 1.95, -0.36);
+    sconceGroup.position.set(8.5, 2.15, -1.86);
 
     const sconceArm = new THREE.Mesh(
       new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8),
@@ -1014,35 +1088,35 @@ export class EscapeRoomScene {
     this.scene.add(sconceGroup);
 
     // Sconce Point Light (Warm glowing illumination matching reference)
-    const sconceLight = new THREE.PointLight(0xffeedd, 1.5, 6.5, 1.7);
-    sconceLight.position.set(7.45, 1.95, -0.18);
+    const sconceLight = new THREE.PointLight(0xffeedd, 1.6, 8.5, 1.7);
+    sconceLight.position.set(8.5, 2.15, -1.68);
     this.scene.add(sconceLight);
 
-    // Dim eerie cyan ambient fill
-    const fillLight = new THREE.PointLight(0x7dd3fc, 0.35, 6.0, 2.0);
-    fillLight.position.set(7.25, 2.7, 1.5);
+    // Dim eerie cyan ambient fill in room center
+    const fillLight = new THREE.PointLight(0x7dd3fc, 0.45, 9.0, 1.8);
+    fillLight.position.set(8.2, 2.8, 1.4);
     this.scene.add(fillLight);
 
-    // 8. Stained Mirror & Wire Rack above/below
+    // 8. Stained Mirror & Wire Rack on North Wall
     const mirrorMat = new THREE.MeshStandardMaterial({
       color: 0x6e7674,
       metalness: 0.9,
       roughness: 0.25,
     });
-    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.75), mirrorMat);
-    mirror.position.set(7.45, 1.5, -0.48);
+    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.9), mirrorMat);
+    mirror.position.set(8.5, 1.6, -1.96);
     this.scene.add(mirror);
 
     const wireRack = new THREE.Mesh(
-      new THREE.BoxGeometry(0.65, 0.06, 0.15),
+      new THREE.BoxGeometry(0.75, 0.06, 0.15),
       new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.9, roughness: 0.3 })
     );
-    wireRack.position.set(7.45, 1.08, -0.4);
+    wireRack.position.set(8.5, 1.1, -1.88);
     this.scene.add(wireRack);
 
-    // 9. Pedestal Porcelain Sink (Lavabo de pedestal con sangre)
+    // 9. Pedestal Porcelain Sink (Lavabo de pedestal con sangre) on North Wall
     const sinkGroup = new THREE.Group();
-    sinkGroup.position.set(7.45, 0, -0.18);
+    sinkGroup.position.set(8.5, 0, -1.68);
 
     const sinkPorcelainMat = new THREE.MeshStandardMaterial({
       color: 0xd4d0c5,
@@ -1057,14 +1131,14 @@ export class EscapeRoomScene {
     pedestal.position.y = 0.39;
 
     const basinOuter = new THREE.Mesh(
-      new THREE.BoxGeometry(0.65, 0.22, 0.46),
+      new THREE.BoxGeometry(0.68, 0.22, 0.48),
       sinkPorcelainMat
     );
     basinOuter.position.y = 0.82;
 
     // Blood stains in basin bowl
     const basinBlood = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.48, 0.32),
+      new THREE.PlaneGeometry(0.50, 0.34),
       new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: 0.4, metalness: 0.2 })
     );
     basinBlood.position.set(0, 0.85, 0);
@@ -1078,10 +1152,11 @@ export class EscapeRoomScene {
     sinkGroup.add(pedestal, basinOuter, basinBlood, faucet);
     this.scene.add(sinkGroup);
 
-    // 10. Decrepit Porcelain Toilet (Inodoro) at (5.7, 0, 0.05)
+    // 10. Decrepit Porcelain Toilet (Inodoro) - PROMINENTLY PLACED ON SOUTH WALL
+    // Completely away from the door! Facing into the room with wide walking clearance.
     const toiletGroup = new THREE.Group();
-    toiletGroup.position.set(5.75, 0, 0.08);
-    toiletGroup.rotation.y = -Math.PI / 2.2;
+    toiletGroup.position.set(7.5, 0, 4.35);
+    toiletGroup.rotation.y = 0; // Back against South wall (Z = 4.8), facing North into room!
 
     const porcelainMat = new THREE.MeshStandardMaterial({
       color: 0xc8c4b7,
@@ -1091,12 +1166,12 @@ export class EscapeRoomScene {
     });
     this.highlightMaterials.set('toilet', porcelainMat);
 
-    const toiletBase = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.62), porcelainMat);
-    toiletBase.position.y = 0.21;
+    const toiletBase = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.42, 0.64), porcelainMat);
+    toiletBase.position.set(0, 0.21, -0.05);
     toiletGroup.add(toiletBase);
 
     const toiletBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.20, 0.34, 16), porcelainMat);
-    toiletBowl.position.set(0, 0.42, 0.1);
+    toiletBowl.position.set(0, 0.42, -0.15);
     toiletGroup.add(toiletBowl);
 
     // Murky stagnant water in bowl
@@ -1106,7 +1181,7 @@ export class EscapeRoomScene {
       metalness: 0.7,
     });
     const waterMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), waterMat);
-    waterMesh.position.set(0, 0.48, 0.1);
+    waterMesh.position.set(0, 0.48, -0.15);
     toiletGroup.add(waterMesh);
 
     // Glint of submerged iron key
@@ -1114,12 +1189,12 @@ export class EscapeRoomScene {
       new THREE.BoxGeometry(0.04, 0.015, 0.09),
       new THREE.MeshStandardMaterial({ color: 0x8a7042, metalness: 0.85, roughness: 0.3 })
     );
-    keyGlint.position.set(0.03, 0.49, 0.11);
+    keyGlint.position.set(0.03, 0.49, -0.14);
     keyGlint.rotation.y = 0.4;
     toiletGroup.add(keyGlint);
 
-    const toiletTank = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.52, 0.22), porcelainMat);
-    toiletTank.position.set(0, 0.65, -0.22);
+    const toiletTank = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.54, 0.24), porcelainMat);
+    toiletTank.position.set(0, 0.66, 0.24);
     toiletGroup.add(toiletTank);
 
     this.scene.add(toiletGroup);
@@ -1127,7 +1202,7 @@ export class EscapeRoomScene {
 
     // 11. Bathtub (Bañera con Sangre) along East Wall (matching reference photo)
     const tubGroup = new THREE.Group();
-    tubGroup.position.set(9.05, 0.31, 1.35);
+    tubGroup.position.set(10.95, 0.31, 1.4);
 
     // Outer cyan/teal apron panel (exact teal shade from photo)
     const tubApronMat = new THREE.MeshStandardMaterial({
@@ -1136,14 +1211,14 @@ export class EscapeRoomScene {
       metalness: 0.15,
     });
     const tubApron = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.62, 2.3),
+      new THREE.BoxGeometry(0.8, 0.62, 2.6),
       tubApronMat
     );
     tubGroup.add(tubApron);
 
     // White porcelain rim
     const tubRim = new THREE.Mesh(
-      new THREE.BoxGeometry(0.82, 0.04, 2.32),
+      new THREE.BoxGeometry(0.82, 0.04, 2.62),
       sinkPorcelainMat
     );
     tubRim.position.y = 0.32;
@@ -1156,7 +1231,7 @@ export class EscapeRoomScene {
       metalness: 0.5,
     });
     const bloodWater = new THREE.Mesh(
-      new THREE.BoxGeometry(0.66, 0.02, 2.14),
+      new THREE.BoxGeometry(0.66, 0.02, 2.44),
       bloodWaterMat
     );
     bloodWater.position.y = 0.24;
@@ -1166,34 +1241,34 @@ export class EscapeRoomScene {
 
     // Blood splatters on white tile wall above bathtub
     const bloodDecal = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.4, 0.9),
+      new THREE.PlaneGeometry(1.6, 1.1),
       new THREE.MeshBasicMaterial({
         color: 0x6e0e0e,
         transparent: true,
         opacity: 0.75,
       })
     );
-    bloodDecal.position.set(9.48, 1.2, 1.35);
+    bloodDecal.position.set(11.38, 1.25, 1.4);
     bloodDecal.rotation.y = -Math.PI / 2;
     this.scene.add(bloodDecal);
 
     // Horizontal shower curtain rod spanning across at Y = 2.15m
     const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
     const curtainRod = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.018, 0.018, 2.4, 8),
+      new THREE.CylinderGeometry(0.018, 0.018, 2.7, 8),
       rodMat
     );
     curtainRod.rotation.x = Math.PI / 2;
-    curtainRod.position.set(8.65, 2.15, 1.35);
+    curtainRod.position.set(10.55, 2.15, 1.4);
     this.scene.add(curtainRod);
 
-    // Showerhead & flexible hose on wall
+    // Showerhead & flexible hose on East wall
     const showerHead = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 12), rodMat);
-    showerHead.position.set(9.44, 1.9, 0.45);
+    showerHead.position.set(11.35, 1.95, 0.35);
     showerHead.rotation.z = Math.PI / 3;
     this.scene.add(showerHead);
 
-    // Grimy moldy shower curtain hanging half-drawn on the right side (Z: 1.3 to 2.45)
+    // Grimy moldy shower curtain hanging half-drawn (Z: 1.3 to 2.6)
     const curtainTex = TextureGenerator.createShowerCurtainTexture();
     const curtainMat = new THREE.MeshStandardMaterial({
       map: curtainTex,
@@ -1203,18 +1278,18 @@ export class EscapeRoomScene {
       opacity: 0.92,
     });
     const showerCurtain = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.15, 1.65),
+      new THREE.PlaneGeometry(1.25, 1.65),
       curtainMat
     );
-    showerCurtain.position.set(8.65, 1.32, 1.9);
+    showerCurtain.position.set(10.55, 1.32, 2.0);
     showerCurtain.rotation.y = Math.PI / 2;
     this.scene.add(showerCurtain);
 
     // 12. Subtle Broken Wall Tile (Azulejo Roto no evidente)
-    // Seamlessly placed low on the East wall beside the bathtub rim at (9.48, 0.68, 0.35)
-    // Sized exactly as one tile (0.24m x 0.24m), with zero neon glow so the player must search for it!
+    // Seamlessly placed low on the East wall beside the bathtub rim at (11.38, 0.72, 0.35)
+    // Sized exactly as one tile (0.26m x 0.26m), with zero neon glow so the player must search for it!
     const tilePuzzleGroup = new THREE.Group();
-    tilePuzzleGroup.position.set(9.48, 0.68, 0.35);
+    tilePuzzleGroup.position.set(11.38, 0.72, 0.35);
 
     this.highlightMaterials.set('broken_tile', brokenTileMat);
 
@@ -1224,6 +1299,17 @@ export class EscapeRoomScene {
 
     this.scene.add(tilePuzzleGroup);
     this.interactiveMeshes.set('broken_tile', tilePuzzleGroup);
+
+    // 13. Decrepit Wall Radiator on South-West partition (Horror atmospheric detail)
+    const radiatorGroup = new THREE.Group();
+    radiatorGroup.position.set(5.16, 0.55, 3.6);
+    const radMat = new THREE.MeshStandardMaterial({ color: 0x3d352e, metalness: 0.8, roughness: 0.6 });
+    for (let c = 0; c < 7; c++) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.04), radMat);
+      fin.position.set(0, 0, (c - 3) * 0.08);
+      radiatorGroup.add(fin);
+    }
+    this.scene.add(radiatorGroup);
   }
 
   /**
@@ -1319,34 +1405,36 @@ export class EscapeRoomScene {
   public applyMovement(vector: { x: number; y: number }, delta: number) {
     const moveSpeed = 2.4 * delta;
 
-    // Movement forward/back & left/right relative to camera's horizontal yaw
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
+    // Movement forward/back & left/right relative to camera's horizontal gaze in real-time
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
     forward.y = 0;
-    forward.normalize();
+    if (forward.lengthSq() < 0.0001) {
+      forward.set(0, 0, -1);
+    } else {
+      forward.normalize();
+    }
 
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraEuler.y);
-    right.y = 0;
-    right.normalize();
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-    const moveX = right.multiplyScalar(vector.x * moveSpeed);
-    const moveZ = forward.multiplyScalar(vector.y * moveSpeed);
+    const moveX = right.clone().multiplyScalar(vector.x * moveSpeed);
+    const moveZ = forward.clone().multiplyScalar(vector.y * moveSpeed);
 
     const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
 
-    // Doorway opening to bathroom is at X = 5.0, between Z = 0.50 and Z = 2.30
-    const inDoorwayZ = nextPos.z >= 0.50 && nextPos.z <= 2.30;
+    // Doorway opening to bathroom is at X = 5.0, between Z = 0.45 and Z = 2.35
+    const inDoorwayZ = nextPos.z >= 0.45 && nextPos.z <= 2.35;
 
     // Movement zones:
     // Main room bounds: X [-4.2, 4.2], Z [-5.3, 5.2]
-    // Bathroom room bounds: X [5.1, 9.1], Z [-0.15, 2.85]
+    // Enlarged bathroom room bounds: X [5.15, 11.0], Z [-1.6, 4.4]
     if (this.playerPosition.x <= 4.5) {
       // Currently inside main room
       if (inDoorwayZ && nextPos.x > 4.2) {
         if (this.isBathroomUnlocked) {
-          // Walking through opened doorway into bathroom
-          nextPos.x = Math.max(-4.2, Math.min(9.1, nextPos.x));
+          // Walking through opened doorway into enlarged bathroom
+          nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
         } else {
           // Bathroom door is locked closed! Block player at door
           nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
@@ -1359,16 +1447,16 @@ export class EscapeRoomScene {
       // Currently in doorway or inside bathroom
       if (inDoorwayZ) {
         // Can walk back and forth between main room and bathroom
-        nextPos.x = Math.max(-4.2, Math.min(9.1, nextPos.x));
+        nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
         if (nextPos.x > 4.8) {
-          nextPos.z = Math.max(-0.15, Math.min(2.85, nextPos.z));
+          nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
         } else {
           nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
         }
       } else {
         // Confined inside bathroom by West partition wall at X = 5.0
-        nextPos.x = Math.max(5.15, Math.min(9.1, nextPos.x));
-        nextPos.z = Math.max(-0.15, Math.min(2.85, nextPos.z));
+        nextPos.x = Math.max(5.15, Math.min(11.0, nextPos.x));
+        nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
       }
     }
 
@@ -1386,17 +1474,22 @@ export class EscapeRoomScene {
       else if (this.playerPosition.z >= -3.8) nextPos.z = -3.8;
     }
 
-    // Bathroom obstacles (matching photo layout):
-    // Bathtub against East wall: X > 8.3, Z in [0.1, 2.55]
-    if (nextPos.x > 8.35 && nextPos.z > 0.1 && nextPos.z < 2.55) {
-      nextPos.x = 8.35;
+    // Bathroom obstacles (spacious layout):
+    // Bathtub against East wall: X > 10.2, Z in [0.05, 2.75]
+    if (nextPos.x > 10.2 && nextPos.z > 0.05 && nextPos.z < 2.75) {
+      nextPos.x = 10.2;
     }
 
-    // Decrepit Toilet in foreground left: X [5.3, 6.2], Z [-0.3, 0.45]
-    if (nextPos.x > 5.3 && nextPos.x < 6.2 && nextPos.z > -0.3 && nextPos.z < 0.45) {
-      if (this.playerPosition.z >= 0.45) nextPos.z = 0.45;
-      else if (this.playerPosition.x <= 5.3) nextPos.x = 5.3;
-      else nextPos.x = 6.2;
+    // Decrepit Toilet against South wall: X [6.9, 8.1], Z > 3.8
+    if (nextPos.x > 6.9 && nextPos.x < 8.1 && nextPos.z > 3.8) {
+      if (this.playerPosition.z <= 3.8) nextPos.z = 3.8;
+      else if (this.playerPosition.x <= 6.9) nextPos.x = 6.9;
+      else nextPos.x = 8.1;
+    }
+
+    // Pedestal Sink against North wall: X [7.9, 9.1], Z < -1.15
+    if (nextPos.x > 7.9 && nextPos.x < 9.1 && nextPos.z < -1.15) {
+      nextPos.z = -1.15;
     }
 
     this.playerPosition.copy(nextPos);
@@ -1405,20 +1498,27 @@ export class EscapeRoomScene {
 
   /**
    * Apply Gyroscope Orientation with Lerp smoothing
+   * Mobile camera orientation is exclusively driven by the Gyroscope.
    */
   public applyGyroOrientation(data: OrientationData) {
+    this.hasGyroInput = true;
     const degToRad = Math.PI / 180;
-    const pitch = (data.beta - 90) * degToRad * 0.85;
+    // Beta is pitch: looking up/down. Upright vertical phone in hand: beta ~ 90° -> pitch ~ 0.
+    const pitch = (data.beta - 90) * degToRad * 0.95;
     const yaw = -data.alpha * degToRad;
-    const roll = -data.gamma * degToRad * 0.4;
+    const roll = -data.gamma * degToRad * 0.5;
 
     this.gyroEuler.set(pitch, yaw, roll, 'YXZ');
   }
 
   /**
    * Apply Touch Drag or Mouse Look
+   * Ignored if Gyroscope is active, adhering to strictly gyro-driven mobile camera navigation.
    */
   public applyLookDelta(dx: number, dy: number) {
+    if (this.hasGyroInput) {
+      return;
+    }
     const sensitivity = 0.003;
     this.cameraEuler.y -= dx * sensitivity;
     this.cameraEuler.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, this.cameraEuler.x - dy * sensitivity));
@@ -1430,51 +1530,108 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Check proximity to interactive items and update glowing reflection highlight
+   * Evaluates interactive objects under the strict conditions:
+   * 1. Distance <= target.maxDist
+   * 2. Center Raycast / Screen Area Focus (<= 24° cone or direct ray hit)
+   * 3. Strict Frontal View (Dot Product of gaze vs front normal: facingDot >= cos(30°), player in front of surface plane)
    */
-  private checkProximityAndHighlights(time: number) {
-    let closestTarget: InteractiveTargetId = null;
-    let minDistance = 999;
+  private checkFocusAndHighlights(time: number) {
+    const gaze = new THREE.Vector3();
+    this.camera.getWorldDirection(gaze);
+    gaze.normalize();
 
-    const targets: { id: InteractiveTargetId; pos: THREE.Vector3; maxDist: number }[] = [
-      { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8), maxDist: 2.4 },
-      { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6), maxDist: 2.4 },
-      { id: 'study_desk', pos: new THREE.Vector3(-3.6, 0.9, -1.5), maxDist: 2.4 },
-      { id: 'fuse_box', pos: new THREE.Vector3(4.8, 1.6, 1.5), maxDist: 2.4 },
-    ];
+    let focusedTarget: InteractiveTargetDef | null = null;
+    let minAimAngle = 999;
+    let focusedAngleDeg = 180;
+    let focusedDist = 999;
 
-    if (!this.isBathroomUnlocked) {
-      // Bathroom door is target when locked
-      targets.push({ id: 'bathroom_door', pos: new THREE.Vector3(4.9, 1.4, 1.4), maxDist: 2.4 });
-    } else {
-      // Inside bathroom targets
-      targets.push({ id: 'toilet', pos: new THREE.Vector3(5.75, 0.6, 0.08), maxDist: 2.2 });
-      // Subtle broken tile requires searching closely near the bathtub wall (only triggers when close):
-      targets.push({ id: 'broken_tile', pos: new THREE.Vector3(9.48, 1.3, 0.35), maxDist: 1.65 });
+    let obliqueTargetId: InteractiveTargetId = null;
+    let obliqueMinDist = 999;
+    let obliqueAngleDeg = 180;
+
+    // Center raycast directly from screen center (0, 0)
+    this.centerRaycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+
+    for (const target of this.targetDefinitions) {
+      if (target.id === 'bathroom_door' && this.isBathroomUnlocked) {
+        // Dividing door is already open and unlocked
+        continue;
+      }
+
+      const toTarget = target.pos.clone().sub(this.camera.position);
+      const dist = toTarget.length();
+
+      if (dist > target.maxDist) {
+        continue;
+      }
+
+      const toTargetDir = toTarget.clone().normalize();
+      const aimDot = gaze.dot(toTargetDir);
+      const aimAngleDeg = Math.acos(Math.max(-1, Math.min(1, aimDot))) * (180 / Math.PI);
+
+      // Direct raycast intersection check against target mesh
+      const mesh = this.interactiveMeshes.get(target.id);
+      let directRayHit = false;
+      if (mesh) {
+        const hits = this.centerRaycaster.intersectObject(mesh, true);
+        if (hits.length > 0 && hits[0].distance <= target.maxDist) {
+          directRayHit = true;
+        }
+      }
+
+      const isCenteredInView = directRayHit || aimAngleDeg <= 24;
+
+      if (!isCenteredInView) {
+        continue;
+      }
+
+      // Check condition 1: Frontal Normal Cone (±30°)
+      // The surface normal faces OUTWARD; player incoming gaze faces INWARD.
+      // Therefore, gaze and frontNormal are opposing: facingDot = - (gaze . frontNormal)
+      const facingDot = -gaze.dot(target.frontNormal);
+      const facingAngleDeg = Math.acos(Math.max(-1, Math.min(1, facingDot))) * (180 / Math.PI);
+      const inFrontOfSurface = this.camera.position.clone().sub(target.pos).dot(target.frontNormal) > -0.2;
+
+      const isFrontallyFacing = facingAngleDeg <= target.maxAngleDeg && inFrontOfSurface;
+
+      if (isFrontallyFacing) {
+        if (aimAngleDeg < minAimAngle) {
+          minAimAngle = aimAngleDeg;
+          focusedTarget = target;
+          focusedAngleDeg = Math.round(facingAngleDeg);
+          focusedDist = dist;
+        }
+      } else {
+        // Aiming at or hitting object, but viewed from side/rear or angle > 30°
+        if (dist < obliqueMinDist) {
+          obliqueMinDist = dist;
+          obliqueTargetId = target.id;
+          obliqueAngleDeg = Math.round(facingAngleDeg);
+        }
+      }
     }
 
-    targets.forEach((t) => {
-      const dist = this.playerPosition.distanceTo(t.pos);
-      if (dist < t.maxDist && dist < minDistance) {
-        minDistance = dist;
-        closestTarget = t.id;
-      }
-    });
+    // Update state
+    this.currentFocusState = {
+      targetId: focusedTarget ? focusedTarget.id : null,
+      isFrontallyFacing: !!focusedTarget,
+      angleDeg: focusedTarget ? focusedAngleDeg : (obliqueTargetId ? obliqueAngleDeg : 180),
+      distance: focusedTarget ? focusedDist : (obliqueTargetId ? obliqueMinDist : 999),
+      nearObliqueTargetId: focusedTarget ? null : obliqueTargetId,
+    };
 
-    this.currentNearTarget = closestTarget;
-
-    // Animate glowing reflection highlight for all items based on proximity
-    const pulse = 0.5 + Math.sin(time * 3.5) * 0.5; // 0..1 pulse
+    // Subtle 3D visual feedback: subtle emissive pulse on focused object
+    const pulse = 0.5 + Math.sin(time * 3.5) * 0.5;
     this.highlightMaterials.forEach((mat, id) => {
-      if (id === closestTarget) {
+      if (focusedTarget && id === focusedTarget.id) {
         if (id === 'broken_tile') {
-          // Very subtle faint highlight to preserve mystery
+          // Extremely subtle so tile must be searched for
           mat.emissive.setHex(0x1a120a);
-          mat.emissiveIntensity = 0.25 + pulse * 0.2;
+          mat.emissiveIntensity = 0.2 + pulse * 0.15;
         } else {
-          // Standard glowing reflection
-          mat.emissive.setHex(0x384a20);
-          mat.emissiveIntensity = 0.6 + pulse * 0.5;
+          // Subtle warm golden/amber focus rim
+          mat.emissive.setHex(0x3d3012);
+          mat.emissiveIntensity = 0.45 + pulse * 0.35;
         }
       } else {
         mat.emissive.setHex(0x000000);
@@ -1482,41 +1639,94 @@ export class EscapeRoomScene {
       }
     });
 
-    if (this.onInteractionUpdate) {
-      this.onInteractionUpdate(closestTarget, minDistance);
+    if (this.onFocusUpdate) {
+      this.onFocusUpdate(this.currentFocusState);
     }
   }
 
   /**
-   * Raycast tap on screen to interact with 3D objects
+   * Evaluates screen touch interaction strictly:
+   * Only returns success: true if frontally facing (±30°) and centered.
+   * If aiming at an object obliquely (>30°), returns reason: 'oblique'.
    */
-  public handleScreenTap(clientX: number, clientY: number): InteractiveTargetId {
-    const rect = this.container.getBoundingClientRect();
-    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  public triggerTouchInteraction(clientX?: number, clientY?: number): {
+    success: boolean;
+    targetId: InteractiveTargetId;
+    reason: 'ok' | 'oblique' | 'none';
+    angleDeg: number;
+  } {
+    // 1. Direct check against current frontally focused target
+    if (this.currentFocusState.targetId && this.currentFocusState.isFrontallyFacing) {
+      return {
+        success: true,
+        targetId: this.currentFocusState.targetId,
+        reason: 'ok',
+        angleDeg: this.currentFocusState.angleDeg,
+      };
+    }
 
-    this.raycaster.setFromCamera(this.mouse, this.camera);
+    // 2. If center gaze points at an object but angle is oblique (>30°)
+    if (this.currentFocusState.nearObliqueTargetId) {
+      return {
+        success: false,
+        targetId: this.currentFocusState.nearObliqueTargetId,
+        reason: 'oblique',
+        angleDeg: this.currentFocusState.angleDeg,
+      };
+    }
 
-    const candidates: { id: InteractiveTargetId; object: THREE.Object3D }[] = [];
-    this.interactiveMeshes.forEach((mesh, id) => {
-      candidates.push({ id, object: mesh });
-    });
+    // 3. If tap coordinates were provided, raycast specific tap position
+    if (clientX !== undefined && clientY !== undefined && this.container) {
+      const rect = this.container.getBoundingClientRect();
+      const tapX = ((clientX - rect.left) / rect.width) * 2 - 1;
+      const tapY = -((clientY - rect.top) / rect.height) * 2 + 1;
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(tapX, tapY), this.camera);
 
-    for (const item of candidates) {
-      const intersects = this.raycaster.intersectObject(item.object, true);
-      if (intersects.length > 0) {
-        const dist = intersects[0].distance;
-        if (dist < 3.2) {
-          return item.id;
+      const gaze = new THREE.Vector3();
+      this.camera.getWorldDirection(gaze);
+      gaze.normalize();
+
+      for (const target of this.targetDefinitions) {
+        if (target.id === 'bathroom_door' && this.isBathroomUnlocked) continue;
+        const mesh = this.interactiveMeshes.get(target.id);
+        if (!mesh) continue;
+
+        const hits = ray.intersectObject(mesh, true);
+        if (hits.length > 0 && hits[0].distance <= target.maxDist) {
+          const facingDot = -gaze.dot(target.frontNormal);
+          const facingAngleDeg = Math.acos(Math.max(-1, Math.min(1, facingDot))) * (180 / Math.PI);
+          const inFront = this.camera.position.clone().sub(target.pos).dot(target.frontNormal) > -0.2;
+
+          if (facingAngleDeg <= target.maxAngleDeg && inFront) {
+            return {
+              success: true,
+              targetId: target.id,
+              reason: 'ok',
+              angleDeg: Math.round(facingAngleDeg),
+            };
+          } else {
+            return {
+              success: false,
+              targetId: target.id,
+              reason: 'oblique',
+              angleDeg: Math.round(facingAngleDeg),
+            };
+          }
         }
       }
     }
 
-    return this.currentNearTarget;
+    return {
+      success: false,
+      targetId: null,
+      reason: 'none',
+      angleDeg: 180,
+    };
   }
 
-  public getCurrentNearTarget(): InteractiveTargetId {
-    return this.currentNearTarget;
+  public getCurrentFocusState(): FocusState {
+    return this.currentFocusState;
   }
 
   /**
@@ -1581,12 +1791,11 @@ export class EscapeRoomScene {
       );
     }
 
-    // 3. Camera Orientation: combine touch yaw with gyro
-    this.camera.quaternion.setFromEuler(this.cameraEuler);
-    // If gyro is active, multiply rotation
-    if (this.gyroEuler.x !== 0 || this.gyroEuler.y !== 0) {
-      const gyroQuat = new THREE.Quaternion().setFromEuler(this.gyroEuler);
-      this.camera.quaternion.multiply(gyroQuat);
+    // 3. Camera Orientation: Gyroscope is exclusive on mobile; manual Euler fallback for desktop
+    if (this.hasGyroInput) {
+      this.camera.quaternion.setFromEuler(this.gyroEuler);
+    } else {
+      this.camera.quaternion.setFromEuler(this.cameraEuler);
     }
 
     // 4. Flashlight follows camera look
@@ -1594,11 +1803,11 @@ export class EscapeRoomScene {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     this.flashlightTarget.position.copy(this.camera.position).add(forward.multiplyScalar(4));
 
-    // 5. Check proximity and glow
-    this.checkProximityAndHighlights(time);
+    // 5. Evaluate strict frontal focus and visual highlight
+    this.checkFocusAndHighlights(time);
 
     // 6. Update distance to bathroom for subtle weeping audio cue
-    const distToBathroom = this.playerPosition.distanceTo(new THREE.Vector3(7.25, 1.6, 1.35));
+    const distToBathroom = this.playerPosition.distanceTo(new THREE.Vector3(8.2, 1.6, 1.4));
     horrorAudio.updateBathroomDistance(distToBathroom);
 
     // 7. Render

@@ -57,3 +57,11 @@ export interface InteractiveObject {
   actionText: string;
   distance: number;
 }
+
+export interface FocusState {
+  targetId: InteractiveTargetId;
+  isFrontallyFacing: boolean;
+  angleDeg: number;
+  distance: number;
+  nearObliqueTargetId: InteractiveTargetId;
+}

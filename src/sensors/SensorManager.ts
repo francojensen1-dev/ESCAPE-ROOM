@@ -105,8 +105,13 @@ export class SensorManager {
    * Called every frame to smooth orientation using Lerp
    */
   public updateSmoothing = (): OrientationData => {
-    this.smoothedOrientation.alpha +=
-      (this.rawOrientation.alpha - this.smoothedOrientation.alpha) * this.smoothingFactor;
+    // Shortest angular difference for circular alpha (0..360)
+    let diffAlpha = (this.rawOrientation.alpha - this.smoothedOrientation.alpha) % 360;
+    if (diffAlpha > 180) diffAlpha -= 360;
+    if (diffAlpha < -180) diffAlpha += 360;
+    this.smoothedOrientation.alpha = (this.smoothedOrientation.alpha + diffAlpha * this.smoothingFactor) % 360;
+    if (this.smoothedOrientation.alpha < 0) this.smoothedOrientation.alpha += 360;
+
     this.smoothedOrientation.beta +=
       (this.rawOrientation.beta - this.smoothedOrientation.beta) * this.smoothingFactor;
     this.smoothedOrientation.gamma +=
