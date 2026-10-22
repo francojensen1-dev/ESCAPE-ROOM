@@ -232,42 +232,35 @@ export class TextureGenerator {
 
     ctx.clearRect(0, 0, 512, 256);
 
-    // Bloody dripping text
-    ctx.font = 'bold 38px "Creepster", cursive, "Impact", sans-serif';
+    const subtext = '15 MINUTOS... EL PIBE YA VIENE';
+    const mainText = 'NO MIRES ATRÁS';
+
+    // Measure subtext width
+    ctx.font = '20px "JetBrains Mono", monospace';
+    const targetWidth = ctx.measureText(subtext).width;
+
+    // Scale main text to have the exact same width as the subtext
+    let mainFontSize = 40;
+    ctx.font = `bold ${mainFontSize}px "Creepster", cursive, "Impact", sans-serif`;
+    const initialMainWidth = ctx.measureText(mainText).width;
+    if (initialMainWidth > 0) {
+      mainFontSize = Math.round(mainFontSize * (targetWidth / initialMainWidth));
+      ctx.font = `bold ${mainFontSize}px "Creepster", cursive, "Impact", sans-serif`;
+    }
+
+    ctx.textAlign = 'center';
+
+    // Main text: "NO MIRES ATRÁS" (same width as subtext, no blood drips)
     ctx.fillStyle = '#8a0d0d';
     ctx.shadowColor = '#420404';
     ctx.shadowBlur = 8;
-    ctx.fillText('NO MIRES ATRÁS', 40, 90);
+    ctx.fillText(mainText, 256, 100);
 
-    // Drips
-    ctx.strokeStyle = '#780a0a';
-    ctx.lineWidth = 3;
-    const dripXs = [70, 140, 210, 290, 360, 420];
-    dripXs.forEach((dx) => {
-      ctx.beginPath();
-      ctx.moveTo(dx, 90);
-      ctx.lineTo(dx + (Math.random() - 0.5) * 4, 90 + 35 + Math.random() * 40);
-      ctx.stroke();
-    });
-
-    // Subtext
+    // Subtext: "15 MINUTOS... EL PIBE YA VIENE" (no tally day marks)
     ctx.font = '20px "JetBrains Mono", monospace';
     ctx.fillStyle = '#a62424';
-    ctx.fillText('15 MINUTOS... EL PIBE YA VIENE', 45, 175);
-
-    // Scratch marks
-    ctx.strokeStyle = '#520606';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.moveTo(380 + i * 14, 130);
-      ctx.lineTo(375 + i * 14, 180);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.moveTo(370, 145);
-    ctx.lineTo(435, 165);
-    ctx.stroke();
+    ctx.shadowBlur = 4;
+    ctx.fillText(subtext, 256, 175);
 
     return new THREE.CanvasTexture(canvas);
   }
@@ -512,7 +505,9 @@ export class TextureGenerator {
   }
 
   /**
-   * Rotten vintage refrigerator front with rust & grime
+   * Retro 1950s/60s Mint-Cream Refrigerator Texture (matching user reference image)
+   * Pale distressed sage/mint-cream enamel with rounded corner highlights,
+   * vintage chrome handle, rust streaks from hinges, and attached clue note.
    */
   public static createRottenFridgeTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -520,48 +515,461 @@ export class TextureGenerator {
     canvas.height = 768;
     const ctx = canvas.getContext('2d')!;
 
-    // Decaying yellowish off-white enamel
-    ctx.fillStyle = '#454a3e';
+    // 1. Base vintage 1950s pale sage / mint-cream enamel (matching photo)
+    const baseGrad = ctx.createLinearGradient(0, 0, 512, 768);
+    baseGrad.addColorStop(0, '#c7d3c4');
+    baseGrad.addColorStop(0.5, '#b9c7b5');
+    baseGrad.addColorStop(1, '#a6b5a1');
+    ctx.fillStyle = baseGrad;
     ctx.fillRect(0, 0, 512, 768);
 
-    // Rust spots and corrosion
-    for (let i = 0; i < 800; i++) {
+    // Weathered enamel grime and discoloration mottling
+    for (let i = 0; i < 2200; i++) {
       const rx = Math.random() * 512;
       const ry = Math.random() * 768;
-      const rad = 2 + Math.random() * 18;
-      ctx.fillStyle = Math.random() > 0.4 ? 'rgba(102, 51, 17, 0.25)' : 'rgba(35, 45, 25, 0.3)';
+      const rad = 2 + Math.random() * 16;
+      ctx.fillStyle = Math.random() > 0.6
+        ? 'rgba(75, 85, 70, 0.08)'
+        : Math.random() > 0.3
+        ? 'rgba(120, 95, 60, 0.05)'
+        : 'rgba(50, 40, 30, 0.06)';
       ctx.beginPath();
       ctx.arc(rx, ry, rad, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Large rusty bottom base
-    const rustGrad = ctx.createLinearGradient(0, 550, 0, 768);
-    rustGrad.addColorStop(0, 'rgba(80, 35, 10, 0.4)');
-    rustGrad.addColorStop(1, 'rgba(50, 20, 5, 0.95)');
-    ctx.fillStyle = rustGrad;
-    ctx.fillRect(0, 550, 512, 218);
+    // Rounded corner edge shading for authentic vintage curvature
+    const edgeShadeL = ctx.createLinearGradient(0, 0, 40, 0);
+    edgeShadeL.addColorStop(0, 'rgba(40, 50, 38, 0.55)');
+    edgeShadeL.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = edgeShadeL;
+    ctx.fillRect(0, 0, 40, 768);
 
-    // Freezer seam
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 240, 512, 10);
+    const edgeShadeR = ctx.createLinearGradient(512, 0, 472, 0);
+    edgeShadeR.addColorStop(0, 'rgba(40, 50, 38, 0.45)');
+    edgeShadeR.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = edgeShadeR;
+    ctx.fillRect(472, 0, 40, 768);
 
-    // Handle
-    ctx.fillStyle = '#6e7075';
-    ctx.fillRect(38, 270, 22, 140);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(42, 275, 14, 130);
+    // Top crown rounded highlight
+    const topHighlight = ctx.createLinearGradient(0, 0, 0, 35);
+    topHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    topHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = topHighlight;
+    ctx.fillRect(0, 0, 512, 35);
 
-    // Creepy yellow sticky note: "HAY ALGO EN EL CONGELADOR"
-    ctx.fillStyle = '#9e924a';
-    ctx.fillRect(160, 320, 110, 90);
-    ctx.fillStyle = '#1c1808';
-    ctx.font = '11px sans-serif';
-    ctx.fillText('LLAVE OXIDADA', 170, 345);
-    ctx.fillText('ADENTRO...', 170, 365);
-    ctx.fillText('(NO COMER)', 170, 385);
+    // 2. Freezer compartment horizontal seam (Y = 220)
+    ctx.fillStyle = '#1c221a';
+    ctx.fillRect(10, 218, 492, 6);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(10, 224, 492, 2);
 
-    return new THREE.CanvasTexture(canvas);
+    // Dark rubber gasket shadow
+    ctx.fillStyle = 'rgba(10, 15, 10, 0.4)';
+    ctx.fillRect(15, 214, 482, 4);
+
+    // 3. Vintage Refrigerator Chrome Brand Badge ("KELVINATOR / FRIGIDAIRE" style)
+    ctx.fillStyle = '#d0d8dc';
+    ctx.fillRect(216, 65, 80, 16);
+    ctx.strokeStyle = '#3a444a';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(216, 65, 80, 16);
+    ctx.fillStyle = '#1e282d';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('FRIGIDAIRE', 256, 77);
+
+    // 4. Vintage Chrome Heavy Latch Handle (with keyhole lock)
+    // Vertical mounting plate
+    ctx.fillStyle = '#8f9a9e';
+    ctx.fillRect(48, 250, 26, 170);
+    // Metallic chrome highlight
+    const chromeGrad = ctx.createLinearGradient(48, 0, 74, 0);
+    chromeGrad.addColorStop(0, '#5a6266');
+    chromeGrad.addColorStop(0.35, '#d6e0e4');
+    chromeGrad.addColorStop(0.7, '#8f9a9e');
+    chromeGrad.addColorStop(1, '#444a4e');
+    ctx.fillStyle = chromeGrad;
+    ctx.fillRect(50, 252, 22, 166);
+
+    // Latch lever arm
+    ctx.fillStyle = '#b0bcc2';
+    ctx.fillRect(66, 310, 36, 16);
+    ctx.strokeStyle = '#22282c';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(66, 310, 36, 16);
+
+    // Chrome handle screw bolts
+    ctx.fillStyle = '#2a3236';
+    ctx.beginPath();
+    ctx.arc(61, 266, 3.5, 0, Math.PI * 2);
+    ctx.arc(61, 404, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5. Heavy Rust streaks trailing down from latch handle and bottom seams (from photo)
+    const rustDrips = [52, 64, 88, 120, 210, 380, 460];
+    rustDrips.forEach((rx) => {
+      const startY = 220 + Math.random() * 60;
+      const dripLen = 80 + Math.random() * 200;
+      const dripGrad = ctx.createLinearGradient(rx, startY, rx, startY + dripLen);
+      dripGrad.addColorStop(0, 'rgba(110, 48, 18, 0.75)');
+      dripGrad.addColorStop(0.4, 'rgba(85, 38, 14, 0.45)');
+      dripGrad.addColorStop(1, 'rgba(50, 20, 8, 0)');
+      ctx.fillStyle = dripGrad;
+      ctx.fillRect(rx - 2, startY, 5, dripLen);
+    });
+
+    // Heavy corroded bottom rust apron (matching photo)
+    const bottomRust = ctx.createLinearGradient(0, 600, 0, 768);
+    bottomRust.addColorStop(0, 'rgba(70, 32, 12, 0)');
+    bottomRust.addColorStop(0.3, 'rgba(105, 45, 16, 0.65)');
+    bottomRust.addColorStop(0.8, 'rgba(65, 24, 8, 0.92)');
+    bottomRust.addColorStop(1, 'rgba(30, 10, 4, 0.98)');
+    ctx.fillStyle = bottomRust;
+    ctx.fillRect(0, 600, 512, 168);
+
+    // Flaking rust blisters
+    for (let b = 0; b < 120; b++) {
+      const bx = Math.random() * 512;
+      const by = 620 + Math.random() * 140;
+      ctx.fillStyle = Math.random() > 0.5 ? '#421a08' : '#732e10';
+      ctx.beginPath();
+      ctx.arc(bx, by, 1 + Math.random() * 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 6. Yellowed Clue Note taped to the door: "HAY ALGO EN EL CONGELADOR"
+    ctx.save();
+    ctx.translate(210, 340);
+    ctx.rotate(0.06);
+
+    // Drop shadow
+    ctx.fillStyle = 'rgba(20, 25, 18, 0.4)';
+    ctx.fillRect(3, 3, 140, 105);
+
+    // Weathered paper
+    ctx.fillStyle = '#b8aa62';
+    ctx.fillRect(0, 0, 140, 105);
+
+    // Cellophane tape strip at top
+    ctx.fillStyle = 'rgba(240, 235, 200, 0.45)';
+    ctx.fillRect(45, -8, 50, 18);
+
+    // Handwritten message
+    ctx.fillStyle = '#1c1608';
+    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LLAVE OXIDADA', 12, 32);
+    ctx.fillText('ADENTRO...', 12, 54);
+    ctx.font = 'italic 11px sans-serif';
+    ctx.fillStyle = '#4a1212';
+    ctx.fillText('(NO COMER)', 12, 78);
+
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Weathered Rustic Dark Dining Tabletop Texture (matching user reference image)
+   * Deep aged walnut wood planks with worn varnish, grease stains, knife scratches, and ring marks.
+   */
+  public static createRusticDiningTableTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d')!;
+
+    // Base rich dark aged timber tone (like reference photo)
+    ctx.fillStyle = '#2e2016';
+    ctx.fillRect(0, 0, 1024, 1024);
+
+    const plankCount = 5;
+    const plankH = 1024 / plankCount;
+
+    for (let p = 0; p < plankCount; p++) {
+      const y = p * plankH;
+
+      // Subtle plank variation
+      const v = (Math.random() - 0.5) * 16;
+      ctx.fillStyle = `rgb(${46 + v}, ${32 + v * 0.7}, ${22 + v * 0.5})`;
+      ctx.fillRect(0, y, 1024, plankH - 3);
+
+      // Fine longitudinal wood grain
+      ctx.strokeStyle = 'rgba(20, 12, 8, 0.45)';
+      ctx.lineWidth = 1.6;
+      for (let g = 0; g < 40; g++) {
+        const gy = y + Math.random() * plankH;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.bezierCurveTo(340, gy + (Math.random() - 0.5) * 6, 680, gy + (Math.random() - 0.5) * 6, 1024, gy);
+        ctx.stroke();
+      }
+
+      // Worn lighter grain ridges
+      ctx.strokeStyle = 'rgba(70, 50, 36, 0.3)';
+      ctx.lineWidth = 1.2;
+      for (let g = 0; g < 20; g++) {
+        const gy = y + Math.random() * plankH;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(1024, gy);
+        ctx.stroke();
+      }
+
+      // Plank gap shadow
+      ctx.fillStyle = '#0f0a07';
+      ctx.fillRect(0, y + plankH - 3, 1024, 3);
+    }
+
+    // Water rings and old cup stains (characteristic of old dining table in photo)
+    for (let r = 0; r < 4; r++) {
+      const rx = 200 + Math.random() * 624;
+      const ry = 150 + Math.random() * 724;
+      const rad = 25 + Math.random() * 15;
+      ctx.strokeStyle = 'rgba(16, 10, 6, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Scratches and fork marks
+    ctx.strokeStyle = 'rgba(90, 65, 45, 0.4)';
+    ctx.lineWidth = 1.2;
+    for (let s = 0; s < 30; s++) {
+      const sx = Math.random() * 1024;
+      const sy = Math.random() * 1024;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + (Math.random() - 0.5) * 50, sy + (Math.random() - 0.5) * 20);
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Distressed Kitchen Credenza / Countertop Texture (matching user reference image)
+   * Chipped pale cream/mint paint over aged wood, drawer divisions, and grease patina.
+   */
+  public static createKitchenCredenzaTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Distressed antique cream-white paint
+    ctx.fillStyle = '#ded9cc';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Weathered wood grain peeking through chipped paint
+    for (let i = 0; i < 1500; i++) {
+      const rx = Math.random() * 512;
+      const ry = Math.random() * 512;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(70, 55, 38, 0.08)' : 'rgba(190, 180, 160, 0.15)';
+      ctx.fillRect(rx, ry, 2 + Math.random() * 4, 1);
+    }
+
+    // 3 Drawer front sections (horizontal divisions)
+    for (let d = 0; d < 3; d++) {
+      const dy = 30 + d * 140;
+      // Recessed bevel
+      ctx.strokeStyle = '#5a5245';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(30, dy, 452, 115);
+      // Chipped paint corner accents
+      ctx.fillStyle = '#403020';
+      ctx.fillRect(28, dy + 20, 5, 25);
+      ctx.fillRect(478, dy + 60, 6, 20);
+
+      // Brass cup pull handle in center of drawer
+      const hx = 256;
+      const hy = dy + 57;
+      ctx.fillStyle = '#6e5a32';
+      ctx.beginPath();
+      ctx.arc(hx, hy, 18, Math.PI, 0);
+      ctx.fill();
+      ctx.strokeStyle = '#382a14';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Grease & grime wash near bottom
+    const bottomGrime = ctx.createLinearGradient(0, 420, 0, 512);
+    bottomGrime.addColorStop(0, 'rgba(40, 30, 20, 0)');
+    bottomGrime.addColorStop(1, 'rgba(35, 25, 15, 0.6)');
+    ctx.fillStyle = bottomGrime;
+    ctx.fillRect(0, 420, 512, 92);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Retro 1970s Countertop Microwave / Appliance Texture (matching user reference image)
+   */
+  public static createRetroMicrowaveTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 340;
+    const ctx = canvas.getContext('2d')!;
+
+    // Outer off-white retro steel casing
+    ctx.fillStyle = '#d5cebe';
+    ctx.fillRect(0, 0, 512, 340);
+
+    // Left: Smoked dark glass oven door
+    ctx.fillStyle = '#16191c';
+    ctx.fillRect(24, 24, 330, 292);
+
+    // Interior grill mesh pattern behind glass
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    for (let x = 32; x < 346; x += 8) {
+      ctx.beginPath();
+      ctx.moveTo(x, 32);
+      ctx.lineTo(x, 308);
+      ctx.stroke();
+    }
+    for (let y = 32; y < 308; y += 8) {
+      ctx.beginPath();
+      ctx.moveTo(32, y);
+      ctx.lineTo(346, y);
+      ctx.stroke();
+    }
+
+    // Chrome frame around door
+    ctx.strokeStyle = '#9ea8af';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(24, 24, 330, 292);
+
+    // Right: Control Panel
+    ctx.fillStyle = '#282b30';
+    ctx.fillRect(372, 24, 116, 292);
+
+    // Analog rotary dials
+    for (let i = 0; i < 2; i++) {
+      const dy = 90 + i * 90;
+      // Chrome dial rim
+      ctx.fillStyle = '#8f9a9e';
+      ctx.beginPath();
+      ctx.arc(430, dy, 26, 0, Math.PI * 2);
+      ctx.fill();
+      // Dial knob center
+      ctx.fillStyle = '#1c2024';
+      ctx.beginPath();
+      ctx.arc(430, dy, 20, 0, Math.PI * 2);
+      ctx.fill();
+      // Indicator notch
+      ctx.fillStyle = '#dbe4e8';
+      ctx.fillRect(428, dy - 18, 4, 12);
+    }
+
+    // Ventilation louvers at bottom
+    ctx.fillStyle = '#111416';
+    for (let v = 0; v < 6; v++) {
+      ctx.fillRect(384, 265 + v * 7, 92, 3);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Distressed Galvanized Steel Utility Cart Texture (matching user reference image)
+   */
+  public static createUtilityCartTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Galvanized sheet steel base
+    ctx.fillStyle = '#5c6366';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Mottled oxidation and zinc spangles
+    for (let i = 0; i < 3000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      ctx.fillStyle = Math.random() > 0.6
+        ? 'rgba(160, 175, 180, 0.12)'
+        : Math.random() > 0.3
+        ? 'rgba(40, 48, 52, 0.15)'
+        : 'rgba(95, 60, 30, 0.08)';
+      ctx.fillRect(x, y, 4 + Math.random() * 8, 3 + Math.random() * 6);
+    }
+
+    // Rust specks along rim edges
+    for (let r = 0; r < 250; r++) {
+      const rx = Math.random() * 512;
+      const ry = Math.random() * 512;
+      ctx.fillStyle = 'rgba(105, 45, 15, 0.35)';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 1 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Weathered Wooden Venetian Blinds Texture (matching user reference image)
+   */
+  public static createVenetianBlindsTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark window opening backdrop
+    ctx.fillStyle = '#0a0d10';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Horizontal wooden slats with dust and angled tilt
+    const slatCount = 28;
+    const slatH = 512 / slatCount;
+
+    for (let s = 0; s < slatCount; s++) {
+      const y = s * slatH;
+      // Crooked/broken slats like in photo
+      const tilt = (s === 12 || s === 13 || s === 18) ? (Math.random() - 0.5) * 8 : 0;
+
+      // Wood slat tone
+      ctx.fillStyle = s % 2 === 0 ? '#584938' : '#4b3e30';
+      ctx.fillRect(15, y + 2 + tilt, 482, slatH - 5);
+
+      // Top edge highlight (slat catching sunlight)
+      ctx.fillStyle = 'rgba(235, 220, 190, 0.35)';
+      ctx.fillRect(15, y + 2 + tilt, 482, 2);
+
+      // Bottom shadow
+      ctx.fillStyle = 'rgba(10, 8, 6, 0.7)';
+      ctx.fillRect(15, y + slatH - 4 + tilt, 482, 3);
+    }
+
+    // Vertical blind ladder cords
+    ctx.strokeStyle = '#c4b89c';
+    ctx.lineWidth = 2.5;
+    [130, 382].forEach((cordX) => {
+      ctx.beginPath();
+      ctx.moveTo(cordX, 0);
+      ctx.lineTo(cordX, 512);
+      ctx.stroke();
+    });
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 
   /**
@@ -586,22 +994,49 @@ export class TextureGenerator {
     ctx.textAlign = 'center';
     ctx.fillText('AÑO 1986', 128, 42);
 
-    // Months grid mock
+    // Month title
     ctx.fillStyle = '#3a3427';
-    ctx.font = '12px "JetBrains Mono", monospace';
-    ctx.fillText('OCTUBRE', 128, 90);
+    ctx.font = 'bold 14px "JetBrains Mono", monospace';
+    ctx.fillText('OCTUBRE', 128, 92);
 
-    // Circle clue in red ink: "1986"
-    ctx.strokeStyle = '#b31212';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(128, 38, 80, 24, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    // Days of week header
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#5c5240';
+    const dayHeaders = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+    dayHeaders.forEach((dh, i) => {
+      ctx.fillText(dh, 36 + i * 29, 118);
+    });
 
-    // Frantic note scribbled
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillStyle = '#7a0e0e';
-    ctx.fillText('CÓDIGO CANDADO: 1986', 128, 260);
+    // Calendar day numbers grid (October 1986 started on Wednesday)
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#40382b';
+    let dayNum = 1;
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 7; col++) {
+        if (row === 0 && col < 3) continue;
+        if (dayNum <= 31) {
+          ctx.fillText(dayNum.toString(), 36 + col * 29, 145 + row * 26);
+          dayNum++;
+        }
+      }
+    }
+
+    // Red text at bottom scaled to exactly 75% of the calendar width, without shadow, drips or stains
+    ctx.save();
+    const textMsg = 'NUNCA ESCAPARÁS';
+    const targetWidth = canvas.width * 0.75; // 75% of full width (192px)
+    let fontSize = 20;
+    ctx.font = `bold ${fontSize}px "Creepster", cursive, "Impact", sans-serif`;
+    const measuredWidth = ctx.measureText(textMsg).width;
+    if (measuredWidth > 0) {
+      fontSize = Math.round(fontSize * (targetWidth / measuredWidth));
+      ctx.font = `bold ${fontSize}px "Creepster", cursive, "Impact", sans-serif`;
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#9e1212';
+    ctx.fillText(textMsg, 128, 298);
+    ctx.restore();
 
     return new THREE.CanvasTexture(canvas);
   }
@@ -1643,4 +2078,998 @@ export class TextureGenerator {
 
     return { map, bump };
   }
+
+  /**
+   * Horror Bedroom Wall Texture (Faithful to Image 2: Silent Hill Room 302 aesthetic)
+   * - Mottled decayed sepia/tan plaster with heavy upper damp/rot decay
+   * - Peeling distressed wallpaper sections and water stain drippings
+   * - Deep plaster fissures, grime, and mold spots
+   */
+  public static createHorrorBedroomWallTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 1024;
+    const h = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // 1. Base aged mottled tan/ochre plaster (Image 2 reference)
+    ctx.fillStyle = '#4a3d2e';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#808080';
+    bctx.fillRect(0, 0, w, h);
+
+    // Random plaster noise & texture grain
+    for (let i = 0; i < 7000; i++) {
+      const rx = Math.random() * w;
+      const ry = Math.random() * h;
+      const rad = 2 + Math.random() * 12;
+      const isDark = Math.random() > 0.45;
+      ctx.fillStyle = isDark ? 'rgba(35, 28, 20, 0.12)' : 'rgba(110, 95, 70, 0.08)';
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.fill();
+
+      bctx.fillStyle = isDark ? 'rgba(40, 40, 40, 0.1)' : 'rgba(210, 210, 210, 0.08)';
+      bctx.beginPath();
+      bctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    // 2. Heavy dark mold, soot, and damp decay along top ceiling edge (Image 2)
+    const topDampGrad = ctx.createLinearGradient(0, 0, 0, 180);
+    topDampGrad.addColorStop(0, 'rgba(18, 14, 10, 0.95)');
+    topDampGrad.addColorStop(0.4, 'rgba(28, 22, 16, 0.75)');
+    topDampGrad.addColorStop(0.8, 'rgba(45, 36, 26, 0.35)');
+    topDampGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = topDampGrad;
+    ctx.fillRect(0, 0, w, 180);
+
+    // Matching bump gradient for top damp
+    const topBumpGrad = bctx.createLinearGradient(0, 0, 0, 180);
+    topBumpGrad.addColorStop(0, 'rgba(30, 30, 30, 0.8)');
+    topBumpGrad.addColorStop(1, 'rgba(128, 128, 128, 0)');
+    bctx.fillStyle = topBumpGrad;
+    bctx.fillRect(0, 0, w, 180);
+
+    // 3. Vertical water dripping trails running down from ceiling
+    ctx.strokeStyle = 'rgba(20, 16, 12, 0.35)';
+    for (let d = 0; d < 32; d++) {
+      const dx = Math.random() * w;
+      const dripLen = 120 + Math.random() * 280;
+      ctx.lineWidth = 1 + Math.random() * 3.5;
+      ctx.beginPath();
+      ctx.moveTo(dx, 0);
+      let curX = dx;
+      for (let dy = 10; dy < dripLen; dy += 20) {
+        curX += (Math.random() - 0.5) * 6;
+        ctx.lineTo(curX, dy);
+      }
+      ctx.stroke();
+    }
+
+    // 4. Peeling vintage wallpaper patches with torn ragged edges (Image 2)
+    for (let p = 0; p < 8; p++) {
+      const px = 40 + Math.random() * (w - 180);
+      const py = 60 + Math.random() * (h - 180);
+      const pw = 80 + Math.random() * 120;
+      const ph = 60 + Math.random() * 100;
+
+      // Dark shadow edge of torn paper
+      ctx.fillStyle = 'rgba(14, 12, 9, 0.6)';
+      ctx.fillRect(px - 3, py - 3, pw + 6, ph + 6);
+
+      // Torn patch inner raw plaster
+      ctx.fillStyle = 'rgba(72, 60, 46, 0.9)';
+      ctx.fillRect(px, py, pw, ph);
+
+      // Faded floral or vertical stripe wallpaper remnants
+      ctx.strokeStyle = 'rgba(38, 32, 24, 0.25)';
+      ctx.lineWidth = 3;
+      for (let sx = px + 8; sx < px + pw; sx += 14) {
+        ctx.beginPath();
+        ctx.moveTo(sx, py);
+        ctx.lineTo(sx, py + ph);
+        ctx.stroke();
+      }
+
+      // Bump indentation
+      bctx.fillStyle = 'rgba(40, 40, 40, 0.4)';
+      bctx.fillRect(px, py, pw, ph);
+    }
+
+    // 5. Plaster fissure cracks
+    ctx.strokeStyle = 'rgba(12, 10, 8, 0.55)';
+    bctx.strokeStyle = '#101010';
+    for (let c = 0; c < 8; c++) {
+      let cx = Math.random() * w;
+      let cy = Math.random() * h;
+      const crackWidth = 1 + Math.random() * 1.5;
+      ctx.lineWidth = crackWidth;
+      bctx.lineWidth = crackWidth + 1;
+      ctx.beginPath();
+      bctx.beginPath();
+      ctx.moveTo(cx, cy);
+      bctx.moveTo(cx, cy);
+      for (let s = 0; s < 7; s++) {
+        cx += (Math.random() - 0.5) * 45;
+        cy += (Math.random() - 0.2) * 35;
+        ctx.lineTo(cx, cy);
+        bctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      bctx.stroke();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
+
+  /**
+   * CRT TV Screen Texture with Animated Static & Scanlines
+   */
+  public static createCrtTvScreenTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark cyan-green phosphorous background
+    ctx.fillStyle = '#0a1418';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Phosphor static noise dots
+    const imgData = ctx.getImageData(0, 0, 256, 256);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = Math.random();
+      if (noise > 0.65) {
+        const val = Math.floor(Math.random() * 180 + 40);
+        data[i] = Math.floor(val * 0.7);     // R
+        data[i + 1] = Math.floor(val * 1.1); // G
+        data[i + 2] = val;                   // B
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Horizontal CRT scanlines
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    for (let y = 0; y < 256; y += 4) {
+      ctx.fillRect(0, y, 256, 2);
+    }
+
+    // Faint eerie central static disturbance / channel noise band
+    const noiseGrad = ctx.createLinearGradient(0, 90, 0, 160);
+    noiseGrad.addColorStop(0, 'rgba(100, 220, 240, 0)');
+    noiseGrad.addColorStop(0.5, 'rgba(120, 240, 255, 0.22)');
+    noiseGrad.addColorStop(1, 'rgba(100, 220, 240, 0)');
+    ctx.fillStyle = noiseGrad;
+    ctx.fillRect(0, 90, 256, 70);
+
+    // Subtle vignette curve
+    const vigGrad = ctx.createRadialGradient(128, 128, 60, 128, 128, 140);
+    vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vigGrad.addColorStop(1, 'rgba(0, 0, 0, 0.75)');
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, 256, 256);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Distressed Dark Wood Furniture Texture (For Cajonera & Mesita de Luz, matching Image 2)
+   */
+  public static createDarkWoodFurnitureTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Rich dark walnut / stained mahogany base (Image 2)
+    ctx.fillStyle = '#261912';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Longitudinal wood grain lines
+    for (let x = 0; x < 512; x += 3) {
+      const grainVar = (Math.random() - 0.5) * 16;
+      ctx.strokeStyle = Math.random() > 0.4 ? 'rgba(22, 14, 10, 0.5)' : 'rgba(54, 38, 28, 0.35)';
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      let cx = x;
+      for (let y = 0; y < 512; y += 40) {
+        cx += (Math.random() - 0.5) * 3;
+        ctx.lineTo(cx, y);
+      }
+      ctx.stroke();
+    }
+
+    // Wood knots
+    for (let k = 0; k < 4; k++) {
+      const kx = 60 + Math.random() * 400;
+      const ky = 60 + Math.random() * 400;
+      const kGrad = ctx.createRadialGradient(kx, ky, 2, kx, ky, 25);
+      kGrad.addColorStop(0, '#100a06');
+      kGrad.addColorStop(0.5, '#2e1e16');
+      kGrad.addColorStop(1, 'rgba(38, 25, 18, 0)');
+      ctx.fillStyle = kGrad;
+      ctx.beginPath();
+      ctx.ellipse(kx, ky, 18, 32, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Scratches and distressed worn edge marks
+    ctx.strokeStyle = 'rgba(100, 75, 55, 0.4)';
+    ctx.lineWidth = 1;
+    for (let s = 0; s < 20; s++) {
+      const sx = Math.random() * 512;
+      const sy = Math.random() * 512;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + (Math.random() - 0.5) * 35, sy + (Math.random() - 0.5) * 20);
+      ctx.stroke();
+    }
+
+    // Dirt accumulation in corners and recesses
+    const vignette = ctx.createRadialGradient(256, 256, 160, 256, 256, 280);
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(1, 'rgba(10, 6, 4, 0.5)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, 512, 512);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Stained Dirty Mattress Texture (Matching Image 2 vintage bed)
+   */
+  public static createDirtyMattressTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Faded aged cream linen fabric base
+    ctx.fillStyle = '#b5ac9d';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Fine fabric weave
+    for (let i = 0; i < 4000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(120, 110, 95, 0.12)' : 'rgba(215, 205, 190, 0.1)';
+      ctx.fillRect(x, y, 2, 2);
+    }
+
+    // Quilted diamond stitch pattern
+    ctx.strokeStyle = 'rgba(90, 80, 70, 0.25)';
+    ctx.lineWidth = 1.5;
+    for (let d = -512; d < 1024; d += 48) {
+      ctx.beginPath();
+      ctx.moveTo(d, 0);
+      ctx.lineTo(d + 512, 512);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(d, 512);
+      ctx.lineTo(d + 512, 0);
+      ctx.stroke();
+    }
+
+    // Large brownish-yellow water and sweat stain rings (Silent Hill hallmark)
+    for (let s = 0; s < 6; s++) {
+      const sx = 80 + Math.random() * 350;
+      const sy = 80 + Math.random() * 350;
+      const rad = 35 + Math.random() * 65;
+
+      const stainGrad = ctx.createRadialGradient(sx, sy, rad * 0.4, sx, sy, rad);
+      stainGrad.addColorStop(0, 'rgba(115, 95, 65, 0.35)');
+      stainGrad.addColorStop(0.7, 'rgba(135, 110, 75, 0.5)');
+      stainGrad.addColorStop(0.9, 'rgba(85, 65, 45, 0.65)'); // Dark stain rim
+      stainGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = stainGrad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Dried blood blotches
+    for (let b = 0; b < 3; b++) {
+      const bx = 120 + Math.random() * 280;
+      const by = 120 + Math.random() * 280;
+      const bRad = 15 + Math.random() * 30;
+      const bloodGrad = ctx.createRadialGradient(bx, by, 3, bx, by, bRad);
+      bloodGrad.addColorStop(0, 'rgba(65, 18, 14, 0.75)');
+      bloodGrad.addColorStop(0.7, 'rgba(50, 14, 10, 0.55)');
+      bloodGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = bloodGrad;
+      ctx.beginPath();
+      ctx.ellipse(bx, by, bRad, bRad * 0.7, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Decayed Patterned Bedroom Area Rug (Matching Image 2)
+   */
+  public static createBedroomRugTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Faded crimson-brown vintage carpet base
+    ctx.fillStyle = '#3a201c';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Decorative ornate border
+    ctx.strokeStyle = '#63392a';
+    ctx.lineWidth = 18;
+    ctx.strokeRect(20, 20, 472, 472);
+
+    ctx.strokeStyle = '#2b1512';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(36, 36, 440, 440);
+
+    // Inner geometric motif
+    ctx.strokeStyle = '#4e2d22';
+    ctx.lineWidth = 3;
+    for (let x = 60; x < 460; x += 40) {
+      for (let y = 60; y < 460; y += 40) {
+        ctx.strokeRect(x, y, 28, 28);
+      }
+    }
+
+    // Heavy dirt & wear patches
+    for (let i = 0; i < 50; i++) {
+      const rx = Math.random() * 512;
+      const ry = Math.random() * 512;
+      const r = 20 + Math.random() * 50;
+      const grad = ctx.createRadialGradient(rx, ry, 2, rx, ry, r);
+      grad.addColorStop(0, 'rgba(15, 10, 8, 0.6)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(rx, ry, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Decaying Collapsed Ceiling Texture (Inspired directly by Image 3: Resident Evil / Silent Hill style)
+   * - Peeling plaster slabs breaking away to expose wooden lath slats underneath
+   * - Dark damp water rot rings, mold colonies, and peeling paint fringes
+   */
+  public static createHorrorDecayCeilingTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 1024;
+    const h = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // 1. Base dark weathered plaster
+    ctx.fillStyle = '#2b2926';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#808080';
+    bctx.fillRect(0, 0, w, h);
+
+    // Fine plaster noise
+    for (let i = 0; i < 9000; i++) {
+      const rx = Math.random() * w;
+      const ry = Math.random() * h;
+      const rad = 1 + Math.random() * 6;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(18, 16, 14, 0.22)' : 'rgba(75, 70, 64, 0.18)';
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.fill();
+
+      bctx.fillStyle = Math.random() > 0.5 ? 'rgba(30, 30, 30, 0.25)' : 'rgba(200, 200, 200, 0.2)';
+      bctx.beginPath();
+      bctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    // 2. Giant collapsed ceiling holes with exposed horizontal wooden laths (Image 3 reference!)
+    const holeAreas = [
+      { x: 180, y: 220, rx: 140, ry: 90 },
+      { x: 680, y: 340, rx: 160, ry: 110 },
+      { x: 420, y: 720, rx: 200, ry: 120 },
+      { x: 820, y: 800, rx: 130, ry: 85 },
+    ];
+
+    holeAreas.forEach((h) => {
+      // Dark hollow cavity behind plaster
+      ctx.fillStyle = '#100e0c';
+      ctx.beginPath();
+      ctx.ellipse(h.x, h.y, h.rx, h.ry, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      bctx.fillStyle = '#1a1a1a';
+      bctx.beginPath();
+      bctx.ellipse(h.x, h.y, h.rx, h.ry, 0.15, 0, Math.PI * 2);
+      bctx.fill();
+
+      // Exposed horizontal wooden lath slats inside the hole (Image 3!)
+      const slatH = 14;
+      const startY = Math.max(0, h.y - h.ry);
+      const endY = Math.min(1024, h.y + h.ry);
+      for (let ly = startY; ly < endY; ly += slatH + 5) {
+        ctx.fillStyle = '#2e241b';
+        ctx.fillRect(h.x - h.rx, ly, h.rx * 2, slatH);
+
+        bctx.fillStyle = '#505050';
+        bctx.fillRect(h.x - h.rx, ly, h.rx * 2, slatH);
+
+        // Gap shadow between slats
+        ctx.fillStyle = '#080706';
+        ctx.fillRect(h.x - h.rx, ly + slatH, h.rx * 2, 5);
+        bctx.fillStyle = '#0a0a0a';
+        bctx.fillRect(h.x - h.rx, ly + slatH, h.rx * 2, 5);
+      }
+
+      // Jagged peeling plaster rim around the hole
+      ctx.strokeStyle = '#4e483e';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.ellipse(h.x, h.y, h.rx + 4, h.ry + 4, 0.15, 0, Math.PI * 2);
+      ctx.stroke();
+
+      bctx.strokeStyle = '#d0d0d0';
+      bctx.lineWidth = 6;
+      bctx.beginPath();
+      bctx.ellipse(h.x, h.y, h.rx + 4, h.ry + 4, 0.15, 0, Math.PI * 2);
+      bctx.stroke();
+    });
+
+    // 3. Water damage rings and damp dark rot bloom (Image 3!)
+    for (let r = 0; r < 8; r++) {
+      const rx = 80 + Math.random() * (w - 160);
+      const ry = 80 + Math.random() * (h - 160);
+      const rad = 50 + Math.random() * 120;
+      const grad = ctx.createRadialGradient(rx, ry, rad * 0.3, rx, ry, rad);
+      grad.addColorStop(0, 'rgba(15, 12, 10, 0.85)');
+      grad.addColorStop(0.7, 'rgba(32, 26, 20, 0.55)');
+      grad.addColorStop(0.95, 'rgba(65, 52, 38, 0.7)'); // Dark damp tide ring
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.fill();
+
+      bctx.fillStyle = 'rgba(40, 40, 40, 0.4)';
+      bctx.beginPath();
+      bctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    // 4. Plaster fissures and spiderweb cracks
+    ctx.strokeStyle = 'rgba(10, 8, 6, 0.7)';
+    bctx.strokeStyle = '#050505';
+    for (let c = 0; c < 12; c++) {
+      let cx = Math.random() * w;
+      let cy = Math.random() * h;
+      ctx.lineWidth = 1.5;
+      bctx.lineWidth = 2.5;
+      ctx.beginPath();
+      bctx.beginPath();
+      ctx.moveTo(cx, cy);
+      bctx.moveTo(cx, cy);
+      for (let s = 0; s < 8; s++) {
+        cx += (Math.random() - 0.5) * 55;
+        cy += (Math.random() - 0.5) * 45;
+        ctx.lineTo(cx, cy);
+        bctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      bctx.stroke();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
+
+  /**
+   * Asylum / Hospital Horror Wall Texture (Directly inspired by Image 2: IMG-20261021-WA0017.jpg)
+   * - Bottom 58%: Dirty institutional pale green-gray tiles with moldy black grout, cracks & blood
+   * - Top 42%: Flaking, peeling mustard/ochre yellow paint exposing crumbling dark concrete behind
+   */
+  public static createAsylumBathroomWallTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 1024;
+    const h = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // 1. TOP SECTION (y: 0 to 220): Peeling mustard-yellow / ochre paint over damp gray concrete (Image 2!)
+    // Base dark pitted damp concrete
+    ctx.fillStyle = '#222524';
+    ctx.fillRect(0, 0, w, 220);
+    bctx.fillStyle = '#505050';
+    bctx.fillRect(0, 0, w, 220);
+
+    // Decaying mustard-yellow chipped paint layer (Image 2!)
+    ctx.fillStyle = '#7a6528';
+    ctx.fillRect(0, 0, w, 205);
+    bctx.fillStyle = '#b0b0b0';
+    bctx.fillRect(0, 0, w, 205);
+
+    // Chipped peeling patches where yellow paint has fallen off (exposing concrete)
+    for (let p = 0; p < 35; p++) {
+      const px = Math.random() * (w - 80);
+      const py = Math.random() * 180;
+      const pw = 30 + Math.random() * 90;
+      const ph = 25 + Math.random() * 70;
+
+      ctx.fillStyle = '#2a2e2b';
+      ctx.beginPath();
+      ctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, Math.random() * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dark shadow edge of peeling curled paint
+      ctx.strokeStyle = '#181a18';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      bctx.fillStyle = '#303030';
+      bctx.beginPath();
+      bctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, Math.random() * 0.4, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    // 2. BOTTOM SECTION (y: 205 to 512): Grimy Institutional Tile Wall (Image 2!)
+    // Base tile color: worn dirty greenish/cream institutional porcelain
+    ctx.fillStyle = '#1c201e';
+    ctx.fillRect(0, 205, w, 307);
+    bctx.fillStyle = '#303030';
+    bctx.fillRect(0, 205, w, 307);
+
+    const tileSize = 48; // Crisp 48px square institutional tiles
+    for (let x = 0; x < w; x += tileSize) {
+      for (let y = 205; y < 512; y += tileSize) {
+        // Subtle tile-to-tile tonal variation
+        const toneVar = (Math.sin(x * 0.1) + Math.cos(y * 0.15)) * 10;
+        const r = Math.min(255, Math.max(0, Math.floor(95 + toneVar)));
+        const g = Math.min(255, Math.max(0, Math.floor(115 + toneVar * 1.1)));
+        const b = Math.min(255, Math.max(0, Math.floor(105 + toneVar * 0.9)));
+
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+        bctx.fillStyle = '#a8a8a8';
+        bctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+        // Slime, water smudges, and dirt on some tiles
+        if (Math.random() > 0.55) {
+          ctx.fillStyle = 'rgba(30, 42, 35, 0.4)';
+          ctx.beginPath();
+          ctx.arc(x + tileSize / 2, y + tileSize / 2, 8 + Math.random() * 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Cracked tile fissures
+        if (Math.random() > 0.82) {
+          ctx.strokeStyle = '#181c1a';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(x + 4, y + 4);
+          ctx.lineTo(x + tileSize - 8, y + tileSize - 6);
+          ctx.stroke();
+
+          bctx.strokeStyle = '#101010';
+          bctx.lineWidth = 2.5;
+          bctx.beginPath();
+          bctx.moveTo(x + 4, y + 4);
+          bctx.lineTo(x + tileSize - 8, y + tileSize - 6);
+          bctx.stroke();
+        }
+      }
+    }
+
+    // Blackened moldy grout grid (Image 2!)
+    ctx.strokeStyle = '#121514';
+    ctx.lineWidth = 3;
+    bctx.strokeStyle = '#050505';
+    bctx.lineWidth = 4;
+    for (let x = 0; x <= w; x += tileSize) {
+      ctx.beginPath(); ctx.moveTo(x, 205); ctx.lineTo(x, 512); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(x, 205); bctx.lineTo(x, 512); bctx.stroke();
+    }
+    for (let y = 205; y <= 512; y += tileSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(0, y); bctx.lineTo(w, y); bctx.stroke();
+    }
+
+    // 3. Transition border: peeling ragged paint border dividing yellow upper wall & tile lower wall
+    ctx.fillStyle = '#101210';
+    ctx.fillRect(0, 202, w, 5);
+    bctx.fillStyle = '#050505';
+    bctx.fillRect(0, 202, w, 5);
+
+    // 4. Vertical dark water seepage and rust drip lines running all the way down
+    for (let d = 0; d < 30; d++) {
+      const dx = Math.random() * w;
+      const dlen = 140 + Math.random() * 320;
+      const grad = ctx.createLinearGradient(dx, 0, dx, dlen);
+      grad.addColorStop(0, 'rgba(25, 18, 12, 0.85)');
+      grad.addColorStop(0.5, 'rgba(38, 30, 20, 0.55)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(dx - 2, 0, 4 + Math.random() * 5, dlen);
+    }
+
+    // 5. Dried blood splatters & hand dragging marks
+    for (let b = 0; b < 6; b++) {
+      const bx = 80 + Math.random() * (w - 160);
+      const by = 220 + Math.random() * 240;
+      ctx.fillStyle = 'rgba(75, 14, 10, 0.75)';
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 12 + Math.random() * 20, 8 + Math.random() * 12, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
+
+  /**
+   * Asylum / Hospital Grimy Floor Tile Texture (Directly inspired by Image 2: IMG-20261021-WA0017.jpg)
+   * - Stained, grimy institutional square floor tiles
+   * - Heavy dark dirty water puddles, blood/soot spots, and debris caked in grout
+   */
+  public static createAsylumBathroomFloorTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 1024;
+    const h = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // Base dark dirty concrete underfloor
+    ctx.fillStyle = '#181b19';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#202020';
+    bctx.fillRect(0, 0, w, h);
+
+    const step = 64; // Large square floor tiles matching Image 2
+    for (let x = 0; x < w; x += step) {
+      for (let y = 0; y < h; y += step) {
+        // Dirty greenish-gray / cement floor tiles with heavy grime
+        const varTone = (Math.sin(x * 0.05 + y * 0.08) + Math.cos(x * 0.1)) * 14;
+        const r = Math.min(255, Math.max(0, Math.floor(65 + varTone)));
+        const g = Math.min(255, Math.max(0, Math.floor(82 + varTone * 1.1)));
+        const b = Math.min(255, Math.max(0, Math.floor(78 + varTone * 0.95)));
+
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fillRect(x + 2, y + 2, step - 4, step - 4);
+
+        bctx.fillStyle = '#858585';
+        bctx.fillRect(x + 2, y + 2, step - 4, step - 4);
+
+        // Grime & soot accumulation on tile surface
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = 'rgba(15, 20, 18, 0.45)';
+          ctx.beginPath();
+          ctx.arc(x + Math.random() * step, y + Math.random() * step, 4 + Math.random() * 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Blackened, caked grout lines
+    ctx.strokeStyle = '#0e1110';
+    ctx.lineWidth = 4;
+    bctx.strokeStyle = '#050505';
+    bctx.lineWidth = 5;
+    for (let x = 0; x <= w; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(x, 0); bctx.lineTo(x, h); bctx.stroke();
+    }
+    for (let y = 0; y <= h; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(0, y); bctx.lineTo(w, y); bctx.stroke();
+    }
+
+    // Massive murky puddles and dried blood stains on floor (Image 2!)
+    for (let p = 0; p < 10; p++) {
+      const px = 100 + Math.random() * (w - 200);
+      const py = 100 + Math.random() * (h - 200);
+      const pr = 40 + Math.random() * 95;
+      const isBlood = Math.random() > 0.4;
+
+      const pGrad = ctx.createRadialGradient(px, py, pr * 0.2, px, py, pr);
+      if (isBlood) {
+        pGrad.addColorStop(0, 'rgba(48, 10, 8, 0.85)');
+        pGrad.addColorStop(0.7, 'rgba(32, 8, 6, 0.65)');
+        pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      } else {
+        pGrad.addColorStop(0, 'rgba(12, 16, 14, 0.85)');
+        pGrad.addColorStop(0.7, 'rgba(20, 26, 22, 0.55)');
+        pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      }
+      ctx.fillStyle = pGrad;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * (0.6 + Math.random() * 0.4), Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Puddle roughness/bump reflection
+      bctx.fillStyle = 'rgba(20, 20, 20, 0.5)';
+      bctx.beginPath();
+      bctx.ellipse(px, py, pr, pr * 0.7, 0, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
+
+  /**
+   * Distressed Horror Wooden Plank Floor (Directly inspired by Image 1 & Image 3)
+   * - Decayed, water-damaged dark wood planks with deep grooves
+   * - Blood smear dragging marks (Image 1!), dust, and heavy wear
+   */
+  public static createHorrorDistressedFloorTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 1024;
+    const h = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // 1. Base dark walnut/oak weathered wood (Image 1 & 3 reference!)
+    ctx.fillStyle = '#221912';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#606060';
+    bctx.fillRect(0, 0, w, h);
+
+    const plankCount = 12;
+    const plankH = 1024 / plankCount;
+
+    for (let p = 0; p < plankCount; p++) {
+      const y = p * plankH;
+
+      // Individual plank wood tone
+      const tone = 28 + Math.floor((Math.random() - 0.5) * 14);
+      ctx.fillStyle = `rgb(${tone + 8}, ${tone + 2}, ${Math.max(6, tone - 4)})`;
+      ctx.fillRect(0, y + 2, w, plankH - 4);
+
+      bctx.fillStyle = `rgb(${110 + (Math.random() - 0.5) * 30}, 110, 110)`;
+      bctx.fillRect(0, y + 2, w, plankH - 4);
+
+      // Longitudinal fine wood grain
+      ctx.strokeStyle = 'rgba(12, 8, 6, 0.4)';
+      ctx.lineWidth = 1.2;
+      for (let g = 0; g < 8; g++) {
+        const gy = y + Math.random() * plankH;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.bezierCurveTo(300, gy + (Math.random() - 0.5) * 4, 700, gy + (Math.random() - 0.5) * 4, w, gy);
+        ctx.stroke();
+      }
+
+      // Deep dark gap shadow between planks
+      ctx.fillStyle = '#0a0705';
+      ctx.fillRect(0, y + plankH - 3, w, 3);
+      bctx.fillStyle = '#050505';
+      bctx.fillRect(0, y + plankH - 3, w, 3);
+    }
+
+    // 2. Worn patches where foot traffic occurs (Image 3!)
+    for (let wp = 0; wp < 6; wp++) {
+      const wx = 120 + Math.random() * (w - 240);
+      const wy = 120 + Math.random() * (h - 240);
+      const wGrad = ctx.createRadialGradient(wx, wy, 10, wx, wy, 120);
+      wGrad.addColorStop(0, 'rgba(80, 60, 42, 0.45)');
+      wGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = wGrad;
+      ctx.beginPath();
+      ctx.ellipse(wx, wy, 140, 70, Math.random() * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 3. Blood smear drag trails & blood pools (Matching Image 1 horror scene!)
+    for (let b = 0; b < 5; b++) {
+      const bx = 150 + Math.random() * (w - 300);
+      const by = 150 + Math.random() * (h - 300);
+
+      // Blood pool
+      const bGrad = ctx.createRadialGradient(bx, by, 5, bx, by, 65);
+      bGrad.addColorStop(0, 'rgba(58, 10, 8, 0.88)');
+      bGrad.addColorStop(0.7, 'rgba(42, 8, 6, 0.65)');
+      bGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = bGrad;
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 70, 45, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Drag trail smeared across floorboards (Image 1!)
+      ctx.strokeStyle = 'rgba(48, 10, 8, 0.65)';
+      ctx.lineWidth = 14 + Math.random() * 12;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.bezierCurveTo(bx + 80, by + 30, bx + 160, by - 20, bx + 240, by + 40);
+      ctx.stroke();
+
+      bctx.fillStyle = 'rgba(25, 25, 25, 0.4)';
+      bctx.beginPath();
+      bctx.ellipse(bx, by, 70, 45, 0.3, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    // 4. Dust, grime & flaking debris along board seams
+    for (let i = 0; i < 5000; i++) {
+      const rx = Math.random() * w;
+      const ry = Math.random() * h;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(10, 8, 6, 0.35)' : 'rgba(95, 85, 70, 0.15)';
+      ctx.fillRect(rx, ry, 2, 2);
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
+
+  /**
+   * Asylum Ceiling Grid Texture (Directly inspired by Image 2: IMG-20261021-WA0017.jpg)
+   * - Acoustic drop ceiling tiles with dark damp water stain rings and oxidized T-bar grid
+   */
+  public static createAsylumCeilingTexture(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const w = 512;
+    const h = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // Base dirty acoustic tile
+    ctx.fillStyle = '#242624';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#606060';
+    bctx.fillRect(0, 0, w, h);
+
+    const gridSize = 64;
+    for (let x = 0; x < w; x += gridSize) {
+      for (let y = 0; y < h; y += gridSize) {
+        ctx.fillStyle = '#2f3330';
+        ctx.fillRect(x + 2, y + 2, gridSize - 4, gridSize - 4);
+
+        bctx.fillStyle = '#909090';
+        bctx.fillRect(x + 2, y + 2, gridSize - 4, gridSize - 4);
+
+        // Acoustic tile micro stippling pinholes
+        ctx.fillStyle = 'rgba(10, 12, 10, 0.4)';
+        for (let p = 0; p < 8; p++) {
+          ctx.fillRect(x + 6 + Math.random() * (gridSize - 12), y + 6 + Math.random() * (gridSize - 12), 2, 2);
+        }
+      }
+    }
+
+    // Metal T-bar grid frame
+    ctx.strokeStyle = '#141715';
+    ctx.lineWidth = 3;
+    bctx.strokeStyle = '#202020';
+    bctx.lineWidth = 4;
+    for (let x = 0; x <= w; x += gridSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(x, 0); bctx.lineTo(x, h); bctx.stroke();
+    }
+    for (let y = 0; y <= h; y += gridSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      bctx.beginPath(); bctx.moveTo(0, y); bctx.lineTo(w, y); bctx.stroke();
+    }
+
+    // Heavy water leak rings (Image 2!)
+    for (let r = 0; r < 5; r++) {
+      const rx = 60 + Math.random() * (w - 120);
+      const ry = 60 + Math.random() * (h - 120);
+      const rad = 30 + Math.random() * 60;
+      const grad = ctx.createRadialGradient(rx, ry, rad * 0.2, rx, ry, rad);
+      grad.addColorStop(0, 'rgba(15, 12, 8, 0.85)');
+      grad.addColorStop(0.7, 'rgba(45, 36, 22, 0.6)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump };
+  }
 }
+
+

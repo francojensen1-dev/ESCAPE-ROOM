@@ -76,9 +76,9 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({ onClose }) => {
       {/* Top Header */}
       <div className="w-full max-w-md flex items-center justify-between mb-3 text-stone-300">
         <div className="flex items-center gap-2">
-          <Eye className="w-4 h-4 text-amber-500 animate-pulse" />
-          <span className="text-sm font-mono tracking-wider text-amber-300 uppercase">
-            VISOR DE LA PUERTA (MIRILLA)
+          <Eye className="w-4 h-4 text-red-500 animate-pulse" />
+          <span className="text-sm font-mono tracking-wider text-red-400 uppercase font-bold">
+            LA PUERTA DEL PIBE (MIRILLA)
           </span>
         </div>
         <button

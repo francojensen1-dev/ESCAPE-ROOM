@@ -182,7 +182,9 @@ export default function App() {
   const getTargetPrompt = (targetId: InteractiveTargetId) => {
     switch (targetId) {
       case 'main_door':
-        return { title: 'Puerta Principal', action: 'Inspeccionar Cadenas y Visor' };
+        return { title: 'Puerta Principal de Escape', action: 'Inspeccionar Cadenas y Candados' };
+      case 'door_peephole':
+        return { title: 'La Puerta del Pibe', action: 'Mirar por la Mirilla' };
       case 'bathroom_door':
         return lockState.bathroomDoor
           ? { title: 'Puerta del Baño (Abierta)', action: 'Entrar al Baño' }
@@ -193,11 +195,11 @@ export default function App() {
                 : 'Puerta Cerrada con Llave',
             };
       case 'rotten_fridge':
-        return { title: 'Heladera Podrida', action: 'Abrir y Buscar en el Interior' };
+        return { title: 'Heladera Vintage (1950s)', action: 'Abrir y Buscar en el Interior' };
       case 'study_desk':
-        return { title: 'Escritorio con Diario', action: 'Leer Pistas del Diario' };
+        return { title: 'Mesa con Diario del Investigador', action: 'Leer Pistas del Diario' };
       case 'fuse_box':
-        return { title: 'Caja de Fusibles', action: 'Manipular Interruptores 220V' };
+        return { title: 'Caja de Fusibles 220V', action: 'Manipular Interruptores' };
       case 'toilet':
         return { title: 'Inodoro Decrépito (Baño)', action: 'Revisar Fondo del Agua Turbia' };
       case 'broken_tile':
@@ -218,6 +220,9 @@ export default function App() {
     switch (targetId) {
       case 'main_door':
         setActiveModal('main_door');
+        break;
+      case 'door_peephole':
+        setActiveModal('peephole');
         break;
       case 'bathroom_door':
         setActiveModal('bathroom_door');
@@ -495,12 +500,12 @@ export default function App() {
     }, 22000);
 
     const triggerKnockCheck = () => {
-      const dist = sceneRef.current ? sceneRef.current.getDistanceToDoor() : 6.0;
-      const isPlayerAtDoor = dist < 3.8 || activeModal === 'main_door' || activeModal === 'peephole';
+      const dist = sceneRef.current ? sceneRef.current.getDistanceToPibeDoor() : 6.0;
+      const isPlayerAtDoor = dist < 3.8 || activeModal === 'peephole';
       const isPibeNearDoor = isPlayerAtDoor || isStalkerRoamingNearDoor;
 
       if (isPibeNearDoor) {
-        // Distance-scaled volume: loud and punchy when near, slightly muffled if across the room
+        // Distance-scaled volume: loud and punchy when near La Puerta del Pibe, slightly muffled if across the room
         const volumeFactor = Math.max(0.35, Math.min(1.0, 1.0 - (dist - 1.2) * 0.12));
         horrorAudio.playDoorKnocks(volumeFactor);
         if (sceneRef.current) {
@@ -766,7 +771,6 @@ export default function App() {
         <MainDoorModal
           lockState={lockState}
           inventory={inventory}
-          onOpenPeephole={() => setActiveModal('peephole')}
           onOpenCodeLock={() => setActiveModal('codelock')}
           onOpenLetterLock={() => setActiveModal('letterlock')}
           onUseToiletKey={handleUseToiletKeyOnDoor}
@@ -809,7 +813,7 @@ export default function App() {
       )}
 
       {activeModal === 'peephole' && (
-        <PeepholeModal onClose={() => setActiveModal('main_door')} />
+        <PeepholeModal onClose={() => setActiveModal(null)} />
       )}
 
       {activeModal === 'fridge' && (

@@ -6,6 +6,7 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { InteractiveTargetId, LockState, OrientationData } from '../types/game';
 import { TextureGenerator } from './TextureGenerator';
 import { horrorAudio } from '../audio/HorrorAudioManager';
@@ -46,6 +47,8 @@ export class EscapeRoomScene {
   // Door Mesh & Knock Impact
   private doorGroup: THREE.Group | null = null;
   private doorBaseZ: number = -5.92;
+  private pibeDoorGroup: THREE.Group | null = null;
+  private pibeDoorBaseZ: number = 5.92;
   private doorShakeStartTime: number = 0;
 
   // Player state
@@ -72,6 +75,18 @@ export class EscapeRoomScene {
   // Bathroom dividing door
   private bathroomDoorPivot: THREE.Group = new THREE.Group();
   private isBathroomUnlocked: boolean = false;
+
+  // Silent Hill Sink, Fetus ("feto.glb") & Positional Weeping Audio ("llanto.wav")
+  private sinkPosition = new THREE.Vector3(8.5, 0.85, -1.60);
+  private sinkGroup: THREE.Group = new THREE.Group();
+  private fetoModel: THREE.Object3D | null = null;
+
+  // New Horror Bedroom (Habitación Tétrica) & Hanging Man
+  private bedroomGroup: THREE.Group = new THREE.Group();
+  private hangingManGroup: THREE.Group = new THREE.Group();
+  private tvScreenMesh: THREE.Mesh | null = null;
+  private tvLight: THREE.PointLight | null = null;
+  private bedroomLampLight: THREE.PointLight | null = null;
 
   // Callbacks
   private onInteractionUpdate: SceneInteractionCallback | null = null;
@@ -140,10 +155,16 @@ export class EscapeRoomScene {
     // 5. Build Environment
     this.buildRoom();
     this.buildMainChainedDoor();
+    this.buildPibeDoor();
     this.buildRottenFridge();
     this.buildStudyDesk();
+    this.buildKitchenCredenza();
+    this.buildUtilityCart();
+    this.buildAtmosphericWindowAndLightBeams();
+    this.buildCeilingFan();
     this.buildElectricalFuseBox();
     this.buildBathroom();
+    this.buildBedroom();
     this.buildWallDecorations();
 
     // 6. Bind resize
@@ -306,11 +327,25 @@ export class EscapeRoomScene {
     eastWallHeader.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallHeader);
 
-    // West Wall (X = -5, peeling vintage wallpaper and crumbling plaster)
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), westWallMat);
-    westWall.position.set(-5, 1.7, 0);
-    westWall.rotation.y = Math.PI / 2;
-    this.scene.add(westWall);
+    // West Wall with open doorway into New Bedroom (X = -5.0, doorway at Z = [0.9, 2.7])
+    // 1. North Segment (Z: -6.0 to 0.9, length 6.9m, center Z = -2.55)
+    // Anchors the relocated electrical fuse box at Z = -3.2 firmly against the wall
+    const westWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.9, 3.4), westWallMat);
+    westWallNorth.position.set(-5, 1.7, -2.55);
+    westWallNorth.rotation.y = Math.PI / 2;
+    this.scene.add(westWallNorth);
+
+    // 2. Doorway Header above bedroom entrance (Z: 0.9 to 2.7, length 1.8m, height 1.2m, Y: 2.2 to 3.4)
+    const westWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), westWallMat);
+    westWallHeader.position.set(-5, 2.8, 1.8);
+    westWallHeader.rotation.y = Math.PI / 2;
+    this.scene.add(westWallHeader);
+
+    // 3. South Segment (Z: 2.7 to 6.0, length 3.3m, center Z = 4.35)
+    const westWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 3.4), westWallMat);
+    westWallSouth.position.set(-5, 1.7, 4.35);
+    westWallSouth.rotation.y = Math.PI / 2;
+    this.scene.add(westWallSouth);
 
     // Build 3D physical wear & decay relief details flanking the door (Image 1 reference!)
     this.buildDoorSurroundWearDetails();
@@ -675,27 +710,6 @@ export class EscapeRoomScene {
     lowerPanelFrame.add(lTop, lBot, lLeft, lRight);
     doorGroup.add(lowerPanelFrame);
 
-    // Brass Peephole (Visor de la puerta)
-    const peepholeMat = new THREE.MeshStandardMaterial({
-      color: 0xcca048,
-      metalness: 0.9,
-      roughness: 0.25,
-      emissive: new THREE.Color(0x221805),
-    });
-    const peepholeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.045, 24), peepholeMat);
-    peepholeRing.rotation.x = Math.PI / 2;
-    peepholeRing.position.set(0, -0.02, 0.065);
-    doorGroup.add(peepholeRing);
-
-    // Dark peephole convex glass
-    const peepholeGlass = new THREE.Mesh(
-      new THREE.SphereGeometry(0.032, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x050508 })
-    );
-    peepholeGlass.rotation.x = -Math.PI / 2;
-    peepholeGlass.position.set(0, -0.02, 0.082);
-    doorGroup.add(peepholeGlass);
-
     // Deadbolt latch mechanism on right middle edge
     const deadboltMat = new THREE.MeshStandardMaterial({ color: 0x2e2c29, metalness: 0.8, roughness: 0.4 });
     const deadboltPlate = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.055, 0.025), deadboltMat);
@@ -986,31 +1000,299 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Rotten Refrigerator in kitchen corner
+   * La Puerta del Pibe (Nueva puerta en la pared Sur)
+   * Referencia de layout: image_ee9950e3.png (marcada en rojo al sur)
+   * - Ubicación: Pared Sur (X: 0.5, Y: 1.35, Z: 5.92, rotation.y: Math.PI)
+   * - Puerta de madera maciza envejecida con arañazos siniestros y desgaste
+   * - Marco pesado de madera oscura con remaches y soportes de hierro
+   * - Mirilla de latón (brass peephole) a la altura de los ojos (Y = 1.6m)
+   * - Picaporte pesado de hierro forjado y cerrojo macizo
+   * - Foco tenue cenital o sutil resplandor carmesí siniestro
+   * - Registrada como objetivo interactivo 'door_peephole'
+   */
+  private buildPibeDoor() {
+    const pGroup = new THREE.Group();
+    pGroup.position.set(0.5, 1.35, this.pibeDoorBaseZ);
+    pGroup.rotation.y = Math.PI; // Face towards inside room (-Z)
+    this.pibeDoorGroup = pGroup;
+
+    // 1. Textures & Materials
+    const doorTex = TextureGenerator.createDoorTexture();
+    const doorMat = new THREE.MeshStandardMaterial({
+      map: doorTex,
+      color: 0x3a3028, // Darker, menacing aged timber
+      roughness: 0.82,
+      metalness: 0.12,
+    });
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x221c17,
+      roughness: 0.88,
+      metalness: 0.2,
+    });
+
+    const ironMat = new THREE.MeshStandardMaterial({
+      color: 0x1f1d1a,
+      roughness: 0.45,
+      metalness: 0.85,
+    });
+
+    // 2. Door Trim & Architrave Frame
+    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.16, 0.20), frameMat);
+    topFrame.position.set(0, 1.40, 0);
+    const leftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.68, 0.20), frameMat);
+    leftFrame.position.set(-0.82, 0, 0);
+    const rightFrame = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.68, 0.20), frameMat);
+    rightFrame.position.set(0.82, 0, 0);
+    pGroup.add(topFrame, leftFrame, rightFrame);
+
+    // Inner stepped trim
+    const innerTop = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.04, 0.06), frameMat);
+    innerTop.position.set(0, 1.30, 0.08);
+    const innerLeft = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.60, 0.06), frameMat);
+    innerLeft.position.set(-0.73, 0, 0.08);
+    const innerRight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.60, 0.06), frameMat);
+    innerRight.position.set(0.73, 0, 0.08);
+    pGroup.add(innerTop, innerLeft, innerRight);
+
+    // 3. Main Door Slab
+    const doorSlab = new THREE.Mesh(new THREE.BoxGeometry(1.44, 2.60, 0.10), doorMat);
+    pGroup.add(doorSlab);
+
+    // Recessed Molded Panels (Upper and Lower)
+    const panelBevelMat = new THREE.MeshStandardMaterial({ color: 0x2c241e, roughness: 0.9 });
+    // Upper panel molding
+    const uTop = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.03, 0.02), panelBevelMat);
+    uTop.position.set(0, 1.0, 0.055);
+    const uBot = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.03, 0.02), panelBevelMat);
+    uBot.position.set(0, 0.12, 0.055);
+    const uLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.88, 0.02), panelBevelMat);
+    uLeft.position.set(-0.54, 0.56, 0.055);
+    const uRight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.88, 0.02), panelBevelMat);
+    uRight.position.set(0.54, 0.56, 0.055);
+    pGroup.add(uTop, uBot, uLeft, uRight);
+
+    // Lower panel molding
+    const lTop = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.03, 0.02), panelBevelMat);
+    lTop.position.set(0, -0.14, 0.055);
+    const lBot = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.03, 0.02), panelBevelMat);
+    lBot.position.set(0, -1.10, 0.055);
+    const lLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.96, 0.02), panelBevelMat);
+    lLeft.position.set(-0.54, -0.62, 0.055);
+    const lRight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.96, 0.02), panelBevelMat);
+    lRight.position.set(0.54, -0.62, 0.055);
+    pGroup.add(lTop, lBot, lLeft, lRight);
+
+    // 4. Brass Peephole (Mirilla) - At eye height (Y = 1.6m world => local Y = 0.25m)
+    const peepholeMat = new THREE.MeshStandardMaterial({
+      color: 0xcca048,
+      metalness: 0.92,
+      roughness: 0.22,
+      emissive: new THREE.Color(0x000000),
+    });
+    this.highlightMaterials.set('door_peephole', peepholeMat);
+
+    const peepholeRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.07, 0.055, 24),
+      peepholeMat
+    );
+    peepholeRing.rotation.x = Math.PI / 2;
+    peepholeRing.position.set(0, 0.25, 0.07);
+    pGroup.add(peepholeRing);
+
+    // Dark peephole convex glass with eerie faint amber glow
+    const peepholeGlass = new THREE.Mesh(
+      new THREE.SphereGeometry(0.042, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x050403 })
+    );
+    peepholeGlass.rotation.x = -Math.PI / 2;
+    peepholeGlass.position.set(0, 0.25, 0.092);
+    pGroup.add(peepholeGlass);
+
+    // Invisible larger interaction hit volume for easy tapping on mobile/touch
+    const peepholeHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.50, 0.50, 0.25),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    peepholeHitbox.position.set(0, 0.25, 0.10);
+    pGroup.add(peepholeHitbox);
+
+    // 5. Heavy Iron Lock Mechanism & Deadbolt
+    const deadboltPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.03), ironMat);
+    deadboltPlate.position.set(0.60, 0.05, 0.065);
+    const handleBar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 8), ironMat);
+    handleBar.rotation.z = Math.PI / 2;
+    handleBar.position.set(0.55, 0.02, 0.095);
+    pGroup.add(deadboltPlate, handleBar);
+
+    // Heavy bolted steel reinforcement straps
+    [-0.52, 0.72].forEach((sy) => {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.08, 0.02), ironMat);
+      strap.position.set(0, sy, 0.058);
+      pGroup.add(strap);
+    });
+
+    // 6. Sinister Claw Scratches & Warning Decal
+    const scratchCanvas = document.createElement('canvas');
+    scratchCanvas.width = 256;
+    scratchCanvas.height = 256;
+    const sctx = scratchCanvas.getContext('2d')!;
+    sctx.clearRect(0, 0, 256, 256);
+    sctx.strokeStyle = '#3e0606';
+    sctx.lineWidth = 3.5;
+    for (let c = 0; c < 4; c++) {
+      sctx.beginPath();
+      const sx = 60 + c * 35;
+      sctx.moveTo(sx, 15);
+      sctx.bezierCurveTo(sx + 15, 75, sx - 20, 140, sx + 20, 240);
+      sctx.stroke();
+    }
+    const scratchTex = new THREE.CanvasTexture(scratchCanvas);
+    const scratchMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.55, 0.55),
+      new THREE.MeshBasicMaterial({ map: scratchTex, transparent: true, opacity: 0.85 })
+    );
+    scratchMesh.position.set(-0.35, 0.25, 0.056);
+    pGroup.add(scratchMesh);
+
+    // 7. Dedicated Subtle Horror Downlight above La Puerta del Pibe
+    const pibeDoorLight = new THREE.PointLight(0xa63a24, 1.4, 5.0, 1.8);
+    pibeDoorLight.position.set(0, 1.55, 0.45);
+    pGroup.add(pibeDoorLight);
+
+    this.scene.add(pGroup);
+
+    // Register as interactive target for 'door_peephole'
+    this.interactiveMeshes.set('door_peephole', pGroup);
+  }
+
+  /**
+   * Retro 1950s/60s Mint-Cream Refrigerator (matching user reference image)
+   * Dilapidated rounded-top refrigerator in pale mint/cream enamel with chrome latch,
+   * rust streaks, freezer seam, and yellowed clue note.
    */
   private buildRottenFridge() {
     const fridgeGroup = new THREE.Group();
-    fridgeGroup.position.set(3.8, 1.15, -4.8);
-    fridgeGroup.rotation.y = -Math.PI / 6;
+    // Placed in back kitchen corner flush on ground
+    fridgeGroup.position.set(3.6, 0, -4.6);
+    fridgeGroup.rotation.y = -Math.PI / 5;
 
     const fridgeTex = TextureGenerator.createRottenFridgeTexture();
     const fridgeMat = new THREE.MeshStandardMaterial({
       map: fridgeTex,
-      roughness: 0.6,
-      metalness: 0.2,
+      roughness: 0.55,
+      metalness: 0.22,
       emissive: new THREE.Color(0x000000),
     });
     this.highlightMaterials.set('rotten_fridge', fridgeMat);
 
-    // Fridge Body (0.8m wide, 1.8m tall, 0.85m deep)
-    const fridgeBody = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.85, 0.85), fridgeMat);
+    // 1. Main Fridge Cabinet Body (0.88m wide, 1.82m tall, 0.82m deep)
+    const cabinetGeo = new THREE.BoxGeometry(0.88, 1.78, 0.80);
+    const fridgeBody = new THREE.Mesh(cabinetGeo, fridgeMat);
+    fridgeBody.position.y = 0.93; // Pivot at ground
     fridgeGroup.add(fridgeBody);
 
-    // Handle
-    const handleMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4f, metalness: 0.8, roughness: 0.4 });
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.45, 0.06), handleMat);
-    handle.position.set(-0.35, 0.1, 0.45);
-    fridgeGroup.add(handle);
+    // 2. Rounded Crown Top Cap (Vintage 1950s aerodynamic rounded profile)
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xbed0bd,
+      roughness: 0.5,
+      metalness: 0.2,
+    });
+    const crownCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.40, 0.44, 0.80, 16),
+      crownMat
+    );
+    crownCap.rotation.z = Math.PI / 2;
+    crownCap.position.set(0, 1.82, 0);
+    crownCap.scale.set(0.18, 1.0, 0.95);
+    fridgeGroup.add(crownCap);
+
+    // 3. Separate Door Relief with Recessed Black Gasket Seams
+    // Freezer Door (upper relief)
+    const freezerDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.86, 0.48, 0.05),
+      fridgeMat
+    );
+    freezerDoor.position.set(0, 1.54, 0.42);
+    fridgeGroup.add(freezerDoor);
+
+    // Main Lower Fridge Door (lower relief)
+    const mainDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.86, 1.18, 0.05),
+      fridgeMat
+    );
+    mainDoor.position.set(0, 0.68, 0.42);
+    fridgeGroup.add(mainDoor);
+
+    // Black Rubber Door Gasket Seal
+    const gasketMat = new THREE.MeshBasicMaterial({ color: 0x111311 });
+    const gasketLine = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.02, 0.04), gasketMat);
+    gasketLine.position.set(0, 1.28, 0.41);
+    fridgeGroup.add(gasketLine);
+
+    // 4. Vintage Heavy Chrome Latch Handle with Keyhole Lock
+    const chromeMat = new THREE.MeshStandardMaterial({
+      color: 0xc8d2d6,
+      metalness: 0.88,
+      roughness: 0.22,
+    });
+    // Vertical chrome latch bracket
+    const handleBracket = new THREE.Mesh(
+      new THREE.BoxGeometry(0.045, 0.36, 0.04),
+      chromeMat
+    );
+    handleBracket.position.set(-0.34, 1.12, 0.465);
+    fridgeGroup.add(handleBracket);
+
+    // Latch lever arm
+    const handleLever = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.035, 0.05),
+      chromeMat
+    );
+    handleLever.position.set(-0.28, 1.16, 0.48);
+    fridgeGroup.add(handleLever);
+
+    // Chrome Brand Emblem Plate near top
+    const emblem = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.035, 0.02),
+      chromeMat
+    );
+    emblem.position.set(0, 1.68, 0.45);
+    fridgeGroup.add(emblem);
+
+    // Heavy oxidized steel door hinges on the right side
+    const hingeMat = new THREE.MeshStandardMaterial({ color: 0x3d3024, metalness: 0.8, roughness: 0.4 });
+    [-0.2, 0.4, 1.0].forEach((hy) => {
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.07, 8), hingeMat);
+      hinge.position.set(0.44, 0.7 + hy, 0.40);
+      fridgeGroup.add(hinge);
+    });
+
+    // 5. Four Rusted Cast Iron Feet
+    const footMat = new THREE.MeshStandardMaterial({ color: 0x221a14, metalness: 0.85, roughness: 0.5 });
+    const footOffsets = [
+      [-0.38, -0.34],
+      [0.38, -0.34],
+      [-0.38, 0.34],
+      [0.38, 0.34],
+    ];
+    footOffsets.forEach(([fx, fz]) => {
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.07, 8), footMat);
+      foot.position.set(fx, 0.035, fz);
+      fridgeGroup.add(foot);
+    });
+
+    // 6. Ground Contact Shadow Plane
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x060606,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    });
+    const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.1), shadowMat);
+    contactShadow.rotation.x = -Math.PI / 2;
+    contactShadow.position.set(0, 0.008, 0.05);
+    fridgeGroup.add(contactShadow);
 
     // Rotten food puddle beneath fridge
     const puddleMat = new THREE.MeshStandardMaterial({
@@ -1018,9 +1300,9 @@ export class EscapeRoomScene {
       roughness: 0.2,
       metalness: 0.1,
     });
-    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.65, 16), puddleMat);
+    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.68, 16), puddleMat);
     puddle.rotation.x = -Math.PI / 2;
-    puddle.position.set(0, -0.91, 0.3);
+    puddle.position.set(0, 0.012, 0.42);
     fridgeGroup.add(puddle);
 
     this.scene.add(fridgeGroup);
@@ -1028,77 +1310,538 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Study Desk with Diary Notes, Radio, Desk Lamp
+   * Hero Rustic Dining Table & Chairs Set (matching user reference image)
+   * Dark weathered timber dining table with turned legs, tableware, vintage radio,
+   * the "Diario del Investigador" puzzle notes, and vintage chairs around it.
    */
   private buildStudyDesk() {
-    const deskGroup = new THREE.Group();
-    deskGroup.position.set(-3.8, 0, -1.5);
-    deskGroup.rotation.y = Math.PI / 2;
+    const tableGroup = new THREE.Group();
+    // Positioned in room dining area matching reference photo
+    tableGroup.position.set(-2.8, 0, -1.2);
+    tableGroup.rotation.y = 0.08;
 
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x241812, roughness: 0.8 });
-
-    // Tabletop
-    const tabletop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.9), woodMat);
-    tabletop.position.set(0, 0.78, 0);
-    deskGroup.add(tabletop);
-
-    // 4 legs
-    const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.76, 8);
-    const legOffsets = [
-      [-0.7, 0.38, -0.38],
-      [0.7, 0.38, -0.38],
-      [-0.7, 0.38, 0.38],
-      [0.7, 0.38, 0.38],
-    ];
-    legOffsets.forEach(([lx, ly, lz]) => {
-      const leg = new THREE.Mesh(legGeo, woodMat);
-      leg.position.set(lx, ly, lz);
-      deskGroup.add(leg);
+    const tableTex = TextureGenerator.createRusticDiningTableTexture();
+    const woodMat = new THREE.MeshStandardMaterial({
+      map: tableTex,
+      roughness: 0.82,
+      metalness: 0.08,
     });
 
-    // Old Diary note on desk
+    // 1. Rustic Weathered Tabletop (1.90m long, 1.05m wide, 0.07m thick)
+    const tabletop = new THREE.Mesh(new THREE.BoxGeometry(1.90, 0.07, 1.05), woodMat);
+    tabletop.position.set(0, 0.76, 0);
+    tableGroup.add(tabletop);
+
+    // 2. Under-Table Structural Apron Fascia with Beveled Trim
+    const apronMat = new THREE.MeshStandardMaterial({ color: 0x22170f, roughness: 0.88 });
+    const apronLong1 = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.09, 0.03), apronMat);
+    apronLong1.position.set(0, 0.70, 0.44);
+    const apronLong2 = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.09, 0.03), apronMat);
+    apronLong2.position.set(0, 0.70, -0.44);
+    const apronShort1 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.85), apronMat);
+    apronShort1.position.set(0.84, 0.70, 0);
+    const apronShort2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.85), apronMat);
+    apronShort2.position.set(-0.84, 0.70, 0);
+    tableGroup.add(apronLong1, apronLong2, apronShort1, apronShort2);
+
+    // 3. Four Turned Rustic Wooden Legs with Tapered Feet
+    const legGeo = new THREE.CylinderGeometry(0.038, 0.026, 0.73, 10);
+    const ferruleGeo = new THREE.CylinderGeometry(0.028, 0.026, 0.06, 8);
+    const ferruleMat = new THREE.MeshStandardMaterial({ color: 0x6e5a36, metalness: 0.8, roughness: 0.35 });
+
+    const legOffsets = [
+      [-0.82, 0.365, -0.42],
+      [0.82, 0.365, -0.42],
+      [-0.82, 0.365, 0.42],
+      [0.82, 0.365, 0.42],
+    ];
+
+    legOffsets.forEach(([lx, ly, lz]) => {
+      const leg = new THREE.Mesh(legGeo, apronMat);
+      leg.position.set(lx, ly, lz);
+      const ferrule = new THREE.Mesh(ferruleGeo, ferruleMat);
+      ferrule.position.set(lx, 0.03, lz);
+      tableGroup.add(leg, ferrule);
+    });
+
+    // 4. Contact Shadow beneath Dining Table
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x080808,
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+    });
+    const tableShadow = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.4), shadowMat);
+    tableShadow.rotation.x = -Math.PI / 2;
+    tableShadow.position.set(0, 0.005, 0);
+    tableGroup.add(tableShadow);
+
+    // 5. "Diario del Investigador" Clue Note Sheet (Interactive Target)
     const noteMat = new THREE.MeshStandardMaterial({
-      color: 0x9e937b,
+      color: 0xa89f88,
       roughness: 0.9,
       emissive: new THREE.Color(0x000000),
     });
     this.highlightMaterials.set('study_desk', noteMat);
 
-    const noteSheet = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.015, 0.45), noteMat);
-    noteSheet.position.set(-0.25, 0.83, 0.05);
-    noteSheet.rotation.y = 0.2;
-    deskGroup.add(noteSheet);
+    const noteSheet = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.015, 0.50), noteMat);
+    noteSheet.position.set(-0.35, 0.805, 0.12);
+    noteSheet.rotation.y = 0.22;
+    tableGroup.add(noteSheet);
 
-    // Vintage Radio
-    const radioMat = new THREE.MeshStandardMaterial({ color: 0x3d281a, roughness: 0.6 });
-    const radioMesh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.22, 0.18), radioMat);
-    radioMesh.position.set(0.35, 0.92, -0.15);
-    radioMesh.rotation.y = -0.15;
-    deskGroup.add(radioMesh);
+    // Blood stains on the note sheet
+    const bloodNoteDecal = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.24, 0.18),
+      new THREE.MeshBasicMaterial({ color: 0x6e0e0e, transparent: true, opacity: 0.7 })
+    );
+    bloodNoteDecal.rotation.x = -Math.PI / 2;
+    bloodNoteDecal.position.set(-0.33, 0.814, 0.12);
+    tableGroup.add(bloodNoteDecal);
 
-    // Vintage desk lamp
-    const lampMat = new THREE.MeshStandardMaterial({ color: 0x1f3b2b, metalness: 0.7, roughness: 0.4 });
-    const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.04, 12), lampMat);
-    lampBase.position.set(0.5, 0.82, 0.2);
-    deskGroup.add(lampBase);
+    // 6. Vintage 1970s Wood-Cased AM Radio Receiver
+    const radioMat = new THREE.MeshStandardMaterial({ color: 0x3d2719, roughness: 0.65 });
+    const radioMesh = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.20, 0.16), radioMat);
+    radioMesh.position.set(0.52, 0.90, -0.22);
+    radioMesh.rotation.y = -0.25;
+    tableGroup.add(radioMesh);
 
-    const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.16, 12, 1, true), lampMat);
-    lampShade.position.set(0.48, 1.1, 0.15);
-    lampShade.rotation.x = Math.PI / 4;
-    deskGroup.add(lampShade);
+    // Radio speaker grill
+    const grillMat = new THREE.MeshStandardMaterial({ color: 0x8a7e6d, roughness: 0.85 });
+    const grill = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.14), grillMat);
+    grill.position.set(0.46, 0.90, -0.138);
+    grill.rotation.y = -0.25;
+    tableGroup.add(grill);
 
-    this.scene.add(deskGroup);
-    this.interactiveMeshes.set('study_desk', deskGroup);
+    // Radio antenna
+    const antennaMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.9, roughness: 0.2 });
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.45, 6), antennaMat);
+    antenna.position.set(0.66, 1.15, -0.26);
+    antenna.rotation.z = -0.2;
+    tableGroup.add(antenna);
+
+    // 7. Ceramic Tableware & Kitchen Props (matching reference photo)
+    const ceramicMat = new THREE.MeshStandardMaterial({ color: 0xd9d3c5, roughness: 0.4, metalness: 0.05 });
+    // Large mixing/soup bowl in center
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.08, 0.10, 16), ceramicMat);
+    bowl.position.set(0.05, 0.84, -0.05);
+    tableGroup.add(bowl);
+
+    // Spoon in bowl
+    const spoonMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.3 });
+    const spoon = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.20, 6), spoonMat);
+    spoon.rotation.z = Math.PI / 4;
+    spoon.position.set(0.08, 0.88, -0.05);
+    tableGroup.add(spoon);
+
+    // Dirty ceramic plate with bread crumbs
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.10, 0.02, 16), ceramicMat);
+    plate.position.set(-0.25, 0.805, -0.28);
+    tableGroup.add(plate);
+
+    // Ceramic coffee pot / pitcher
+    const pitcher = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.24, 14), ceramicMat);
+    pitcher.position.set(0.24, 0.91, 0.26);
+    tableGroup.add(pitcher);
+
+    // Fork and knife on table
+    const knife = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.004, 0.18), spoonMat);
+    knife.position.set(-0.08, 0.80, -0.28);
+    tableGroup.add(knife);
+
+    // 8. Four Vintage Dining Chairs around the Table (matching reference photo)
+    const chairWoodMat = new THREE.MeshStandardMaterial({ color: 0x281c15, roughness: 0.85 });
+    const chairLegMat = new THREE.MeshStandardMaterial({ color: 0x36281e, metalness: 0.3, roughness: 0.7 });
+
+    // Helper to build a vintage dining chair
+    const buildVintageChair = (x: number, z: number, rotY: number, tiltX: number = 0, tiltZ: number = 0) => {
+      const chair = new THREE.Group();
+      chair.position.set(x, 0, z);
+      chair.rotation.y = rotY;
+      chair.rotation.x = tiltX;
+      chair.rotation.z = tiltZ;
+
+      // Wooden seat with rounded corners
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.04, 0.44), chairWoodMat);
+      seat.position.y = 0.46;
+      chair.add(seat);
+
+      // 4 Chair legs with slight splay
+      const cLegOffsets = [
+        [-0.18, 0.23, -0.18],
+        [0.18, 0.23, -0.18],
+        [-0.18, 0.23, 0.18],
+        [0.18, 0.23, 0.18],
+      ];
+      cLegOffsets.forEach(([clx, cly, clz]) => {
+        const cLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.014, 0.46, 8), chairLegMat);
+        cLeg.position.set(clx, cly, clz);
+        chair.add(cLeg);
+      });
+
+      // Curved wooden backrest posts & top rail
+      const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.48, 8), chairWoodMat);
+      post1.position.set(-0.18, 0.70, -0.18);
+      const post2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.48, 8), chairWoodMat);
+      post2.position.set(0.18, 0.70, -0.18);
+
+      const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.08, 0.025), chairWoodMat);
+      topRail.position.set(0, 0.92, -0.18);
+
+      // 3 Spindles
+      for (let s = -1; s <= 1; s++) {
+        const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.40, 6), chairWoodMat);
+        spindle.position.set(s * 0.09, 0.68, -0.18);
+        chair.add(spindle);
+      }
+
+      chair.add(post1, post2, topRail);
+
+      // Chair shadow
+      const chairShadow = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.55), shadowMat);
+      chairShadow.rotation.x = -Math.PI / 2;
+      chairShadow.position.set(0, 0.004, 0);
+      chair.add(chairShadow);
+
+      return chair;
+    };
+
+    // Chair 1: Near left, angled slightly toward player
+    const chair1 = buildVintageChair(-0.45, 0.82, Math.PI + 0.15);
+    tableGroup.add(chair1);
+
+    // Chair 2: Near right, angled
+    const chair2 = buildVintageChair(0.50, 0.85, Math.PI - 0.2);
+    tableGroup.add(chair2);
+
+    // Chair 3: Far side, facing table
+    const chair3 = buildVintageChair(0.35, -0.80, 0.08);
+    tableGroup.add(chair3);
+
+    // Chair 4: Far left corner, slightly tilted/askew as seen in the eerie reference photo
+    const chair4 = buildVintageChair(-0.95, -0.25, -Math.PI / 2 + 0.35, 0.08, -0.06);
+    tableGroup.add(chair4);
+
+    this.scene.add(tableGroup);
+    this.interactiveMeshes.set('study_desk', tableGroup);
   }
 
   /**
-   * Electrical Fuse Box on the East Wall
-   * Accurately proportioned residential breaker box: 0.34m wide, 0.46m high, 0.10m deep
+   * Kitchen Credenza / Counter Cabinet & Retro Appliance (matching reference photo)
+   * Positioned along the North wall under the window:
+   * - Weathered cream cabinet with 3 drawers and open bottom shelf
+   * - Props on lower shelf: trash bag & cardboard carton
+   * - On top: Vintage 1970s microwave/toaster oven unit with dials & dark glass door
+   */
+  private buildKitchenCredenza() {
+    const credenzaGroup = new THREE.Group();
+    // Placed on North wall between the main door and the fridge
+    credenzaGroup.position.set(1.65, 0, -5.55);
+
+    const credenzaTex = TextureGenerator.createKitchenCredenzaTexture();
+    const credenzaMat = new THREE.MeshStandardMaterial({
+      map: credenzaTex,
+      roughness: 0.78,
+      metalness: 0.1,
+    });
+
+    // 1. Main Credenza Body (1.70m wide, 0.86m tall, 0.58m deep)
+    const cabinetBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.70, 0.86, 0.58),
+      credenzaMat
+    );
+    cabinetBody.position.set(0, 0.43, 0);
+    credenzaGroup.add(cabinetBody);
+
+    // Countertop ledge
+    const topCounterMat = new THREE.MeshStandardMaterial({ color: 0x3d3224, roughness: 0.7 });
+    const topCounter = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.05, 0.62), topCounterMat);
+    topCounter.position.set(0, 0.88, 0);
+    credenzaGroup.add(topCounter);
+
+    // 2. Open lower shelf recess on the right side
+    const openShelfMat = new THREE.MeshStandardMaterial({ color: 0x181410, roughness: 0.95 });
+    const openRecess = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.42, 0.54), openShelfMat);
+    openRecess.position.set(0.44, 0.28, 0.04);
+    credenzaGroup.add(openRecess);
+
+    // Clutter inside open shelf: Crumpled black trash bag & cardboard box
+    const trashMat = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.35, metalness: 0.1 });
+    const trashBag = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 1), trashMat);
+    trashBag.position.set(0.38, 0.22, 0.08);
+    trashBag.scale.set(1.2, 0.8, 1.0);
+    credenzaGroup.add(trashBag);
+
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x6e563a, roughness: 0.9 });
+    const cardBox = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.26), boxMat);
+    cardBox.position.set(0.64, 0.22, 0.05);
+    cardBox.rotation.y = 0.2;
+    credenzaGroup.add(cardBox);
+
+    // 3. Vintage 1970s Countertop Microwave / Appliance on top of credenza
+    const microTex = TextureGenerator.createRetroMicrowaveTexture();
+    const microMat = new THREE.MeshStandardMaterial({
+      map: microTex,
+      roughness: 0.45,
+      metalness: 0.35,
+    });
+    const microwave = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.38, 0.38), microMat);
+    microwave.position.set(-0.35, 1.10, 0.02);
+    credenzaGroup.add(microwave);
+
+    // Dirty condiment jars on credenza
+    const jarMat = new THREE.MeshStandardMaterial({ color: 0x3d4a36, roughness: 0.25, metalness: 0.1 });
+    const jar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 12), jarMat);
+    jar1.position.set(0.22, 0.99, -0.10);
+    const jar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.12, 12), jarMat);
+    jar2.position.set(0.35, 0.97, -0.06);
+    credenzaGroup.add(jar1, jar2);
+
+    // Stained vintage kettle
+    const kettleMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4f, metalness: 0.85, roughness: 0.3 });
+    const kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.18, 14), kettleMat);
+    kettle.position.set(0.55, 1.0, 0.05);
+    credenzaGroup.add(kettle);
+
+    // Contact shadow
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x060606,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    });
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.8), shadowMat);
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(0, 0.005, 0);
+    credenzaGroup.add(shadow);
+
+    this.scene.add(credenzaGroup);
+  }
+
+  /**
+   * Rolling Two-Tier Metal Utility Service Cart / Trolley (matching reference photo)
+   * Positioned in the foreground/midground right area:
+   * - Curved tubular steel frame
+   * - Galvanized upper and lower shelves with raised rims
+   * - 4 swivel caster wheels
+   */
+  private buildUtilityCart() {
+    const cartGroup = new THREE.Group();
+    // Placed in midground matching reference photo
+    cartGroup.position.set(2.2, 0, -2.4);
+    cartGroup.rotation.y = 0.32;
+
+    const cartTex = TextureGenerator.createUtilityCartTexture();
+    const steelMat = new THREE.MeshStandardMaterial({
+      map: cartTex,
+      metalness: 0.75,
+      roughness: 0.38,
+    });
+
+    const tubeMat = new THREE.MeshStandardMaterial({
+      color: 0x6e757a,
+      metalness: 0.85,
+      roughness: 0.3,
+    });
+
+    // 1. Two Galvanized Metal Shelves (0.80m x 0.52m)
+    const shelfGeo = new THREE.BoxGeometry(0.80, 0.035, 0.52);
+    const bottomShelf = new THREE.Mesh(shelfGeo, steelMat);
+    bottomShelf.position.set(0, 0.22, 0);
+    const topShelf = new THREE.Mesh(shelfGeo, steelMat);
+    topShelf.position.set(0, 0.68, 0);
+    cartGroup.add(bottomShelf, topShelf);
+
+    // Raised safety lip rim around top shelf
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x485054, metalness: 0.8, roughness: 0.4 });
+    const rimX1 = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.04, 0.02), rimMat);
+    rimX1.position.set(0, 0.71, 0.25);
+    const rimX2 = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.04, 0.02), rimMat);
+    rimX2.position.set(0, 0.71, -0.25);
+    const rimZ1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.52), rimMat);
+    rimZ1.position.set(0.39, 0.71, 0);
+    const rimZ2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.52), rimMat);
+    rimZ2.position.set(-0.39, 0.71, 0);
+    cartGroup.add(rimX1, rimX2, rimZ1, rimZ2);
+
+    // 2. Tubular Frame Posts & Handles on left/right ends
+    const postGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.78, 8);
+    const postOffsets = [
+      [-0.38, 0.42, -0.24],
+      [0.38, 0.42, -0.24],
+      [-0.38, 0.42, 0.24],
+      [0.38, 0.42, 0.24],
+    ];
+    postOffsets.forEach(([px, py, pz]) => {
+      const post = new THREE.Mesh(postGeo, tubeMat);
+      post.position.set(px, py, pz);
+      cartGroup.add(post);
+    });
+
+    // Curved handle bars on both ends
+    const handleCurve = new THREE.CylinderGeometry(0.016, 0.016, 0.48, 8);
+    const handleL = new THREE.Mesh(handleCurve, tubeMat);
+    handleL.rotation.x = Math.PI / 2;
+    handleL.position.set(-0.38, 0.81, 0);
+    const handleR = new THREE.Mesh(handleCurve, tubeMat);
+    handleR.rotation.x = Math.PI / 2;
+    handleR.position.set(0.38, 0.81, 0);
+    cartGroup.add(handleL, handleR);
+
+    // 3. Four Swivel Caster Wheels
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, roughness: 0.6 });
+    postOffsets.forEach(([px, , pz]) => {
+      const wheelFork = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.03), tubeMat);
+      wheelFork.position.set(px, 0.06, pz);
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), wheelMat);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(px, 0.03, pz);
+      cartGroup.add(wheelFork, wheel);
+    });
+
+    // Empty rusted tin can on cart
+    const tinMat = new THREE.MeshStandardMaterial({ color: 0x5a483a, metalness: 0.8, roughness: 0.4 });
+    const tinCan = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 12), tinMat);
+    tinCan.position.set(0.12, 0.76, 0.05);
+    cartGroup.add(tinCan);
+
+    // Contact shadow
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x060606,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    });
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.65), shadowMat);
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(0, 0.005, 0);
+    cartGroup.add(shadow);
+
+    this.scene.add(cartGroup);
+  }
+
+  /**
+   * Wall Window with Venetian Blinds & Volumetric Sunlight Beams (matching reference photo)
+   * The iconic chiaroscuro lighting feature from IMG-20261021-WA0019_2d5f6b6b.jpg:
+   * Sunlight cutting diagonally through broken blinds slats and casting dust rays onto the table!
+   */
+  private buildAtmosphericWindowAndLightBeams() {
+    const windowGroup = new THREE.Group();
+    // Placed on North wall above the credenza
+    windowGroup.position.set(0.8, 2.15, -5.96);
+
+    // 1. Weathered Wooden Window Casement Frame (1.65m wide, 1.45m high)
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3d3024, roughness: 0.85 });
+    const topFrame = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.08, 0.10), frameMat);
+    topFrame.position.set(0, 0.72, 0);
+    const bottomSill = new THREE.Mesh(new THREE.BoxGeometry(1.80, 0.08, 0.14), frameMat);
+    bottomSill.position.set(0, -0.72, 0.02);
+    const leftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.45, 0.10), frameMat);
+    leftFrame.position.set(-0.82, 0, 0);
+    const rightFrame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.45, 0.10), frameMat);
+    rightFrame.position.set(0.82, 0, 0);
+    const midDivider = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.45, 0.08), frameMat);
+    midDivider.position.set(0, 0, 0);
+    windowGroup.add(topFrame, bottomSill, leftFrame, rightFrame, midDivider);
+
+    // 2. Venetian Blinds with Broken/Crooked Slats
+    const blindsTex = TextureGenerator.createVenetianBlindsTexture();
+    const blindsMat = new THREE.MeshStandardMaterial({
+      map: blindsTex,
+      roughness: 0.8,
+      metalness: 0.1,
+    });
+    const blindsMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 1.36), blindsMat);
+    blindsMesh.position.set(0, 0, 0.02);
+    windowGroup.add(blindsMesh);
+
+    // 3. Volumetric Sunbeam Light Shafts (dust rays slicing across to dining table)
+    // Additive blending creates the authentic photographic dusty beam effect
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffe8c8,
+      transparent: true,
+      opacity: 0.10,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (let b = 0; b < 3; b++) {
+      const beamPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 4.8), beamMat);
+      // Diagonally angled from window downward across room toward dining table
+      beamPlane.position.set(-0.35 + b * 0.40, -0.7, 2.2);
+      beamPlane.rotation.x = Math.PI / 4 + 0.12;
+      beamPlane.rotation.y = -0.25;
+      beamPlane.rotation.z = -0.15;
+      windowGroup.add(beamPlane);
+    }
+
+    this.scene.add(windowGroup);
+  }
+
+  /**
+   * Antique 4-Blade Ceiling Fan (matching user reference image)
+   * Dilapidated dark wood ceiling fan over the dining table area
+   */
+  private buildCeilingFan() {
+    const fanGroup = new THREE.Group();
+    fanGroup.position.set(-2.2, 3.25, -1.2);
+
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x1f1d1a, metalness: 0.85, roughness: 0.4 });
+    const bladeMat = new THREE.MeshStandardMaterial({ color: 0x2e2016, roughness: 0.85 });
+
+    // Ceiling mount canopy & drop rod
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 12), metalMat);
+    canopy.position.set(0, 0.12, 0);
+    const dropRod = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.32, 8), metalMat);
+    dropRod.position.set(0, -0.05, 0);
+    fanGroup.add(canopy, dropRod);
+
+    // Central motor housing
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.14, 16), metalMat);
+    motor.position.set(0, -0.22, 0);
+    fanGroup.add(motor);
+
+    // 4 Wooden Fan Blades angled slightly
+    for (let b = 0; b < 4; b++) {
+      const angle = (b * Math.PI) / 2;
+      const bladeArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.018, 0.03), metalMat);
+      bladeArm.position.set(Math.cos(angle) * 0.20, -0.22, Math.sin(angle) * 0.20);
+      bladeArm.rotation.y = -angle;
+
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.012, 0.14), bladeMat);
+      blade.position.set(Math.cos(angle) * 0.55, -0.22, Math.sin(angle) * 0.55);
+      blade.rotation.y = -angle;
+      blade.rotation.x = 0.12; // Aerodynamic pitch angle
+
+      fanGroup.add(bladeArm, blade);
+    }
+
+    // Pull-chain cord dangling down with small brass bead
+    const cordMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.55, 6), cordMat);
+    cord.position.set(0.06, -0.52, 0);
+    const bead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.012, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xb5923b, metalness: 0.85, roughness: 0.3 })
+    );
+    bead.position.set(0.06, -0.80, 0);
+    fanGroup.add(cord, bead);
+
+    this.scene.add(fanGroup);
+  }
+
+  /**
+   * Electrical Fuse Box (Panel Eléctrico 220V)
+   * RELOCATED: Now mounted on the opposite wall (West Wall, where the calendar was)
+   * as requested by the user: "el lugar de estar en la pared de la puerta del baño,
+   * quiero que esté en la puerta contraria (donde ahora esta el calendario)"
+   * Exact position: X = -4.9, Y = 1.6, Z = -3.2, rotation.y = Math.PI / 2
    */
   private buildElectricalFuseBox() {
     const fuseBoxGroup = new THREE.Group();
-    fuseBoxGroup.position.set(4.9, 1.6, -0.6);
-    fuseBoxGroup.rotation.y = -Math.PI / 2;
+    // Relocated to West Wall at Z = -3.2 (flush against X = -5.0)
+    fuseBoxGroup.position.set(-4.9, 1.6, -3.2);
+    fuseBoxGroup.rotation.y = Math.PI / 2;
 
     const boxMat = new THREE.MeshStandardMaterial({
       color: 0x2c2e33,
@@ -1107,6 +1850,16 @@ export class EscapeRoomScene {
       emissive: new THREE.Color(0x000000),
     });
     this.highlightMaterials.set('fuse_box', boxMat);
+
+    // Burned Wall Backplate behind the fuse box
+    const backplateMat = new THREE.MeshStandardMaterial({
+      color: 0x181512,
+      roughness: 0.95,
+      metalness: 0.1,
+    });
+    const backplate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.68), backplateMat);
+    backplate.position.set(0, 0, -0.052);
+    fuseBoxGroup.add(backplate);
 
     // Box casing - Exactly sized to the interactable object (0.34m x 0.46m x 0.10m)
     const casing = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.46, 0.10), boxMat);
@@ -1130,6 +1883,12 @@ export class EscapeRoomScene {
       lever.position.set(-0.08 + i * 0.08, -0.10, 0.055);
       fuseBoxGroup.add(lever);
     }
+
+    // Industrial metallic electrical conduit pipe running up to the ceiling
+    const conduitMat = new THREE.MeshStandardMaterial({ color: 0x3d3832, metalness: 0.85, roughness: 0.4 });
+    const conduitPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.7, 8), conduitMat);
+    conduitPipe.position.set(0, 1.08, 0);
+    fuseBoxGroup.add(conduitPipe);
 
     this.scene.add(fuseBoxGroup);
     this.interactiveMeshes.set('fuse_box', fuseBoxGroup);
@@ -1354,7 +2113,7 @@ export class EscapeRoomScene {
     fillLight.position.set(8.2, 2.8, 1.4);
     this.scene.add(fillLight);
 
-    // 8. Stained Mirror & Wire Rack on North Wall
+    // 8. Stained Mirror on North Wall
     const mirrorMat = new THREE.MeshStandardMaterial({
       color: 0x6e7674,
       metalness: 0.9,
@@ -1364,49 +2123,116 @@ export class EscapeRoomScene {
     mirror.position.set(8.5, 1.6, -1.96);
     this.scene.add(mirror);
 
-    const wireRack = new THREE.Mesh(
-      new THREE.BoxGeometry(0.75, 0.06, 0.15),
-      new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.9, roughness: 0.3 })
-    );
-    wireRack.position.set(8.5, 1.1, -1.88);
-    this.scene.add(wireRack);
-
-    // 9. Pedestal Porcelain Sink (Lavabo de pedestal con sangre) on North Wall
+    // 9. Silent Hill Sink ("silent_hill_sink.glb") on North Wall (X: 8.5, Y: -0.15, Z: -1.60)
+    // Primary sound emitter for the weeping baby audio ("llanto.wav")
     const sinkGroup = new THREE.Group();
-    sinkGroup.position.set(8.5, 0, -1.68);
+    sinkGroup.position.set(8.5, -0.15, -1.60);
+    this.sinkGroup = sinkGroup;
 
-    const sinkPorcelainMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d0c5,
-      roughness: 0.35,
-      metalness: 0.1,
+    // Contact shadow beneath the sink (adjusted for 25% larger footprint)
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x060606,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
     });
+    const sinkShadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.95), shadowMat);
+    sinkShadow.rotation.x = -Math.PI / 2;
+    sinkShadow.position.set(0, 0.005, 0.18);
+    sinkGroup.add(sinkShadow);
 
-    const pedestal = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.16, 0.78, 16),
-      sinkPorcelainMat
+    // Load authentic Silent Hill Sink GLB model from /public/models/
+    // The GLB uses KHR_materials_pbrSpecularGlossiness, so we explicitly attach
+    // the diffuse texture map (extracted as /models/silent_hill_sink_diffuse.png)
+    const texLoader = new THREE.TextureLoader();
+    const sinkDiffuseMap = texLoader.load('/models/silent_hill_sink_diffuse.png');
+    sinkDiffuseMap.colorSpace = THREE.SRGBColorSpace;
+    sinkDiffuseMap.flipY = false;
+
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      '/models/silent_hill_sink.glb',
+      (gltf) => {
+        const sinkModel = gltf.scene;
+        // Enlarged by 25% as requested by the user
+        sinkModel.scale.set(1.25, 1.25, 1.25);
+        sinkModel.position.set(0, 0, 0);
+
+        sinkModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const m = child as THREE.Mesh;
+            m.castShadow = true;
+            m.receiveShadow = true;
+
+            // Apply diffuse texture to preserve stains, blood, grime, and metallic details
+            if (m.material) {
+              const mat = m.material as THREE.MeshStandardMaterial;
+              mat.map = sinkDiffuseMap;
+              mat.color.setHex(0xffffff);
+              mat.roughness = 0.65;
+              mat.metalness = 0.15;
+              mat.needsUpdate = true;
+            } else {
+              m.material = new THREE.MeshStandardMaterial({
+                map: sinkDiffuseMap,
+                roughness: 0.65,
+                metalness: 0.15,
+              });
+            }
+          }
+        });
+
+        sinkGroup.add(sinkModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load silent_hill_sink.glb, fallback active:', err);
+        const fallbackMat = new THREE.MeshStandardMaterial({
+          map: sinkDiffuseMap,
+          color: 0x8a8479,
+          roughness: 0.6,
+        });
+        const fbBasin = new THREE.Mesh(new THREE.BoxGeometry(0.90, 0.95, 0.65), fallbackMat);
+        fbBasin.position.set(0, 0.45, 0.18);
+        sinkGroup.add(fbBasin);
+      }
     );
-    pedestal.position.y = 0.39;
 
-    const basinOuter = new THREE.Mesh(
-      new THREE.BoxGeometry(0.68, 0.22, 0.48),
-      sinkPorcelainMat
+    // Load authentic Fetus model ("feto.glb") nestled inside the sink basin
+    gltfLoader.load(
+      '/models/feto.glb',
+      (fetoGltf) => {
+        const fetoModel = fetoGltf.scene;
+        // Proportionate fetus scale curled inside the sink basin
+        fetoModel.scale.set(0.18, 0.18, 0.18);
+        // Positioned inside the basin depression (local to sinkGroup)
+        fetoModel.position.set(0, 0.90, 0);
+        // Tilted slightly up and back toward player looking into basin
+        fetoModel.rotation.set(-0.65, 0.25, -0.55);
+
+        fetoModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const m = child as THREE.Mesh;
+            m.castShadow = true;
+            m.receiveShadow = true;
+            if (m.material) {
+              const mat = m.material as THREE.MeshStandardMaterial;
+              if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+              mat.roughness = 0.55;
+              mat.metalness = 0.1;
+            }
+          }
+        });
+
+        this.fetoModel = fetoModel;
+        sinkGroup.add(fetoModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load feto.glb:', err);
+      }
     );
-    basinOuter.position.y = 0.82;
 
-    // Blood stains in basin bowl
-    const basinBlood = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.50, 0.34),
-      new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: 0.4, metalness: 0.2 })
-    );
-    basinBlood.position.set(0, 0.85, 0);
-    basinBlood.rotation.x = -Math.PI / 2;
-
-    // Chrome faucet
-    const faucetMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.95, roughness: 0.15 });
-    const faucet = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.14, 8), faucetMat);
-    faucet.position.set(0, 0.96, -0.16);
-
-    sinkGroup.add(pedestal, basinOuter, basinBlood, faucet);
     this.scene.add(sinkGroup);
 
     // 10. Decrepit Porcelain Toilet (Inodoro) - PROMINENTLY PLACED ON SOUTH WALL
@@ -1476,7 +2302,7 @@ export class EscapeRoomScene {
     // White porcelain rim
     const tubRim = new THREE.Mesh(
       new THREE.BoxGeometry(0.82, 0.04, 2.62),
-      sinkPorcelainMat
+      porcelainMat
     );
     tubRim.position.y = 0.32;
     tubGroup.add(tubRim);
@@ -1578,6 +2404,717 @@ export class EscapeRoomScene {
   }
 
   /**
+   * Build Third Room: Decrepit Horror Bedroom (Habitación Tétrica)
+   * Connected through the West wall doorway.
+   * Conforms strictly to user's layout plan (Image 1) and visual aesthetic (Image 2):
+   * 1. Cama (Bed): In South-West corner along West wall, distressed vintage wrought-iron frame, stained mattress, pillow at foot/south.
+   * 2. Televisión de tubo (CRT TV): Vintage bulky CRT television with flickering static screen and blue-green phosphor glow, placed on left of cajonera.
+   * 3. Mueble cajonero (Chest of drawers / Dresser): Heavy weathered dark wood dresser with 6 pull drawers and ornate handles along North wall.
+   * 4. Mesita de luz (Nightstand): Weathered bedside table with drawer and decrepit brass lamp, beside the bed along South wall.
+   * 5. Hombre colgado del cuello desde el techo (Hanging Man): Suspended from ceiling rafter hook by a hemp noose in South-East area near doorway, with realistic clothes, dangling limp posture, kicked-over stool, and eerie micro-sway pendulum animation.
+   * Also includes:
+   * - Mottled grimy tan/ochre peeling wallpaper with water dripping from ceiling (Image 2).
+   * - Weathered dark wooden floor with stained area rug and scattered papers/photos (Image 2).
+   * - 4 dark framed pictures on the North wall (Image 2).
+   * - Doorway opening with dark timber frame leading from main room.
+   */
+  private buildBedroom() {
+    const bedroomGroup = new THREE.Group();
+    this.bedroomGroup = bedroomGroup;
+
+    // 1. Textures & Materials
+    const bedroomWallTex = TextureGenerator.createHorrorBedroomWallTexture();
+    const bedroomWallMat = new THREE.MeshStandardMaterial({
+      map: bedroomWallTex.map,
+      bumpMap: bedroomWallTex.bump,
+      bumpScale: 0.055,
+      roughness: 0.88,
+      metalness: 0.06,
+    });
+
+    const woodPlankTex = TextureGenerator.createWoodFloorTexture();
+    woodPlankTex.repeat.set(5, 5);
+    const bedroomFloorMat = new THREE.MeshStandardMaterial({
+      map: woodPlankTex,
+      bumpMap: woodPlankTex,
+      bumpScale: 0.045,
+      roughness: 0.82,
+      metalness: 0.05,
+    });
+
+    const darkWoodMat = new THREE.MeshStandardMaterial({
+      map: TextureGenerator.createDarkWoodFurnitureTexture(),
+      roughness: 0.72,
+      metalness: 0.12,
+    });
+
+    const ironFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x221d18,
+      metalness: 0.82,
+      roughness: 0.45,
+    });
+
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0x9a7b3b,
+      metalness: 0.88,
+      roughness: 0.32,
+    });
+
+    // 2. Room Architecture (X: -11.4 to -5.0, Z: -1.2 to 6.0, Y: 0 to 3.4)
+    // Floor (Y = 0.005)
+    const floorGeo = new THREE.PlaneGeometry(6.4, 7.2);
+    const floor = new THREE.Mesh(floorGeo, bedroomFloorMat);
+    floor.position.set(-8.2, 0.005, 2.4);
+    floor.rotation.x = -Math.PI / 2;
+    bedroomGroup.add(floor);
+
+    // Area Rug (Matching Image 2 vintage patterned carpet)
+    const rugTex = TextureGenerator.createBedroomRugTexture();
+    const rugMat = new THREE.MeshStandardMaterial({
+      map: rugTex,
+      roughness: 0.92,
+      metalness: 0.02,
+    });
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 4.2), rugMat);
+    rug.position.set(-8.1, 0.012, 2.5);
+    rug.rotation.x = -Math.PI / 2;
+    bedroomGroup.add(rug);
+
+    // Ceiling (Y = 3.395)
+    const ceilGeo = new THREE.PlaneGeometry(6.4, 7.2);
+    const ceilMat = new THREE.MeshStandardMaterial({ color: 0x161514, roughness: 0.95 });
+    const ceil = new THREE.Mesh(ceilGeo, ceilMat);
+    ceil.position.set(-8.2, 3.395, 2.4);
+    ceil.rotation.x = Math.PI / 2;
+    bedroomGroup.add(ceil);
+
+    // North Wall (Z = -1.2, length 6.4m, facing South into bedroom)
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), bedroomWallMat);
+    northWall.position.set(-8.2, 1.7, -1.2);
+    bedroomGroup.add(northWall);
+
+    // South Wall (Z = 6.0, length 6.4m, facing North into bedroom)
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), bedroomWallMat);
+    southWall.position.set(-8.2, 1.7, 6.0);
+    southWall.rotation.y = Math.PI;
+    bedroomGroup.add(southWall);
+
+    // West Wall (X = -11.4, length 7.2m, facing East into bedroom)
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.4), bedroomWallMat);
+    westWall.position.set(-11.4, 1.7, 2.4);
+    westWall.rotation.y = Math.PI / 2;
+    bedroomGroup.add(westWall);
+
+    // East Partition Walls (X = -5.0, framing doorway from inside bedroom):
+    // 1. North Segment (Z: -1.2 to 0.9, length 2.1m, center Z = -0.15)
+    const eastNorth = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 3.4), bedroomWallMat);
+    eastNorth.position.set(-5.0, 1.7, -0.15);
+    eastNorth.rotation.y = -Math.PI / 2;
+    bedroomGroup.add(eastNorth);
+
+    // 2. Doorway Header (Z: 0.9 to 2.7, length 1.8m, height 1.2m, Y: 2.2 to 3.4)
+    const eastHeader = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), bedroomWallMat);
+    eastHeader.position.set(-5.0, 2.8, 1.8);
+    eastHeader.rotation.y = -Math.PI / 2;
+    bedroomGroup.add(eastHeader);
+
+    // 3. South Segment (Z: 2.7 to 6.0, length 3.3m, center Z = 4.35)
+    const eastSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 3.4), bedroomWallMat);
+    eastSouth.position.set(-5.0, 1.7, 4.35);
+    eastSouth.rotation.y = -Math.PI / 2;
+    bedroomGroup.add(eastSouth);
+
+    // Doorway Frame Trim (at X = -5.0, Z = 1.8)
+    const doorFrameMat = new THREE.MeshStandardMaterial({ color: 0x1f1914, roughness: 0.9 });
+    const topBeam = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 1.96), doorFrameMat);
+    topBeam.position.set(-5.0, 2.22, 1.8);
+    const leftPost = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.22, 0.14), doorFrameMat);
+    leftPost.position.set(-5.0, 1.11, 0.9);
+    const rightPost = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.22, 0.14), doorFrameMat);
+    rightPost.position.set(-5.0, 1.11, 2.7);
+    bedroomGroup.add(topBeam, leftPost, rightPost);
+
+    // Old distressed wooden door standing ajar (swung into the bedroom towards negative X)
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(-5.0, 0, 0.92);
+    doorPivot.rotation.y = -1.18; // Swung open into bedroom towards negative X
+    const doorPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 2.14, 0.88),
+      new THREE.MeshStandardMaterial({ color: 0x2e241c, roughness: 0.85 })
+    );
+    doorPanel.position.set(0, 1.07, 0.44);
+
+    // Brass door handle & escutcheon plate
+    const brassHandleMat = new THREE.MeshStandardMaterial({ color: 0x9a7b3b, metalness: 0.85, roughness: 0.3 });
+    const handlePlate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.08), brassHandleMat);
+    handlePlate.position.set(0, 1.05, 0.78);
+    const handleLever = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8), brassHandleMat);
+    handleLever.rotation.z = Math.PI / 2;
+    handleLever.position.set(0.05, 1.08, 0.78);
+    doorPivot.add(doorPanel, handlePlate, handleLever);
+    bedroomGroup.add(doorPivot);
+
+    // 3. ASSET: MUEBLE CAJONERO (Dresser / Chest of Drawers) along North Wall
+    // Center at X = -8.7, Y = 0, Z = -0.7
+    const dresserGroup = new THREE.Group();
+    dresserGroup.position.set(-8.7, 0, -0.7);
+
+    // Main dresser wooden cabinet (2.6m wide, 1.12m tall, 0.70m deep)
+    const dresserBody = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 1.10, 0.70),
+      darkWoodMat
+    );
+    dresserBody.position.y = 0.58;
+    dresserGroup.add(dresserBody);
+
+    // Beveled Top Counter Slab
+    const dresserTop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.68, 0.06, 0.76),
+      darkWoodMat
+    );
+    dresserTop.position.y = 1.15;
+    dresserGroup.add(dresserTop);
+
+    // Base Plinth & 4 Heavy Bracket Feet
+    [-1.24, 1.24].forEach((fx) => {
+      [-0.30, 0.30].forEach((fz) => {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.12), darkWoodMat);
+        foot.position.set(fx, 0.03, fz);
+        dresserGroup.add(foot);
+      });
+    });
+
+    // 6 Molded Drawer Fronts (2 rows of 3 columns)
+    const drawerCols = [-0.82, 0, 0.82];
+    const drawerRows = [0.82, 0.36];
+    drawerRows.forEach((dy) => {
+      drawerCols.forEach((dx) => {
+        const drawer = new THREE.Mesh(
+          new THREE.BoxGeometry(0.76, 0.38, 0.03),
+          darkWoodMat
+        );
+        drawer.position.set(dx, dy, 0.36);
+        dresserGroup.add(drawer);
+
+        // Tarnished brass drop pull handle
+        const handleBackplate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, 0.04, 0.015),
+          brassMat
+        );
+        handleBackplate.position.set(dx, dy, 0.38);
+        const handleRing = new THREE.Mesh(
+          new THREE.TorusGeometry(0.026, 0.006, 6, 12),
+          brassMat
+        );
+        handleRing.rotation.x = Math.PI / 2;
+        handleRing.position.set(dx, dy - 0.015, 0.395);
+        dresserGroup.add(handleBackplate, handleRing);
+      });
+    });
+
+    // Props on top of Cajonera (right side, next to TV)
+    // Dirty glass ashtray with crushed cigarette butts
+    const ashtray = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.08, 0.025, 12),
+      new THREE.MeshStandardMaterial({ color: 0x3d3830, roughness: 0.3, metalness: 0.1 })
+    );
+    ashtray.position.set(0.65, 1.19, 0.12);
+    dresserGroup.add(ashtray);
+
+    // Vintage amber medicine bottle
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.035, 0.12, 8),
+      new THREE.MeshStandardMaterial({ color: 0x5a3212, roughness: 0.25, metalness: 0.2 })
+    );
+    bottle.position.set(0.85, 1.24, 0.05);
+    dresserGroup.add(bottle);
+
+    // Stained yellowed document / paper
+    const paperMat = new THREE.MeshStandardMaterial({ color: 0xc8bc9e, roughness: 0.95 });
+    const paperDoc = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.32), paperMat);
+    paperDoc.position.set(0.35, 1.182, 0.15);
+    paperDoc.rotation.x = -Math.PI / 2;
+    paperDoc.rotation.z = 0.25;
+    dresserGroup.add(paperDoc);
+
+    bedroomGroup.add(dresserGroup);
+
+    // 4. ASSET: TELEVISIÓN DE TUBO (CRT TV) on top of Cajonera at left
+    // Position: X = -9.9, Y = 1.18 + 0.28 = 1.46, Z = -0.7
+    const tvGroup = new THREE.Group();
+    tvGroup.position.set(-9.9, 1.18, -0.7);
+    tvGroup.rotation.y = 0.12; // Angled slightly towards the room
+
+    const tvPlasticMat = new THREE.MeshStandardMaterial({
+      color: 0x1f1d1b,
+      roughness: 0.65,
+      metalness: 0.2,
+    });
+
+    // Bulky retro 1980s TV cabinet body (0.72m wide, 0.54m tall, 0.56m deep)
+    const tvCabinet = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.54, 0.56), tvPlasticMat);
+    tvCabinet.position.set(0, 0.27, 0);
+    tvGroup.add(tvCabinet);
+
+    // Tapered CRT back housing
+    const tvBack = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.40, 0.24), tvPlasticMat);
+    tvBack.position.set(0, 0.27, -0.36);
+    tvGroup.add(tvBack);
+
+    // Recessed Screen Bezel Frame
+    const tvBezel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.44, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x121110, roughness: 0.85 })
+    );
+    tvBezel.position.set(-0.07, 0.27, 0.29);
+    tvGroup.add(tvBezel);
+
+    // Curved CRT Screen Glass with animated static noise texture
+    const crtTex = TextureGenerator.createCrtTvScreenTexture();
+    const crtMat = new THREE.MeshBasicMaterial({
+      map: crtTex,
+      color: 0xa8e2f0,
+    });
+    const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.38), crtMat);
+    tvScreen.position.set(-0.07, 0.27, 0.312);
+    this.tvScreenMesh = tvScreen;
+    tvGroup.add(tvScreen);
+
+    // TV Control Panel on the right side of the screen
+    const controlPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.44, 0.03),
+      new THREE.MeshStandardMaterial({ color: 0x28231e, roughness: 0.7 })
+    );
+    controlPanel.position.set(0.24, 0.27, 0.29);
+    tvGroup.add(controlPanel);
+
+    // 2 Rotary Knobs (VHF Channel & UHF Tuning)
+    const knobGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.02, 12);
+    const knobMat = new THREE.MeshStandardMaterial({ color: 0x11100e, roughness: 0.4, metalness: 0.5 });
+    [0.40, 0.32].forEach((ky) => {
+      const knob = new THREE.Mesh(knobGeo, knobMat);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set(0.24, ky, 0.31);
+      tvGroup.add(knob);
+    });
+
+    // Slotted Speaker Grille
+    for (let s = 0; s < 5; s++) {
+      const slit = new THREE.Mesh(
+        new THREE.BoxGeometry(0.09, 0.008, 0.01),
+        new THREE.MeshBasicMaterial({ color: 0x0a0908 })
+      );
+      slit.position.set(0.24, 0.16 + s * 0.022, 0.31);
+      tvGroup.add(slit);
+    }
+
+    // Telescoping "Rabbit Ears" V-Antenna on top of the TV
+    const antennaMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa0, metalness: 0.9, roughness: 0.25 });
+    const antennaBase = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.03, 10), tvPlasticMat);
+    antennaBase.position.set(0, 0.55, 0.05);
+    tvGroup.add(antennaBase);
+
+    const ant1 = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.65, 6), antennaMat);
+    ant1.position.set(-0.12, 0.82, 0.05);
+    ant1.rotation.z = 0.42;
+    const ant2 = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.65, 6), antennaMat);
+    ant2.position.set(0.12, 0.82, 0.05);
+    ant2.rotation.z = -0.42;
+    tvGroup.add(ant1, ant2);
+
+    // Dedicated Eerie CRT Luminescence Point Light
+    const tvLight = new THREE.PointLight(0x5cb8d6, 0.9, 6.0, 1.8);
+    tvLight.position.set(0, 0.27, 0.85);
+    this.tvLight = tvLight;
+    tvGroup.add(tvLight);
+
+    bedroomGroup.add(tvGroup);
+
+    // 5. ASSET: CAMA (Bed) along West Wall in South-West Corner (Matching Image 1 & 2)
+    // Position: Center at X = -9.9, Z = 3.6 (spanning Z: 2.3 to 4.9)
+    const bedGroup = new THREE.Group();
+    bedGroup.position.set(-9.9, 0, 3.6);
+
+    // Headboard at North end (Z = -1.15 relative to bed center, height 1.25m)
+    const hbGroup = new THREE.Group();
+    hbGroup.position.set(0, 0, -1.15);
+
+    // 2 Outer Vertical Iron Posts with Brass Ball Finials
+    [-0.72, 0.72].forEach((px) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 1.25, 8), ironFrameMat);
+      post.position.set(px, 0.625, 0);
+      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), brassMat);
+      finial.position.set(px, 1.26, 0);
+      hbGroup.add(post, finial);
+    });
+
+    // Curved Top Horizontal Iron Arch Rail
+    const topRail = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.44, 8), ironFrameMat);
+    topRail.rotation.z = Math.PI / 2;
+    topRail.position.set(0, 1.15, 0);
+    const midRail = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.44, 8), ironFrameMat);
+    midRail.rotation.z = Math.PI / 2;
+    midRail.position.set(0, 0.45, 0);
+    hbGroup.add(topRail, midRail);
+
+    // 5 Vertical Iron Spindles
+    for (let s = -2; s <= 2; s++) {
+      const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.68, 6), ironFrameMat);
+      spindle.position.set(s * 0.24, 0.80, 0);
+      hbGroup.add(spindle);
+    }
+    bedGroup.add(hbGroup);
+
+    // Footboard at South end (Z = 1.15 relative to bed center, height 0.85m)
+    const fbGroup = new THREE.Group();
+    fbGroup.position.set(0, 0, 1.15);
+    [-0.72, 0.72].forEach((px) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.85, 8), ironFrameMat);
+      post.position.set(px, 0.425, 0);
+      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.034, 8, 8), brassMat);
+      finial.position.set(px, 0.86, 0);
+      fbGroup.add(post, finial);
+    });
+    const fbTopRail = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.44, 8), ironFrameMat);
+    fbTopRail.rotation.z = Math.PI / 2;
+    fbTopRail.position.set(0, 0.78, 0);
+    const fbMidRail = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.44, 8), ironFrameMat);
+    fbMidRail.rotation.z = Math.PI / 2;
+    fbMidRail.position.set(0, 0.40, 0);
+    fbGroup.add(fbTopRail, fbMidRail);
+    for (let s = -2; s <= 2; s++) {
+      const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.36, 6), ironFrameMat);
+      spindle.position.set(s * 0.24, 0.59, 0);
+      fbGroup.add(spindle);
+    }
+    bedGroup.add(fbGroup);
+
+    // Longitudinal Bed Rails & Wooden Slats
+    [-0.70, 0.70].forEach((rx) => {
+      const sideRail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 2.30), ironFrameMat);
+      sideRail.position.set(rx, 0.38, 0);
+      bedGroup.add(sideRail);
+    });
+    for (let sl = -1.0; sl <= 1.0; sl += 0.22) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.02, 0.12), darkWoodMat);
+      slat.position.set(0, 0.36, sl);
+      bedGroup.add(slat);
+    }
+
+    // Stained Dirty Mattress (with sweat rings, grime & dried blood from Image 2)
+    const mattressTex = TextureGenerator.createDirtyMattressTexture();
+    const mattressMat = new THREE.MeshStandardMaterial({
+      map: mattressTex,
+      roughness: 0.85,
+      metalness: 0.02,
+    });
+    const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.28, 2.22), mattressMat);
+    mattress.position.set(0, 0.52, 0);
+    bedGroup.add(mattress);
+
+    // Stained Pillow at the South end (as drawn in Image 1 floorplan)
+    const pillowMat = new THREE.MeshStandardMaterial({ color: 0x9e9587, roughness: 0.9 });
+    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.14, 0.42), pillowMat);
+    pillow.position.set(0, 0.70, 0.85);
+    pillow.rotation.x = -0.15;
+    bedGroup.add(pillow);
+
+    // Rumpled Disheveled Dirty Blanket (sagging over the side into the room)
+    const blanketMat = new THREE.MeshStandardMaterial({ color: 0x544738, roughness: 0.92 });
+    const blanket = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.08, 1.45), blanketMat);
+    blanket.position.set(0.06, 0.68, -0.15);
+    const blanketDrape = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 1.15), blanketMat);
+    blanketDrape.position.set(0.74, 0.48, -0.15);
+    bedGroup.add(blanket, blanketDrape);
+
+    // Decayed book and scattered notes on bed (Image 2 detail)
+    const bookCover = new THREE.Mesh(
+      new THREE.BoxGeometry(0.20, 0.035, 0.28),
+      new THREE.MeshStandardMaterial({ color: 0x2a3e2a, roughness: 0.8 })
+    );
+    bookCover.position.set(-0.25, 0.70, -0.45);
+    bookCover.rotation.y = 0.35;
+    bedGroup.add(bookCover);
+
+    bedroomGroup.add(bedGroup);
+
+    // 6. ASSET: MESITA DE LUZ (Nightstand) beside the Bed along South Wall
+    // Position: X = -8.2, Y = 0, Z = 5.3
+    const nightstandGroup = new THREE.Group();
+    nightstandGroup.position.set(-8.2, 0, 5.3);
+
+    // Nightstand Body
+    const nsBody = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.68, 0.54), darkWoodMat);
+    nsBody.position.y = 0.36;
+    nightstandGroup.add(nsBody);
+
+    // Top Slab
+    const nsTop = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.04, 0.58), darkWoodMat);
+    nsTop.position.y = 0.72;
+    nightstandGroup.add(nsTop);
+
+    // Drawer Front with Round Brass Knob
+    const nsDrawer = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.22, 0.02), darkWoodMat);
+    nsDrawer.position.set(0, 0.52, 0.28);
+    const nsKnob = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), brassMat);
+    nsKnob.position.set(0, 0.52, 0.295);
+    nightstandGroup.add(nsDrawer, nsKnob);
+
+    // 4 Turned Legs
+    [-0.26, 0.26].forEach((nx) => {
+      [-0.22, 0.22].forEach((nz) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.018, 0.68, 8), darkWoodMat);
+        leg.position.set(nx, 0.34, nz);
+        nightstandGroup.add(leg);
+      });
+    });
+
+    // Vintage Bedside Lamp on top of Nightstand
+    const lampGroup = new THREE.Group();
+    lampGroup.position.set(0, 0.74, 0);
+
+    const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.03, 12), brassMat);
+    lampBase.position.y = 0.015;
+    const lampStem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.32, 8), brassMat);
+    lampStem.position.y = 0.18;
+    // Decayed pleated lampshade
+    const shadeMat = new THREE.MeshStandardMaterial({
+      color: 0xc4a36e,
+      roughness: 0.9,
+      transparent: true,
+      opacity: 0.92,
+    });
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 0.22, 12, 1, true), shadeMat);
+    shade.position.y = 0.36;
+    lampGroup.add(lampBase, lampStem, shade);
+
+    // Warm sickly amber light from bedside lamp
+    const bedLampLight = new THREE.PointLight(0xd4943b, 0.65, 4.5, 2.0);
+    bedLampLight.position.set(0, 0.36, 0);
+    this.bedroomLampLight = bedLampLight;
+    lampGroup.add(bedLampLight);
+
+    // Cloudy glass of water & pill blister pack
+    const glass = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.032, 0.028, 0.09, 8),
+      new THREE.MeshStandardMaterial({ color: 0x90a4a8, roughness: 0.15, transparent: true, opacity: 0.55 })
+    );
+    glass.position.set(0.18, 0.785, 0.12);
+    nightstandGroup.add(lampGroup, glass);
+
+    bedroomGroup.add(nightstandGroup);
+
+    // 7. ASSET: HOMBRE COLGADO DEL CUELLO DESDE EL TECHO (Hanging Man)
+    // Position: South-East area near doorway (matching Image 1 diagram circle: X = -6.4, Z = 4.2)
+    const hangingManGroup = new THREE.Group();
+    hangingManGroup.position.set(-6.4, 0, 4.2);
+    this.hangingManGroup = hangingManGroup;
+
+    // Ceiling Anchor Hook (embedded in ceiling at Y = 3.4)
+    const ceilingHook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 6, 12), ironFrameMat);
+    ceilingHook.position.set(0, 3.37, 0);
+    ceilingHook.rotation.x = Math.PI / 2;
+    hangingManGroup.add(ceilingHook);
+
+    // Hanging Twisted Hemp Rope from Ceiling (Y = 3.37 down to Y = 2.15)
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x6e583c, roughness: 0.95 });
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.24, 8), ropeMat);
+    rope.position.set(0, 2.76, 0);
+    hangingManGroup.add(rope);
+
+    // Intricate Hangman's Noose Knot (6-turn coil at Y = 2.14)
+    const knot = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.10, 8), ropeMat);
+    knot.position.set(0.05, 2.14, 0);
+    const nooseLoop = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.012, 6, 16), ropeMat);
+    nooseLoop.rotation.x = Math.PI / 2.3;
+    nooseLoop.position.set(0, 2.12, 0);
+    hangingManGroup.add(knot, nooseLoop);
+
+    // Hanging Corpse Group (pivoted at neck Y = 2.12 for authentic pendulum physics)
+    const bodyPivot = new THREE.Group();
+    bodyPivot.position.set(0, 2.12, 0);
+
+    const skinMat = new THREE.MeshStandardMaterial({
+      color: 0x6e787d, // Pale bluish-gray corpse skin
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+
+    const coatMat = new THREE.MeshStandardMaterial({
+      color: 0x16181b, // Dark charcoal/navy rumpled suit coat
+      roughness: 0.88,
+      metalness: 0.05,
+    });
+
+    const shirtMat = new THREE.MeshStandardMaterial({
+      color: 0x827e74, // Soiled off-white shirt
+      roughness: 0.9,
+    });
+
+    const pantsMat = new THREE.MeshStandardMaterial({
+      color: 0x1c1e21, // Charcoal trousers
+      roughness: 0.85,
+    });
+
+    const shoesMat = new THREE.MeshStandardMaterial({
+      color: 0x0f0e0c, // Scuffed leather dress shoes
+      roughness: 0.65,
+    });
+
+    // Neck: stretched and compressed inside the loop
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.12, 8), skinMat);
+    neck.position.set(0, 0, 0);
+    bodyPivot.add(neck);
+
+    // Head: tilted sharply to one side, chin pressed against chest/shoulder
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 0.06, 0);
+    headGroup.rotation.z = -0.38; // Broken tilt sideways
+    headGroup.rotation.x = 0.22;  // Slumped forward
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.125, 12, 12), skinMat);
+    head.scale.set(0.9, 1.15, 0.95);
+    head.position.set(0, 0.12, 0);
+    headGroup.add(head);
+
+    // Matted dark hair hanging down
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x11100e, roughness: 0.95 });
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), hairMat);
+    hair.scale.set(0.94, 1.05, 1.0);
+    hair.position.set(0, 0.15, -0.015);
+    headGroup.add(hair);
+    bodyPivot.add(headGroup);
+
+    // Torso: hunched shoulders and long suit jacket hanging down
+    const torsoGroup = new THREE.Group();
+    torsoGroup.position.set(0, -0.35, 0);
+
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.44, 0.24), coatMat);
+    const shirtChest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.32, 0.02), shirtMat);
+    shirtChest.position.set(0, 0.04, 0.125);
+    torsoGroup.add(chest, shirtChest);
+
+    // Long coat tails hanging down past hips
+    const coatTails = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.42, 0.25), coatMat);
+    coatTails.position.set(0, -0.38, 0);
+    torsoGroup.add(coatTails);
+
+    // Lifeless Limp Arms hanging straight down with dangling hands
+    [-0.24, 0.24].forEach((ax) => {
+      const armGroup = new THREE.Group();
+      armGroup.position.set(ax, 0.16, 0);
+      armGroup.rotation.z = ax > 0 ? -0.06 : 0.06;
+
+      const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.32, 6), coatMat);
+      upperArm.position.y = -0.16;
+      const lowerArm = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.032, 0.30, 6), coatMat);
+      lowerArm.position.y = -0.42;
+
+      // Pale lifeless hand dangling with limp fingers
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.03), skinMat);
+      hand.position.y = -0.62;
+      armGroup.add(upperArm, lowerArm, hand);
+      torsoGroup.add(armGroup);
+    });
+
+    // Legs & Feet (Trousers & dangling shoes hanging limp with toes pointing down)
+    const hipY = -0.62;
+    [-0.10, 0.10].forEach((lx) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.052, 0.72, 8), pantsMat);
+      leg.position.set(lx, hipY - 0.36, 0);
+      torsoGroup.add(leg);
+
+      // Scuffed shoe pointing downwards
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.22), shoesMat);
+      shoe.position.set(lx, hipY - 0.76, 0.04);
+      shoe.rotation.x = 0.45; // Limp pointed toe
+      torsoGroup.add(shoe);
+    });
+
+    bodyPivot.add(torsoGroup);
+    hangingManGroup.add(bodyPivot);
+
+    // Under the hanging man's feet on the floor:
+    // 1. Kicked-over rustic wooden stool lying on its side (Horror narrative detail!)
+    const stoolGroup = new THREE.Group();
+    stoolGroup.position.set(-0.12, 0.14, 0.18);
+    stoolGroup.rotation.z = Math.PI / 2; // Tipped over on its side!
+    stoolGroup.rotation.y = 0.45;
+
+    const stoolSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.05, 12), darkWoodMat);
+    stoolGroup.add(stoolSeat);
+    for (let leg = 0; leg < 4; leg++) {
+      const angle = (leg / 4) * Math.PI * 2;
+      const slLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.016, 0.46, 6), darkWoodMat);
+      slLeg.position.set(Math.cos(angle) * 0.14, -0.24, Math.sin(angle) * 0.14);
+      stoolGroup.add(slLeg);
+    }
+    hangingManGroup.add(stoolGroup);
+
+    // 2. Dark ominous dried blood stain & puddle beneath the hanging body
+    const bloodPuddleMat = new THREE.MeshStandardMaterial({
+      color: 0x220808,
+      roughness: 0.3,
+      metalness: 0.1,
+    });
+    const bloodPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.48, 16), bloodPuddleMat);
+    bloodPuddle.rotation.x = -Math.PI / 2;
+    bloodPuddle.position.set(0, 0.008, 0);
+    hangingManGroup.add(bloodPuddle);
+
+    bedroomGroup.add(hangingManGroup);
+
+    // 8. Silent Hill Room 302 Environmental Details (Faithful to Image 2)
+    // 4 Dark Framed Pictures on the North Wall
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f1a14, roughness: 0.8 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a1012, roughness: 0.3, metalness: 0.6 });
+    const frameCoords = [
+      [-6.5, 2.3],
+      [-5.5, 2.3],
+      [-6.5, 1.55],
+      [-5.5, 1.55],
+    ];
+    frameCoords.forEach(([fx, fy]) => {
+      const frameBorder = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.56, 0.03), frameMat);
+      frameBorder.position.set(fx, fy, -1.18);
+      const pictureGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), glassMat);
+      pictureGlass.position.set(fx, fy, -1.16);
+      bedroomGroup.add(frameBorder, pictureGlass);
+    });
+
+    // Scattered papers, playing cards, and torn photos on the floor (Image 2)
+    const scatterMat = new THREE.MeshStandardMaterial({ color: 0xbbb098, roughness: 0.95 });
+    const scatterPositions = [
+      [-7.4, 1.8, 0.3],
+      [-8.6, 1.4, -0.4],
+      [-7.8, 3.8, 0.8],
+      [-6.8, 3.2, -0.6],
+      [-9.1, 4.4, 0.1],
+    ];
+    scatterPositions.forEach(([sx, sz, srot]) => {
+      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.28), scatterMat);
+      paper.rotation.x = -Math.PI / 2;
+      paper.rotation.z = srot;
+      paper.position.set(sx, 0.015, sz);
+      bedroomGroup.add(paper);
+    });
+
+    // Hanging Vintage Ceiling Pendant Light Cord (Image 2 aesthetic)
+    const pendantCord = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.004, 0.95, 6),
+      new THREE.MeshBasicMaterial({ color: 0x181410 })
+    );
+    pendantCord.position.set(-8.2, 2.92, 2.4);
+    const pendantShade = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.18, 0.12, 12, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x6e6252, roughness: 0.7 })
+    );
+    pendantShade.position.set(-8.2, 2.42, 2.4);
+    bedroomGroup.add(pendantCord, pendantShade);
+
+    this.scene.add(bedroomGroup);
+  }
+
+  /**
    * Wall decorations: Blood graffiti & 1986 Calendar
    */
   private buildWallDecorations() {
@@ -1588,20 +3125,20 @@ export class EscapeRoomScene {
       transparent: true,
       opacity: 0.88,
     });
-    const graffiti = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.9), graffitiMat);
-    graffiti.position.set(0, 1.8, 5.94);
+    const graffiti = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.8), graffitiMat);
+    graffiti.position.set(-2.4, 1.8, 5.94);
     graffiti.rotation.y = Math.PI;
     this.scene.add(graffiti);
 
-    // 2. 1986 Calendar on West Wall
+    // 2. 1986 Calendar (moved to East Wall opposite the new fuse box position)
     const calTex = TextureGenerator.createCalendarTexture();
     const calMat = new THREE.MeshStandardMaterial({
       map: calTex,
       roughness: 0.9,
     });
     const calendar = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9), calMat);
-    calendar.position.set(-4.94, 1.7, -3.2);
-    calendar.rotation.y = Math.PI / 2;
+    calendar.position.set(4.94, 1.65, -0.6);
+    calendar.rotation.y = -Math.PI / 2;
     this.scene.add(calendar);
   }
 
@@ -1687,30 +3224,37 @@ export class EscapeRoomScene {
 
     const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
 
-    // Doorway opening to bathroom is at X = 5.0, between Z = 0.45 and Z = 2.35
-    const inDoorwayZ = nextPos.z >= 0.45 && nextPos.z <= 2.35;
+    // Doorway opening to bathroom on East is at X = 5.0, between Z = 0.45 and Z = 2.35
+    const inBathroomDoorwayZ = nextPos.z >= 0.45 && nextPos.z <= 2.35;
+    // Doorway opening to new bedroom on West is at X = -5.0 (walkable opening between door post/panel at Z=1.30 and right post at Z=2.55)
+    const inBedroomDoorwayZ = nextPos.z >= 1.30 && nextPos.z <= 2.55;
 
-    // Movement zones:
-    // Main room bounds: X [-4.2, 4.2], Z [-5.3, 5.2]
-    // Enlarged bathroom room bounds: X [5.15, 11.0], Z [-1.6, 4.4]
-    if (this.playerPosition.x <= 4.5) {
-      // Currently inside main room
-      if (inDoorwayZ && nextPos.x > 4.2) {
-        if (this.isBathroomUnlocked) {
-          // Walking through opened doorway into enlarged bathroom
+    // Movement zones across 3 rooms:
+    // 1. East Bathroom: X [5.15, 11.0], Z [-1.6, 4.4]
+    // 2. Center Main Room: X [-4.2, 4.2], Z [-5.3, 5.2]
+    // 3. West Horror Bedroom: X [-10.8, -5.15], Z [-0.7, 5.5]
+    if (this.playerPosition.x >= -4.5 && this.playerPosition.x <= 4.5) {
+      // Currently inside Main Room
+      // Moving East towards Bathroom
+      if (nextPos.x > 4.2) {
+        if (inBathroomDoorwayZ && this.isBathroomUnlocked) {
           nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
         } else {
-          // Bathroom door is locked closed! Block player at door
           nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
         }
-      } else {
-        nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
+      }
+      // Moving West towards Bedroom
+      else if (nextPos.x < -4.2) {
+        if (inBedroomDoorwayZ) {
+          nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
+        } else {
+          nextPos.x = Math.max(-4.2, nextPos.x);
+        }
       }
       nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
-    } else {
-      // Currently in doorway or inside bathroom
-      if (inDoorwayZ) {
-        // Can walk back and forth between main room and bathroom
+    } else if (this.playerPosition.x > 4.5) {
+      // Currently inside or in doorway of Bathroom
+      if (inBathroomDoorwayZ) {
         nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
         if (nextPos.x > 4.8) {
           nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
@@ -1718,42 +3262,183 @@ export class EscapeRoomScene {
           nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
         }
       } else {
-        // Confined inside bathroom by West partition wall at X = 5.0
         nextPos.x = Math.max(5.15, Math.min(11.0, nextPos.x));
         nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
       }
+    } else {
+      // Currently inside or in doorway of New Bedroom (X < -4.5)
+      if (inBedroomDoorwayZ) {
+        nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
+        if (nextPos.x < -4.8) {
+          nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
+        } else {
+          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+        }
+      } else {
+        nextPos.x = Math.max(-10.8, Math.min(-5.15, nextPos.x));
+        nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
+      }
     }
 
-    // Main room obstacles:
-    // Desk: X [-4.5, -2.8], Z [-2.5, -0.5]
-    if (nextPos.x < -2.8 && nextPos.z > -2.5 && nextPos.z < -0.5) {
-      if (this.playerPosition.x >= -2.8) nextPos.x = -2.8;
-      else if (this.playerPosition.z <= -2.5) nextPos.z = -2.5;
-      else if (this.playerPosition.z >= -0.5) nextPos.z = -0.5;
+    // 1. Mesa del comedor y sus sillas (Dining table & 4 vintage chairs):
+    // Sillas del sur (Chair 1 & Chair 2 al sur de la mesa): X [-3.60, -1.85], Z [-0.70, 0.05]
+    if (nextPos.x > -3.60 && nextPos.x < -1.85 && nextPos.z > -0.70 && nextPos.z < 0.05) {
+      if (this.playerPosition.z >= 0.05) nextPos.z = 0.05;
+      else if (this.playerPosition.x <= -3.60) nextPos.x = -3.60;
+      else if (this.playerPosition.x >= -1.85) nextPos.x = -1.85;
+      else nextPos.z = -0.70;
+    }
+    // Silla del oeste (Chair 4 al oeste de la mesa): X [-4.15, -3.65], Z [-1.75, -1.15]
+    if (nextPos.x > -4.15 && nextPos.x < -3.65 && nextPos.z > -1.75 && nextPos.z < -1.15) {
+      if (this.playerPosition.x <= -4.15) nextPos.x = -4.15;
+      else if (this.playerPosition.z <= -1.75) nextPos.z = -1.75;
+      else if (this.playerPosition.z >= -1.15) nextPos.z = -1.15;
+      else nextPos.x = -3.65;
+    }
+    // Silla del norte (Chair 3 al norte de la mesa): X [-2.80, -2.10], Z [-2.32, -1.75]
+    if (nextPos.x > -2.80 && nextPos.x < -2.10 && nextPos.z > -2.32 && nextPos.z < -1.75) {
+      if (this.playerPosition.z <= -2.32) nextPos.z = -2.32;
+      else if (this.playerPosition.x <= -2.80) nextPos.x = -2.80;
+      else if (this.playerPosition.x >= -2.10) nextPos.x = -2.10;
+      else nextPos.z = -1.75;
+    }
+    // Tablero principal de la mesa: X [-3.85, -1.75], Z [-1.85, -0.65]
+    if (nextPos.x > -3.85 && nextPos.x < -1.75 && nextPos.z > -1.85 && nextPos.z < -0.65) {
+      if (this.playerPosition.x <= -3.85) nextPos.x = -3.85;
+      else if (this.playerPosition.x >= -1.75) nextPos.x = -1.75;
+      else if (this.playerPosition.z <= -1.85) nextPos.z = -1.85;
+      else if (this.playerPosition.z >= -0.65) nextPos.z = -0.65;
     }
 
-    // Fridge: X [2.9, 4.5], Z [-5.5, -3.8]
-    if (nextPos.x > 2.9 && nextPos.x < 4.8 && nextPos.z < -3.8) {
-      if (this.playerPosition.x <= 2.9) nextPos.x = 2.9;
-      else if (this.playerPosition.z >= -3.8) nextPos.z = -3.8;
+    // 2. La Heladera Podrida (Rotten Fridge): X [2.95, 4.35], Z [-5.20, -3.98]
+    if (nextPos.x > 2.95 && nextPos.x < 4.35 && nextPos.z > -5.20 && nextPos.z < -3.98) {
+      if (this.playerPosition.z >= -3.98) nextPos.z = -3.98;
+      else if (this.playerPosition.x <= 2.95) nextPos.x = 2.95;
+      else if (this.playerPosition.x >= 4.35) nextPos.x = 4.35;
+      else nextPos.z = -5.20;
     }
 
-    // Bathroom obstacles (spacious layout):
-    // Bathtub against East wall: X > 10.2, Z in [0.05, 2.75]
+    // Credenza de cocina junto a la heladera: X [0.65, 2.65], Z < -5.15
+    if (nextPos.x > 0.65 && nextPos.x < 2.65 && nextPos.z < -5.15) {
+      nextPos.z = -5.15;
+    }
+
+    // 3. La Mesita / Carrito frente a la heladera (Utility Cart): X [1.65, 2.75], Z [-2.85, -1.95]
+    if (nextPos.x > 1.65 && nextPos.x < 2.75 && nextPos.z > -2.85 && nextPos.z < -1.95) {
+      if (this.playerPosition.x <= 1.65) nextPos.x = 1.65;
+      else if (this.playerPosition.x >= 2.75) nextPos.x = 2.75;
+      else if (this.playerPosition.z <= -2.85) nextPos.z = -2.85;
+      else if (this.playerPosition.z >= -1.95) nextPos.z = -1.95;
+    }
+
+    // 4. Puerta del Baño (Dividing Bathroom Door):
+    if (this.isBathroomUnlocked) {
+      // Puerta abierta y batida hacia la pared norte del baño: segmento de (5.0, 0.46) a (6.88, 0.58)
+      const pX = nextPos.x, pZ = nextPos.z;
+      const ax = 5.0, az = 0.46;
+      const bx = 6.88, bz = 0.58;
+      const dx = bx - ax, dz = bz - az;
+      const lenSq = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
+      const projX = ax + t * dx;
+      const projZ = az + t * dz;
+      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
+      const doorRadius = 0.22;
+      if (distSq < doorRadius * doorRadius) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
+        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
+      }
+    }
+
+    // 5. El Termotanque del baño y sus caños de cobre: X [6.45, 7.15], Z < -1.35
+    if (nextPos.x > 6.45 && nextPos.x < 7.15 && nextPos.z < -1.35) {
+      if (this.playerPosition.z >= -1.35) nextPos.z = -1.35;
+      else if (this.playerPosition.x <= 6.8) nextPos.x = 6.45;
+      else nextPos.x = 7.15;
+    }
+
+    // Radiador en la pared oeste del baño: X [5.0, 5.55], Z [3.15, 4.05]
+    if (nextPos.x > 4.95 && nextPos.x < 5.55 && nextPos.z > 3.15 && nextPos.z < 4.05) {
+      if (this.playerPosition.x >= 5.55) nextPos.x = 5.55;
+      else if (this.playerPosition.z <= 3.15) nextPos.z = 3.15;
+      else if (this.playerPosition.z >= 4.05) nextPos.z = 4.05;
+      else nextPos.x = 5.55;
+    }
+
+    // Otros obstáculos del baño (spacious layout):
+    // Bañera contra pared este: X > 10.2, Z in [0.05, 2.75]
     if (nextPos.x > 10.2 && nextPos.z > 0.05 && nextPos.z < 2.75) {
       nextPos.x = 10.2;
     }
 
-    // Decrepit Toilet against South wall: X [6.9, 8.1], Z > 3.8
+    // Inodoro decrépito contra pared sur: X [6.9, 8.1], Z > 3.8
     if (nextPos.x > 6.9 && nextPos.x < 8.1 && nextPos.z > 3.8) {
       if (this.playerPosition.z <= 3.8) nextPos.z = 3.8;
       else if (this.playerPosition.x <= 6.9) nextPos.x = 6.9;
       else nextPos.x = 8.1;
     }
 
-    // Pedestal Sink against North wall: X [7.9, 9.1], Z < -1.15
-    if (nextPos.x > 7.9 && nextPos.x < 9.1 && nextPos.z < -1.15) {
-      nextPos.z = -1.15;
+    // Lavamanos Silent Hill contra pared norte: X [7.8, 9.2], Z < -1.05
+    if (nextPos.x > 7.8 && nextPos.x < 9.2 && nextPos.z < -1.05) {
+      nextPos.z = -1.05;
+    }
+
+    // 6. Puerta de la Habitación / Bedroom (Hoja de madera entreabierta):
+    // Hoja batida hacia el bedroom: desde quicio (-5.0, 0.92) hasta extremo (-5.814, 1.255)
+    // A) Caja delimitadora de la hoja de la puerta y poste
+    if (nextPos.x > -5.95 && nextPos.x < -4.85 && nextPos.z > 0.85 && nextPos.z < 1.35) {
+      if (this.playerPosition.z >= 1.35) nextPos.z = 1.35;
+      else if (this.playerPosition.x <= -5.95) nextPos.x = -5.95;
+      else if (this.playerPosition.x >= -4.85) nextPos.x = -4.85;
+      else nextPos.z = 1.35;
+    }
+
+    // B) Proyección continua sobre el segmento oblicuo de la hoja
+    {
+      const pX = nextPos.x, pZ = nextPos.z;
+      const ax = -5.0, az = 0.92;
+      const bx = -5.814, bz = 1.255;
+      const dx = bx - ax, dz = bz - az;
+      const lenSq = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
+      const projX = ax + t * dx;
+      const projZ = az + t * dz;
+      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
+      const doorRadius = 0.24;
+      if (distSq < doorRadius * doorRadius) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
+        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
+      }
+    }
+
+    // Obstáculos del Bedroom:
+    // 1. Cama a lo largo de la pared oeste: X [-11.0, -8.7], Z [2.1, 5.0]
+    if (nextPos.x < -8.7 && nextPos.z > 2.1 && nextPos.z < 5.0) {
+      if (this.playerPosition.x >= -8.7) nextPos.x = -8.7;
+      else if (this.playerPosition.z <= 2.1) nextPos.z = 2.1;
+      else if (this.playerPosition.z >= 5.0) nextPos.z = 5.0;
+    }
+
+    // 2. Cajonera + TV de tubo a lo largo de pared norte: X [-10.8, -7.0], Z < 0.15
+    if (nextPos.x < -7.0 && nextPos.z < 0.15) {
+      nextPos.z = 0.15;
+    }
+
+    // 3. Mesita de luz a lo largo de pared sur: X [-8.8, -7.6], Z > 4.6
+    if (nextPos.x > -8.8 && nextPos.x < -7.6 && nextPos.z > 4.6) {
+      if (this.playerPosition.z <= 4.6) nextPos.z = 4.6;
+      else if (this.playerPosition.x >= -7.6) nextPos.x = -7.6;
+      else nextPos.x = -8.8;
+    }
+
+    // 4. Hombre colgado & Banquito volcado en X = -6.4, Z = 4.2 (radio 0.45m)
+    const toHanging = new THREE.Vector2(nextPos.x - (-6.4), nextPos.z - 4.2);
+    if (toHanging.length() < 0.45) {
+      toHanging.normalize().multiplyScalar(0.45);
+      nextPos.x = -6.4 + toHanging.x;
+      nextPos.z = 4.2 + toHanging.y;
     }
 
     this.playerPosition.copy(nextPos);
@@ -1809,9 +3494,10 @@ export class EscapeRoomScene {
 
     const targets: { id: InteractiveTargetId; pos: THREE.Vector3; maxDist: number }[] = [
       { id: 'main_door', pos: new THREE.Vector3(0, 1.4, -5.8), maxDist: 3.4 },
-      { id: 'rotten_fridge', pos: new THREE.Vector3(3.8, 1.2, -4.8), maxDist: 2.8 },
-      { id: 'study_desk', pos: new THREE.Vector3(-3.8, 0.9, -1.5), maxDist: 2.8 },
-      { id: 'fuse_box', pos: new THREE.Vector3(4.88, 1.6, -0.6), maxDist: 2.2 },
+      { id: 'door_peephole', pos: new THREE.Vector3(0.5, 1.6, 5.85), maxDist: 3.4 },
+      { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6), maxDist: 2.8 },
+      { id: 'study_desk', pos: new THREE.Vector3(-2.8, 0.9, -1.2), maxDist: 3.0 },
+      { id: 'fuse_box', pos: new THREE.Vector3(-4.88, 1.6, -3.2), maxDist: 2.4 },
     ];
 
     if (!this.isBathroomUnlocked) {
@@ -1963,13 +3649,20 @@ export class EscapeRoomScene {
   }
 
   /**
+   * Distance from player camera to La Puerta del Pibe (South Wall)
+   */
+  public getDistanceToPibeDoor(): number {
+    return this.camera.position.distanceTo(new THREE.Vector3(0.5, 1.35, this.pibeDoorBaseZ));
+  }
+
+  /**
    * Visual recoil & camera tremor when heavy door knocks occur
    */
   public triggerDoorKnockImpact() {
     this.doorShakeStartTime = performance.now();
     // Micro camera tremor
-    this.touchPitch += (Math.random() - 0.5) * 0.015;
-    this.touchYaw += (Math.random() - 0.5) * 0.015;
+    this.touchPitch += (Math.random() - 0.5) * 0.018;
+    this.touchYaw += (Math.random() - 0.5) * 0.018;
   }
 
   /**
@@ -1998,15 +3691,15 @@ export class EscapeRoomScene {
     // Synchronize ceiling light with lower-volume foco electrical sound
     horrorAudio.syncCeilingLight(bulbIntensity, isDip);
 
-    // 2. Physical door vibration on knock impact
-    if (this.doorGroup && this.doorShakeStartTime > 0) {
+    // 2. Physical door vibration on knock impact (emanating from La Puerta del Pibe)
+    if (this.pibeDoorGroup && this.doorShakeStartTime > 0) {
       const elapsed = performance.now() - this.doorShakeStartTime;
-      if (elapsed < 400) {
-        const decay = 1.0 - elapsed / 400;
-        const joltZ = Math.sin(elapsed * 0.08) * 0.018 * decay;
-        this.doorGroup.position.z = this.doorBaseZ + joltZ;
+      if (elapsed < 420) {
+        const decay = 1.0 - elapsed / 420;
+        const joltZ = Math.sin(elapsed * 0.08) * 0.022 * decay;
+        this.pibeDoorGroup.position.z = this.pibeDoorBaseZ - joltZ;
       } else {
-        this.doorGroup.position.z = this.doorBaseZ;
+        this.pibeDoorGroup.position.z = this.pibeDoorBaseZ;
       }
     }
 
@@ -2035,11 +3728,46 @@ export class EscapeRoomScene {
     // 5. Check proximity and glow
     this.checkProximityAndHighlights(time);
 
-    // 6. Update distance to bathroom for subtle weeping audio cue
-    const distToBathroom = this.playerPosition.distanceTo(new THREE.Vector3(8.2, 1.6, 1.4));
-    horrorAudio.updateBathroomDistance(distToBathroom);
+    // 6. 3D Spatial Audio: Baby weeping ("llanto.wav") emanating directly from the Silent Hill Sink
+    const playerPos = this.camera.position;
+    const toSink = this.sinkPosition.clone().sub(playerPos);
+    const distToSink = toSink.length();
 
-    // 7. Render
+    // Calculate horizontal stereo panning (-1.0 to 1.0) based on camera orientation
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const rightHoriz = new THREE.Vector2(right.x, right.z).normalize();
+    const toSinkHoriz = new THREE.Vector2(toSink.x, toSink.z).normalize();
+    const pan = Math.max(-1.0, Math.min(1.0, rightHoriz.dot(toSinkHoriz)));
+
+    horrorAudio.updateSinkCryAudio(distToSink, pan, this.isBathroomUnlocked);
+
+    // Subtle organic breathing / twitch for the fetus resting inside the sink
+    if (this.fetoModel) {
+      const breath = 1.0 + Math.sin(time * 3.4) * 0.025;
+      this.fetoModel.scale.set(0.18 * breath, 0.18 * (2.0 - breath), 0.18 * breath);
+    }
+
+    // 7. Dynamic Horror Bedroom Animations
+    if (this.hangingManGroup) {
+      // Sinister harmonic pendulum sway of the hanging corpse from the ceiling noose
+      this.hangingManGroup.rotation.z = Math.sin(time * 0.72) * 0.022;
+      this.hangingManGroup.rotation.x = Math.cos(time * 0.55) * 0.016;
+      this.hangingManGroup.rotation.y = Math.sin(time * 0.38) * 0.012;
+    }
+
+    if (this.tvLight) {
+      // Eerie flickering phosphor CRT static glow
+      const tvFlicker = 0.82 + (Math.sin(time * 16.0) > 0.5 ? 0.28 : -0.15) + (Math.random() > 0.88 ? 0.3 : 0.0);
+      this.tvLight.intensity = Math.max(0.35, Math.min(1.45, tvFlicker));
+    }
+
+    if (this.bedroomLampLight) {
+      // Dying filament micro-pulsation
+      const lampPulse = 0.60 + Math.sin(time * 8.0) * 0.05 + (Math.random() > 0.96 ? -0.15 : 0.0);
+      this.bedroomLampLight.intensity = Math.max(0.3, lampPulse);
+    }
+
+    // 8. Render
     this.renderer.render(this.scene, this.camera);
   }
 

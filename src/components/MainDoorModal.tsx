@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { X, Lock, Unlock, Eye, Key, Zap, CheckCircle2, DoorOpen, Type } from 'lucide-react';
+import { X, Lock, Unlock, Key, Zap, CheckCircle2, DoorOpen, Type } from 'lucide-react';
 import { LockState, InventoryItem } from '../types/game';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
@@ -13,7 +13,6 @@ import { sensorManager } from '../sensors/SensorManager';
 interface MainDoorModalProps {
   lockState: LockState;
   inventory: InventoryItem[];
-  onOpenPeephole: () => void;
   onOpenCodeLock: () => void;
   onOpenLetterLock: () => void;
   onUseToiletKey: () => void;
@@ -24,7 +23,6 @@ interface MainDoorModalProps {
 export const MainDoorModal: React.FC<MainDoorModalProps> = ({
   lockState,
   inventory,
-  onOpenPeephole,
   onOpenCodeLock,
   onOpenLetterLock,
   onUseToiletKey,
@@ -73,7 +71,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
       >
         {knockImpact && (
           <div className="bg-red-950/90 border-b border-red-600/60 py-1.5 px-3 text-center text-xs font-mono text-red-300 font-bold tracking-widest animate-pulse">
-            ⚠️ ¡EL PIBE ESTÁ GOLPEANDO LA PUERTA DESDE AFUERA!
+            ⚠️ ¡SE ESCUCHAN GOLPES EN LA PUERTA DEL PIBE!
           </div>
         )}
 
@@ -103,15 +101,6 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               Cadenas masivas cruzadas. Hay 4 seguros que te separan de la libertad.
             </span>
           </div>
-
-          {/* Peephole Action Button */}
-          <button
-            onClick={onOpenPeephole}
-            className="w-full py-2 px-4 rounded-lg bg-stone-900 hover:bg-stone-800 border border-amber-500/40 text-amber-300 text-xs font-mono font-semibold flex items-center justify-center gap-2 transition-all shadow-md active:scale-98"
-          >
-            <Eye className="w-4 h-4 text-amber-400" />
-            MIRAR POR EL VISOR (MIRILLA)
-          </button>
 
           {/* Lock 1: 4-digit code lock (Calendar 1986) */}
           <div className="p-2.5 rounded-lg border border-stone-800 bg-stone-900/60 flex items-center justify-between">

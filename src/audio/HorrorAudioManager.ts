@@ -15,7 +15,7 @@ class HorrorAudioManager {
 
   // Background Music ("the illuminato")
   private bgmAudio: HTMLAudioElement | null = null;
-  private bgmVolume: number = 0.65;
+  private bgmVolume: number = 0.95;
   private isBgmPlaying: boolean = false;
 
   // Ceiling Light Bulb Sound ("sonido de foco")
@@ -26,6 +26,14 @@ class HorrorAudioManager {
 
   // Door Knocks Sound ("sonido de puerta / golpes")
   private doorBuffer: AudioBuffer | null = null;
+
+  // Sink Baby Cry Positional Audio ("LLANTO ATERRADOR - llanto.wav")
+  private cryBuffer: AudioBuffer | null = null;
+  private crySource: AudioBufferSourceNode | null = null;
+  private cryGain: GainNode | null = null;
+  private cryPanner: StereoPannerNode | null = null;
+  private isCryPlaying: boolean = false;
+  private bathroomCryAudio: HTMLAudioElement | null = null;
 
   // Procedural tension elements
   private droneOsc: OscillatorNode | null = null;
@@ -111,6 +119,9 @@ class HorrorAudioManager {
       // Preload door knock audio buffer
       this.loadDoorBuffer();
 
+      // Preload sink baby weeping audio buffer for 3D positional audio
+      this.loadCryBuffer();
+
       // Start "the illuminato" background loop directly
       this.startBackgroundMusic();
 
@@ -133,6 +144,9 @@ class HorrorAudioManager {
   public resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
+    }
+    if (!this.isCryPlaying && this.cryBuffer) {
+      this.startSinkCryLoop();
     }
     if (this.bgmAudio && this.bgmAudio.paused && !this.isMuted) {
       this.bgmAudio.play().catch(() => {});
@@ -190,7 +204,7 @@ class HorrorAudioManager {
   private async loadDoorBuffer() {
     if (!this.ctx) return;
     try {
-      const resp = await fetch('/audio/golpes_puerta.wav');
+      const resp = await fetch('/audio/golpes_puerta.mp3');
       if (resp.ok) {
         const arrayBuf = await resp.arrayBuffer();
         if (this.ctx) {
@@ -210,7 +224,7 @@ class HorrorAudioManager {
 
     if (!this.bgmAudio) {
       // Use clean standard HTML5 Audio element without CORS-hijacking createMediaElementSource
-      this.bgmAudio = new Audio('/audio/the_illuminato.wav');
+      this.bgmAudio = new Audio('/audio/the_illuminato.mp3');
       this.bgmAudio.loop = true;
       this.bgmAudio.volume = this.bgmVolume;
       this.bgmAudio.preload = 'auto';
@@ -284,36 +298,127 @@ class HorrorAudioManager {
     }
   }
 
-  // Bathroom Weeping Audio ("LLANTO ATERRADOR")
-  private bathroomCryAudio: HTMLAudioElement | null = null;
+  /**
+   * Preload baby weeping audio buffer for 3D positional audio
+   */
+  private async loadCryBuffer() {
+    if (!this.ctx) return;
+    try {
+      const resp = await fetch('/audio/llanto.wav');
+      if (resp.ok) {
+        const arrayBuf = await resp.arrayBuffer();
+        if (this.ctx) {
+          this.cryBuffer = await this.ctx.decodeAudioData(arrayBuf);
+          this.startSinkCryLoop();
+        }
+      }
+    } catch (e) {
+      console.warn('Could not decode llanto.wav buffer, using HTMLAudioElement fallback:', e);
+    }
+  }
 
   /**
-   * Modulate bathroom weeping audio based on distance from player to bathroom
+   * Start continuous sink crying audio loop via Web Audio API with StereoPanner
    */
-  public updateBathroomDistance(distanceToBathroom: number) {
+  private startSinkCryLoop() {
+    if (!this.ctx || !this.cryBuffer || this.isCryPlaying) return;
+
+    try {
+      this.crySource = this.ctx.createBufferSource();
+      this.crySource.buffer = this.cryBuffer;
+      this.crySource.loop = true;
+
+      this.cryGain = this.ctx.createGain();
+      this.cryGain.gain.setValueAtTime(0, this.ctx.currentTime);
+
+      if (this.ctx.createStereoPanner) {
+        this.cryPanner = this.ctx.createStereoPanner();
+        this.cryPanner.pan.setValueAtTime(0, this.ctx.currentTime);
+        this.crySource.connect(this.cryPanner);
+        this.cryPanner.connect(this.cryGain);
+      } else {
+        this.crySource.connect(this.cryGain);
+      }
+
+      this.cryGain.connect(this.masterGain || this.ctx.destination);
+      this.crySource.start(0);
+      this.isCryPlaying = true;
+    } catch (err) {
+      console.warn('Failed to start Web Audio sink cry loop:', err);
+    }
+  }
+
+  /**
+   * Modulate baby weeping audio specifically emanating from the Silent Hill Sink
+   * @param distToSink Distance in meters from player camera to the sink
+   * @param pan Horizontal audio panning (-1.0 left, 0 center, +1.0 right) based on player look angle
+   * @param isDoorOpen Whether bathroom door is open or closed
+   */
+  public updateSinkCryAudio(distToSink: number, pan: number = 0, isDoorOpen: boolean = false) {
     if (this.isMuted) {
-      if (this.bathroomCryAudio) this.bathroomCryAudio.volume = 0;
+      if (this.cryGain && this.ctx) {
+        this.cryGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      }
+      if (this.bathroomCryAudio) {
+        this.bathroomCryAudio.volume = 0;
+      }
       return;
     }
 
-    if (!this.bathroomCryAudio) {
-      this.bathroomCryAudio = new Audio('/audio/llanto.mp3');
-      this.bathroomCryAudio.loop = true;
-      this.bathroomCryAudio.volume = 0;
-      this.bathroomCryAudio.preload = 'auto';
-      this.bathroomCryAudio.play().catch(() => {});
+    // Distance attenuation from the sink:
+    // Right at sink (< 1.5m): loudest and clearest (0.85)
+    // In bathroom (1.5m - 4.5m): 0.50 - 0.75
+    // Near bathroom entrance (4.5m - 7.5m): 0.20 - 0.45
+    // Across main room (> 7.5m): faint creepy murmur (0.02 - 0.15)
+    let baseVolume = 0;
+    if (distToSink < 1.5) {
+      baseVolume = 0.85;
+    } else if (distToSink < 4.5) {
+      const t = (distToSink - 1.5) / 3.0;
+      baseVolume = 0.85 - t * 0.35; // 0.85 -> 0.50
+    } else if (distToSink < 8.0) {
+      const t = (distToSink - 4.5) / 3.5;
+      baseVolume = 0.50 - t * 0.32; // 0.50 -> 0.18
+    } else if (distToSink < 13.0) {
+      const t = (distToSink - 8.0) / 5.0;
+      baseVolume = 0.18 - t * 0.15; // 0.18 -> 0.03
+    } else {
+      baseVolume = 0.02;
     }
 
-    // Audible when within 7.0 meters, max volume 0.38 when close/inside (< 2.2m)
-    if (distanceToBathroom < 7.0) {
-      const vol = Math.max(0, Math.min(0.38, ((7.0 - distanceToBathroom) / 4.8) * 0.38));
-      this.bathroomCryAudio.volume = vol;
+    // If door is closed/locked and player is outside, muffle the sound
+    if (!isDoorOpen && distToSink > 3.8) {
+      baseVolume *= 0.40;
+    }
+
+    // 1. Web Audio API with real-time 3D stereo panning
+    if (this.ctx && this.cryGain && this.isCryPlaying) {
+      const now = this.ctx.currentTime;
+      this.cryGain.gain.setTargetAtTime(baseVolume, now, 0.08);
+      if (this.cryPanner) {
+        this.cryPanner.pan.setTargetAtTime(pan, now, 0.06);
+      }
+    } else {
+      // 2. HTMLAudioElement Fallback
+      if (!this.bathroomCryAudio) {
+        this.bathroomCryAudio = new Audio('/audio/llanto.wav');
+        this.bathroomCryAudio.loop = true;
+        this.bathroomCryAudio.volume = 0;
+        this.bathroomCryAudio.preload = 'auto';
+        this.bathroomCryAudio.play().catch(() => {});
+      }
+      this.bathroomCryAudio.volume = Math.max(0, Math.min(1, baseVolume));
       if (this.bathroomCryAudio.paused) {
         this.bathroomCryAudio.play().catch(() => {});
       }
-    } else {
-      this.bathroomCryAudio.volume = 0;
     }
+  }
+
+  /**
+   * Backwards compatibility helper
+   */
+  public updateBathroomDistance(distanceToBathroom: number) {
+    this.updateSinkCryAudio(distanceToBathroom, 0, true);
   }
 
   /**
@@ -336,7 +441,7 @@ class HorrorAudioManager {
 
     // Play dedicated Audio instance for overlapping distinct knocks
     try {
-      const knockAudio = new Audio('/audio/golpes_puerta.wav');
+      const knockAudio = new Audio('/audio/golpes_puerta.mp3');
       knockAudio.volume = Math.max(0.25, Math.min(1.0, volumeFactor * 0.95));
       const p = knockAudio.play();
       if (p !== undefined) {
