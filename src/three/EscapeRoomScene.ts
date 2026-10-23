@@ -84,6 +84,7 @@ export class EscapeRoomScene {
   // New Horror Bedroom (Habitación Tétrica) & Hanging Man
   private bedroomGroup: THREE.Group = new THREE.Group();
   private hangingManGroup: THREE.Group = new THREE.Group();
+  private hangingManPendulum: THREE.Group = new THREE.Group();
   private tvScreenMesh: THREE.Mesh | null = null;
   private tvLight: THREE.PointLight | null = null;
   private bedroomLampLight: THREE.PointLight | null = null;
@@ -1720,9 +1721,8 @@ export class EscapeRoomScene {
   }
 
   /**
-   * Wall Window with Venetian Blinds & Volumetric Sunlight Beams (matching reference photo)
-   * The iconic chiaroscuro lighting feature from IMG-20261021-WA0019_2d5f6b6b.jpg:
-   * Sunlight cutting diagonally through broken blinds slats and casting dust rays onto the table!
+   * Wall Window with Venetian Blinds (matching reference photo)
+   * Dilapidated window frame and blinds above the credenza.
    */
   private buildAtmosphericWindowAndLightBeams() {
     const windowGroup = new THREE.Group();
@@ -1753,27 +1753,6 @@ export class EscapeRoomScene {
     const blindsMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 1.36), blindsMat);
     blindsMesh.position.set(0, 0, 0.02);
     windowGroup.add(blindsMesh);
-
-    // 3. Volumetric Sunbeam Light Shafts (dust rays slicing across to dining table)
-    // Additive blending creates the authentic photographic dusty beam effect
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0xffe8c8,
-      transparent: true,
-      opacity: 0.10,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-
-    for (let b = 0; b < 3; b++) {
-      const beamPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 4.8), beamMat);
-      // Diagonally angled from window downward across room toward dining table
-      beamPlane.position.set(-0.35 + b * 0.40, -0.7, 2.2);
-      beamPlane.rotation.x = Math.PI / 4 + 0.12;
-      beamPlane.rotation.y = -0.25;
-      beamPlane.rotation.z = -0.15;
-      windowGroup.add(beamPlane);
-    }
 
     this.scene.add(windowGroup);
   }
@@ -1928,9 +1907,12 @@ export class EscapeRoomScene {
     });
 
     const subtleBrokenTex = TextureGenerator.createSubtleBrokenTileTexture();
+    const brokenTileBump = TextureGenerator.createBrokenTileBumpTexture();
     const brokenTileMat = new THREE.MeshStandardMaterial({
       map: subtleBrokenTex,
-      roughness: 0.6,
+      bumpMap: brokenTileBump,
+      bumpScale: 0.05,
+      roughness: 0.45,
       metalness: 0.08,
       emissive: new THREE.Color(0x000000), // Zero neon glow from afar!
     });
@@ -2322,19 +2304,6 @@ export class EscapeRoomScene {
 
     this.scene.add(tubGroup);
 
-    // Blood splatters on white tile wall above bathtub
-    const bloodDecal = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.6, 1.1),
-      new THREE.MeshBasicMaterial({
-        color: 0x6e0e0e,
-        transparent: true,
-        opacity: 0.75,
-      })
-    );
-    bloodDecal.position.set(11.38, 1.25, 1.4);
-    bloodDecal.rotation.y = -Math.PI / 2;
-    this.scene.add(bloodDecal);
-
     // Horizontal shower curtain rod spanning across at Y = 2.15m
     const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
     const curtainRod = new THREE.Mesh(
@@ -2368,19 +2337,35 @@ export class EscapeRoomScene {
     showerCurtain.rotation.y = Math.PI / 2;
     this.scene.add(showerCurtain);
 
-    // 12. Subtle Broken Wall Tile (Azulejo Roto no evidente)
-    // Seamlessly placed low on the East wall beside the bathtub rim at (11.38, 0.72, 0.35)
-    // Sized exactly as one tile (0.26m x 0.26m), with zero neon glow so the player must search for it!
+    // 12. Broken Wall Tile (Azulejo Roto del Baño)
+    // Placed above the bathtub rim on the East tiled wall at (11.38, 0.76, 0.35)
+    // Authentically visible by its own physical appearance (deep cracks, chipped edge, dark wall cavity,
+    // and slight 3D looseness) without any artificial red square or glaring markers!
     const tilePuzzleGroup = new THREE.Group();
-    tilePuzzleGroup.position.set(11.38, 0.72, 0.35);
+    tilePuzzleGroup.position.set(11.38, 0.76, 0.35);
 
     this.highlightMaterials.set('broken_tile', brokenTileMat);
 
+    // Dark cavity/mortar recess behind the loosened tile
+    const recessMat = new THREE.MeshStandardMaterial({
+      color: 0x120f0d,
+      roughness: 0.95,
+      metalness: 0.05,
+    });
+    const recessMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28), recessMat);
+    recessMesh.rotation.y = -Math.PI / 2;
+    recessMesh.position.x = 0.003;
+    tilePuzzleGroup.add(recessMesh);
+
+    // Broken porcelain tile - slightly loose and jutting out 1cm at one corner
     const tileMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26), brokenTileMat);
     tileMesh.rotation.y = -Math.PI / 2;
+    tileMesh.rotation.z = 0.035; // Slight realistic slant of loosened tile
+    tileMesh.rotation.x = -0.025; // Corner pops out towards the bathroom
+    tileMesh.position.x = -0.008; // Slightly forward from wall
     tilePuzzleGroup.add(tileMesh);
 
-    // Invisible touch hit target (0.55m x 0.55m) for comfortable touchscreen tapping
+    // Touch hit target (0.55m x 0.55m) for comfortable touchscreen tapping
     const hitTarget = new THREE.Mesh(
       new THREE.PlaneGeometry(0.55, 0.55),
       new THREE.MeshBasicMaterial({ visible: false })
@@ -2904,140 +2889,40 @@ export class EscapeRoomScene {
 
     bedroomGroup.add(nightstandGroup);
 
-    // 7. ASSET: HOMBRE COLGADO DEL CUELLO DESDE EL TECHO (Hanging Man)
-    // Position: South-East area near doorway (matching Image 1 diagram circle: X = -6.4, Z = 4.2)
-    const hangingManGroup = new THREE.Group();
-    hangingManGroup.position.set(-6.4, 0, 4.2);
-    this.hangingManGroup = hangingManGroup;
+    // =========================================================================
+    // 7A. BANQUITO Y SOMBRA/CHARCO EN EL PISO (Independiente del hombre colgado)
+    // Siempre apoyados en el piso en Y = 0 (X = -6.4, Z = 4.2)
+    // =========================================================================
+    const floorPropsGroup = new THREE.Group();
+    floorPropsGroup.position.set(-6.4, 0, 4.2);
 
-    // Ceiling Anchor Hook (embedded in ceiling at Y = 3.4)
-    const ceilingHook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 6, 12), ironFrameMat);
-    ceilingHook.position.set(0, 3.37, 0);
-    ceilingHook.rotation.x = Math.PI / 2;
-    hangingManGroup.add(ceilingHook);
-
-    // Hanging Twisted Hemp Rope from Ceiling (Y = 3.37 down to Y = 2.15)
-    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x6e583c, roughness: 0.95 });
-    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.24, 8), ropeMat);
-    rope.position.set(0, 2.76, 0);
-    hangingManGroup.add(rope);
-
-    // Intricate Hangman's Noose Knot (6-turn coil at Y = 2.14)
-    const knot = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.10, 8), ropeMat);
-    knot.position.set(0.05, 2.14, 0);
-    const nooseLoop = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.012, 6, 16), ropeMat);
-    nooseLoop.rotation.x = Math.PI / 2.3;
-    nooseLoop.position.set(0, 2.12, 0);
-    hangingManGroup.add(knot, nooseLoop);
-
-    // Hanging Corpse Group (pivoted at neck Y = 2.12 for authentic pendulum physics)
-    const bodyPivot = new THREE.Group();
-    bodyPivot.position.set(0, 2.12, 0);
-
-    const skinMat = new THREE.MeshStandardMaterial({
-      color: 0x6e787d, // Pale bluish-gray corpse skin
-      roughness: 0.85,
-      metalness: 0.05,
+    // Sombra en el piso
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x050505,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
     });
+    const floorShadow = new THREE.Mesh(new THREE.CircleGeometry(0.60, 24), shadowMat);
+    floorShadow.rotation.x = -Math.PI / 2;
+    floorShadow.position.set(0, 0.004, 0);
+    floorPropsGroup.add(floorShadow);
 
-    const coatMat = new THREE.MeshStandardMaterial({
-      color: 0x16181b, // Dark charcoal/navy rumpled suit coat
-      roughness: 0.88,
-      metalness: 0.05,
+    // Charco de sangre seca en el piso
+    const bloodPuddleMat = new THREE.MeshStandardMaterial({
+      color: 0x220808,
+      roughness: 0.3,
+      metalness: 0.1,
     });
+    const bloodPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.48, 16), bloodPuddleMat);
+    bloodPuddle.rotation.x = -Math.PI / 2;
+    bloodPuddle.position.set(0, 0.008, 0);
+    floorPropsGroup.add(bloodPuddle);
 
-    const shirtMat = new THREE.MeshStandardMaterial({
-      color: 0x827e74, // Soiled off-white shirt
-      roughness: 0.9,
-    });
-
-    const pantsMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1e21, // Charcoal trousers
-      roughness: 0.85,
-    });
-
-    const shoesMat = new THREE.MeshStandardMaterial({
-      color: 0x0f0e0c, // Scuffed leather dress shoes
-      roughness: 0.65,
-    });
-
-    // Neck: stretched and compressed inside the loop
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.12, 8), skinMat);
-    neck.position.set(0, 0, 0);
-    bodyPivot.add(neck);
-
-    // Head: tilted sharply to one side, chin pressed against chest/shoulder
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 0.06, 0);
-    headGroup.rotation.z = -0.38; // Broken tilt sideways
-    headGroup.rotation.x = 0.22;  // Slumped forward
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.125, 12, 12), skinMat);
-    head.scale.set(0.9, 1.15, 0.95);
-    head.position.set(0, 0.12, 0);
-    headGroup.add(head);
-
-    // Matted dark hair hanging down
-    const hairMat = new THREE.MeshStandardMaterial({ color: 0x11100e, roughness: 0.95 });
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), hairMat);
-    hair.scale.set(0.94, 1.05, 1.0);
-    hair.position.set(0, 0.15, -0.015);
-    headGroup.add(hair);
-    bodyPivot.add(headGroup);
-
-    // Torso: hunched shoulders and long suit jacket hanging down
-    const torsoGroup = new THREE.Group();
-    torsoGroup.position.set(0, -0.35, 0);
-
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.44, 0.24), coatMat);
-    const shirtChest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.32, 0.02), shirtMat);
-    shirtChest.position.set(0, 0.04, 0.125);
-    torsoGroup.add(chest, shirtChest);
-
-    // Long coat tails hanging down past hips
-    const coatTails = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.42, 0.25), coatMat);
-    coatTails.position.set(0, -0.38, 0);
-    torsoGroup.add(coatTails);
-
-    // Lifeless Limp Arms hanging straight down with dangling hands
-    [-0.24, 0.24].forEach((ax) => {
-      const armGroup = new THREE.Group();
-      armGroup.position.set(ax, 0.16, 0);
-      armGroup.rotation.z = ax > 0 ? -0.06 : 0.06;
-
-      const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.32, 6), coatMat);
-      upperArm.position.y = -0.16;
-      const lowerArm = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.032, 0.30, 6), coatMat);
-      lowerArm.position.y = -0.42;
-
-      // Pale lifeless hand dangling with limp fingers
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.03), skinMat);
-      hand.position.y = -0.62;
-      armGroup.add(upperArm, lowerArm, hand);
-      torsoGroup.add(armGroup);
-    });
-
-    // Legs & Feet (Trousers & dangling shoes hanging limp with toes pointing down)
-    const hipY = -0.62;
-    [-0.10, 0.10].forEach((lx) => {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.052, 0.72, 8), pantsMat);
-      leg.position.set(lx, hipY - 0.36, 0);
-      torsoGroup.add(leg);
-
-      // Scuffed shoe pointing downwards
-      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.22), shoesMat);
-      shoe.position.set(lx, hipY - 0.76, 0.04);
-      shoe.rotation.x = 0.45; // Limp pointed toe
-      torsoGroup.add(shoe);
-    });
-
-    bodyPivot.add(torsoGroup);
-    hangingManGroup.add(bodyPivot);
-
-    // Under the hanging man's feet on the floor:
-    // 1. Kicked-over rustic wooden stool lying on its side (Horror narrative detail!)
+    // Banquito de madera volcado apoyado en el piso
     const stoolGroup = new THREE.Group();
     stoolGroup.position.set(-0.12, 0.14, 0.18);
-    stoolGroup.rotation.z = Math.PI / 2; // Tipped over on its side!
+    stoolGroup.rotation.z = Math.PI / 2; // Tumbado de costado
     stoolGroup.rotation.y = 0.45;
 
     const stoolSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.05, 12), darkWoodMat);
@@ -3048,18 +2933,69 @@ export class EscapeRoomScene {
       slLeg.position.set(Math.cos(angle) * 0.14, -0.24, Math.sin(angle) * 0.14);
       stoolGroup.add(slLeg);
     }
-    hangingManGroup.add(stoolGroup);
+    floorPropsGroup.add(stoolGroup);
+    bedroomGroup.add(floorPropsGroup);
 
-    // 2. Dark ominous dried blood stain & puddle beneath the hanging body
-    const bloodPuddleMat = new THREE.MeshStandardMaterial({
-      color: 0x220808,
-      roughness: 0.3,
-      metalness: 0.1,
-    });
-    const bloodPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.48, 16), bloodPuddleMat);
-    bloodPuddle.rotation.x = -Math.PI / 2;
-    bloodPuddle.position.set(0, 0.008, 0);
-    hangingManGroup.add(bloodPuddle);
+    // =========================================================================
+    // 7B. HOMBRE COLGADO (Grupo aislado para ajuste manual independiente)
+    // Puedes ajustar 'hangingManGroup.position' aquí sin mover el banquito ni la sombra del piso
+    // =========================================================================
+    const hangingManGroup = new THREE.Group();
+    hangingManGroup.position.set(-6.4, 1.2, 4.2);
+    this.hangingManGroup = hangingManGroup;
+
+    // Ceiling Anchor Hook (embedded in ceiling at Y = 3.4)
+    const ceilingHook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 6, 12), ironFrameMat);
+    ceilingHook.position.set(0, 3.37, 0);
+    ceilingHook.rotation.x = Math.PI / 2;
+    hangingManGroup.add(ceilingHook);
+
+    // Hanging Pendulum Group (pivoted at ceiling hook Y = 3.37 for authentic pendulum physics)
+    const hangingPendulum = new THREE.Group();
+    hangingPendulum.position.set(0, 3.37, 0);
+    this.hangingManPendulum = hangingPendulum;
+    hangingManGroup.add(hangingPendulum);
+
+    // Hanging Twisted Hemp Rope from Ceiling Hook down to hanged man's noose (Y = 0 down to Y = -1.16)
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x6e583c, roughness: 0.95 });
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.16, 8), ropeMat);
+    rope.position.set(0, -0.58, 0);
+    hangingPendulum.add(rope);
+
+    // Load authentic 3D Hanged Man model (/models/hanged_man.glb)
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      '/models/hanged_man.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            const mesh = child as THREE.Mesh;
+            if (mesh.material) {
+              const mat = mesh.material as THREE.MeshStandardMaterial;
+              if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+              mat.roughness = Math.max(mat.roughness ?? 0.7, 0.65);
+            }
+          }
+        });
+
+        // 1:1 scale (model is 1.80m tall)
+        model.scale.set(1.0, 1.0, 1.0);
+        // Position relative to pendulum pivot (hook at Y = 3.37):
+        // Top of model rope/knot meets the rope at Y = -1.16, feet dangle ~0.40m above the floor
+        model.position.set(0, -2.99, 0);
+        // Angle corpse to face towards the doorway so player sees it upon entering
+        model.rotation.y = 2.4;
+
+        hangingPendulum.add(model);
+      },
+      undefined,
+      (err) => {
+        console.error('Error loading /models/hanged_man.glb:', err);
+      }
+    );
 
     bedroomGroup.add(hangingManGroup);
 
@@ -3504,7 +3440,7 @@ export class EscapeRoomScene {
       targets.push({ id: 'bathroom_door', pos: new THREE.Vector3(5.0, 1.2, 1.4), maxDist: 2.8 });
     } else {
       targets.push({ id: 'toilet', pos: new THREE.Vector3(7.5, 0.6, 4.0), maxDist: 2.8 });
-      targets.push({ id: 'broken_tile', pos: new THREE.Vector3(11.38, 0.72, 0.35), maxDist: 2.2 });
+      targets.push({ id: 'broken_tile', pos: new THREE.Vector3(11.38, 0.76, 0.35), maxDist: 2.2 });
     }
 
     let bestAlignment = -1;
@@ -3748,11 +3684,11 @@ export class EscapeRoomScene {
     }
 
     // 7. Dynamic Horror Bedroom Animations
-    if (this.hangingManGroup) {
+    if (this.hangingManPendulum) {
       // Sinister harmonic pendulum sway of the hanging corpse from the ceiling noose
-      this.hangingManGroup.rotation.z = Math.sin(time * 0.72) * 0.022;
-      this.hangingManGroup.rotation.x = Math.cos(time * 0.55) * 0.016;
-      this.hangingManGroup.rotation.y = Math.sin(time * 0.38) * 0.012;
+      this.hangingManPendulum.rotation.z = Math.sin(time * 0.72) * 0.022;
+      this.hangingManPendulum.rotation.x = Math.cos(time * 0.55) * 0.016;
+      this.hangingManPendulum.rotation.y = Math.sin(time * 0.38) * 0.012;
     }
 
     if (this.tvLight) {

@@ -1437,58 +1437,246 @@ export class TextureGenerator {
 
   /**
    * Subtle broken tile texture that blends seamlessly with the white tiled wall
-   * Has fine hairline cracks and a chipped corner, NOT obvious from across the room!
+   * Realistic Broken Wall Tile Texture (Azulejo fisurado y descascarado natural)
+   * Clearly visible crack fracture lines, chipped ceramic edge exposing dark void,
+   * natural grime and moisture stains, NO artificial red markers or red squares.
    */
   public static createSubtleBrokenTileTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 512;
+    canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // Same dirty white porcelain as the surrounding tiles
-    ctx.fillStyle = '#dcdad1';
-    ctx.fillRect(0, 0, 256, 256);
+    // 1. Base aged porcelain glaze (matching surrounding bathroom tiles)
+    ctx.fillStyle = '#dcd7cb';
+    ctx.fillRect(0, 0, 512, 512);
 
-    // Dark dirty grout border around the tile
-    ctx.strokeStyle = '#2b2722';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(3, 3, 250, 250);
+    // Subtle glaze variation & grime gradient
+    const grad = ctx.createLinearGradient(0, 0, 512, 512);
+    grad.addColorStop(0, 'rgba(245, 242, 235, 0.4)');
+    grad.addColorStop(0.5, 'rgba(215, 208, 195, 0.2)');
+    grad.addColorStop(1, 'rgba(165, 155, 140, 0.45)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
 
-    // Subtle fine spiderweb cracks (realistic hairline fractures)
-    ctx.strokeStyle = '#3d3730';
-    ctx.lineWidth = 1.8;
+    // 2. Dirty dark grout border around tile
+    ctx.strokeStyle = '#231f1a';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, 502, 502);
+
+    // 3. Mold & water seepage streaks spreading from edges and cracks
+    ctx.fillStyle = 'rgba(45, 38, 28, 0.28)';
     ctx.beginPath();
-    ctx.moveTo(40, 30);
-    ctx.lineTo(95, 110);
-    ctx.lineTo(145, 135);
-    ctx.lineTo(215, 220);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(95, 110);
-    ctx.lineTo(60, 185);
-    ctx.lineTo(40, 230);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(145, 135);
-    ctx.lineTo(220, 120);
-    ctx.stroke();
-
-    // Chipped corner with exposed dark plaster
-    ctx.fillStyle = '#1c1916';
-    ctx.beginPath();
-    ctx.moveTo(190, 256);
-    ctx.lineTo(256, 190);
-    ctx.lineTo(256, 256);
+    ctx.moveTo(120, 10);
+    ctx.bezierCurveTo(140, 100, 110, 180, 160, 290);
+    ctx.lineTo(210, 310);
+    ctx.bezierCurveTo(170, 200, 180, 100, 150, 10);
     ctx.closePath();
     ctx.fill();
 
-    // Dried blood stain around the crack
-    ctx.fillStyle = 'rgba(100, 20, 20, 0.25)';
+    // 4. Exposed broken hollow gap / missing shard in the bottom-right corner
+    // Dark void/plaster cavity where the tile is broken and loosened
+    ctx.fillStyle = '#14110e';
     ctx.beginPath();
-    ctx.ellipse(140, 140, 45, 25, 0.4, 0, Math.PI * 2);
+    ctx.moveTo(340, 506);
+    ctx.lineTo(390, 440);
+    ctx.lineTo(440, 460);
+    ctx.lineTo(460, 410);
+    ctx.lineTo(506, 360);
+    ctx.lineTo(506, 506);
+    ctx.closePath();
     ctx.fill();
+
+    // Rough plaster rubble inside the gap
+    ctx.fillStyle = '#2a241c';
+    for (let p = 0; p < 35; p++) {
+      const rx = 360 + Math.random() * 140;
+      const ry = 380 + Math.random() * 120;
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Chipped ceramic edge highlight along the broken void
+    ctx.strokeStyle = '#fff8ee';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(340, 506);
+    ctx.lineTo(390, 440);
+    ctx.lineTo(440, 460);
+    ctx.lineTo(460, 410);
+    ctx.lineTo(506, 360);
+    ctx.stroke();
+
+    // 5. Distinct prominent fracture lines (split across the tile)
+    // Main deep fracture running across the tile
+    const drawFracture = (
+      points: [number, number][],
+      mainWidth: number,
+      highlightOffset: [number, number]
+    ) => {
+      // White bevel highlight on one side (makes crack look 3D and catch light)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = mainWidth + 1.5;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0] + highlightOffset[0], points[0][1] + highlightOffset[1]);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i][0] + highlightOffset[0], points[i][1] + highlightOffset[1]);
+      }
+      ctx.stroke();
+
+      // Deep dark crack
+      ctx.strokeStyle = '#120f0c';
+      ctx.lineWidth = mainWidth;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i][0], points[i][1]);
+      }
+      ctx.stroke();
+    };
+
+    // Primary fracture diagonally across
+    drawFracture(
+      [
+        [80, 8],
+        [120, 80],
+        [160, 130],
+        [190, 210],
+        [240, 270],
+        [310, 340],
+        [390, 440],
+      ],
+      4.5,
+      [1.5, 1.5]
+    );
+
+    // Secondary branched crack 1
+    drawFracture(
+      [
+        [190, 210],
+        [140, 280],
+        [110, 370],
+        [80, 440],
+        [70, 506],
+      ],
+      3.2,
+      [-1.5, 1.0]
+    );
+
+    // Secondary branched crack 2
+    drawFracture(
+      [
+        [240, 270],
+        [320, 260],
+        [410, 280],
+        [506, 250],
+      ],
+      3.0,
+      [1.0, -1.5]
+    );
+
+    // Fine spiderweb micro-fractures
+    drawFracture(
+      [
+        [160, 130],
+        [220, 105],
+        [290, 95],
+      ],
+      1.8,
+      [1.0, 1.0]
+    );
+
+    drawFracture(
+      [
+        [140, 280],
+        [180, 330],
+        [220, 360],
+      ],
+      1.8,
+      [1.0, -1.0]
+    );
+
+    // 6. Surface grime stippling and micro scratches
+    for (let s = 0; s < 400; s++) {
+      const sx = 20 + Math.random() * 470;
+      const sy = 20 + Math.random() * 470;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30, 25, 20, 0.18)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.fillRect(sx, sy, 1.5 + Math.random() * 2, 1.5 + Math.random() * 2);
+    }
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  /**
+   * Bump Map for Broken Wall Tile (Creates real physical relief under flashlight)
+   */
+  public static createBrokenTileBumpTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Neutral gray base
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Depressed grout border
+    ctx.strokeStyle = '#202020';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(6, 6, 500, 500);
+
+    // Deep broken void
+    ctx.fillStyle = '#050505';
+    ctx.beginPath();
+    ctx.moveTo(340, 506);
+    ctx.lineTo(390, 440);
+    ctx.lineTo(440, 460);
+    ctx.lineTo(460, 410);
+    ctx.lineTo(506, 360);
+    ctx.lineTo(506, 506);
+    ctx.closePath();
+    ctx.fill();
+
+    // Raised chipped edge
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(340, 506);
+    ctx.lineTo(390, 440);
+    ctx.lineTo(440, 460);
+    ctx.lineTo(460, 410);
+    ctx.lineTo(506, 360);
+    ctx.stroke();
+
+    // Deep fracture grooves
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(80, 8);
+    ctx.lineTo(120, 80);
+    ctx.lineTo(160, 130);
+    ctx.lineTo(190, 210);
+    ctx.lineTo(240, 270);
+    ctx.lineTo(310, 340);
+    ctx.lineTo(390, 440);
+    ctx.stroke();
+
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(190, 210);
+    ctx.lineTo(140, 280);
+    ctx.lineTo(110, 370);
+    ctx.lineTo(80, 440);
+    ctx.lineTo(70, 506);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(240, 270);
+    ctx.lineTo(320, 260);
+    ctx.lineTo(410, 280);
+    ctx.lineTo(506, 250);
+    ctx.stroke();
 
     return new THREE.CanvasTexture(canvas);
   }
