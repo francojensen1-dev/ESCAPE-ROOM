@@ -49,6 +49,7 @@ export type InteractiveTargetId =
   | 'wall_graffiti'
   | 'toilet'
   | 'broken_tile'
+  | 'nightstand_note'
   | null;
 
 export interface InteractiveObject {

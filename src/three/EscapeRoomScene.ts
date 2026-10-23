@@ -195,16 +195,16 @@ export class EscapeRoomScene {
     // Floor texture preserved exactly as requested
     const floorTex = TextureGenerator.createWoodFloorTexture();
 
-    // North Wall Material (Door Wall: heavy chipped plaster, frantic claw scratches, rust drip trails)
+    // North Wall Material (Front wall in front of player: vertical weathered wood with peeling cyan paint)
     const northWallMat = new THREE.MeshStandardMaterial({
       map: northTex.map,
       bumpMap: northTex.bump,
-      bumpScale: 0.05,
-      roughness: 0.88,
-      metalness: 0.12,
+      bumpScale: 0.055,
+      roughness: 0.86,
+      metalness: 0.06,
     });
 
-    // South Wall Material (Decayed horizontal wooden boards with flaking paint and water damage)
+    // South Wall Material (Back wall behind player: vertical weathered wood with peeling cyan paint)
     const southWallMat = new THREE.MeshStandardMaterial({
       map: southTex.map,
       bumpMap: southTex.bump,
@@ -213,44 +213,153 @@ export class EscapeRoomScene {
       metalness: 0.08,
     });
 
-    // West Wall Material (Left Wall: moldy, pitted concrete with soot & water damage matching user's photo)
+    // West Wall Material (Left Wall: weathered seafoam turquoise wooden planks with nails from user's photo)
     const westWallMat = new THREE.MeshStandardMaterial({
       map: westTex.map,
       bumpMap: westTex.bump,
-      bumpScale: 0.05,
-      roughness: 0.90,
-      metalness: 0.04,
+      bumpScale: 0.055,
+      roughness: 0.86,
+      metalness: 0.05,
     });
 
     const textureLoader = new THREE.TextureLoader();
 
-    // Directly load the user's uploaded reference photo for the Left Wall (West Wall)
+    // Directly load user's uploaded reference photo for the Front Wall (North Wall in front of player: textura_madera1)
+    const northTexturePath = '/assets/aistudio/textura_madera1_07435e48.jpg';
     textureLoader.load(
-      '/assets/aistudio/23bbebee42c774833f1ef951f3d2155f_64cb3b67.jpg',
+      northTexturePath,
+      (loadedNorthTexture) => {
+        loadedNorthTexture.wrapS = THREE.RepeatWrapping;
+        loadedNorthTexture.wrapT = THREE.RepeatWrapping;
+        loadedNorthTexture.repeat.set(4, 1);
+        loadedNorthTexture.colorSpace = THREE.SRGBColorSpace;
+        northWallMat.map = loadedNorthTexture;
+        northWallMat.bumpMap = loadedNorthTexture;
+        northWallMat.bumpScale = 0.06;
+        northWallMat.roughness = 0.86;
+        northWallMat.metalness = 0.06;
+        northWallMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load /assets/aistudio/textura_madera1_07435e48.jpg for North wall, trying fallback /imgs/textura_madera1.jpg:', err);
+        textureLoader.load('/imgs/textura_madera1.jpg', (fallbackTex) => {
+          fallbackTex.wrapS = THREE.RepeatWrapping;
+          fallbackTex.wrapT = THREE.RepeatWrapping;
+          fallbackTex.repeat.set(4, 1);
+          fallbackTex.colorSpace = THREE.SRGBColorSpace;
+          northWallMat.map = fallbackTex;
+          northWallMat.bumpMap = fallbackTex;
+          northWallMat.bumpScale = 0.06;
+          northWallMat.needsUpdate = true;
+        });
+      }
+    );
+
+    // Directly load user's uploaded reference photo for the Back Wall (South Wall behind player: textura_madera1)
+    const southTexturePath = '/assets/aistudio/textura_madera1_07435e48.jpg';
+    textureLoader.load(
+      southTexturePath,
+      (loadedSouthTexture) => {
+        loadedSouthTexture.wrapS = THREE.RepeatWrapping;
+        loadedSouthTexture.wrapT = THREE.RepeatWrapping;
+        loadedSouthTexture.repeat.set(4, 1);
+        loadedSouthTexture.colorSpace = THREE.SRGBColorSpace;
+        southWallMat.map = loadedSouthTexture;
+        southWallMat.bumpMap = loadedSouthTexture;
+        southWallMat.bumpScale = 0.06;
+        southWallMat.roughness = 0.86;
+        southWallMat.metalness = 0.06;
+        southWallMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load /assets/aistudio/textura_madera1_07435e48.jpg, trying fallback /imgs/textura_madera1.jpg:', err);
+        textureLoader.load('/imgs/textura_madera1.jpg', (fallbackTex) => {
+          fallbackTex.wrapS = THREE.RepeatWrapping;
+          fallbackTex.wrapT = THREE.RepeatWrapping;
+          fallbackTex.repeat.set(4, 1);
+          fallbackTex.colorSpace = THREE.SRGBColorSpace;
+          southWallMat.map = fallbackTex;
+          southWallMat.bumpMap = fallbackTex;
+          southWallMat.bumpScale = 0.06;
+          southWallMat.needsUpdate = true;
+        });
+      }
+    );
+
+    // Directly load the user's uploaded reference photo for the Left Wall (West Wall: textura_madera4)
+    const westTexturePath = '/assets/aistudio/textura_madera4_5b075e57.jpg';
+    textureLoader.load(
+      westTexturePath,
       (loadedWestTexture) => {
         loadedWestTexture.wrapS = THREE.RepeatWrapping;
         loadedWestTexture.wrapT = THREE.RepeatWrapping;
-        loadedWestTexture.repeat.set(3, 1); // 3 repeats across 12m length, 1 across 3.4m height
+        loadedWestTexture.repeat.set(1, 1);
         loadedWestTexture.colorSpace = THREE.SRGBColorSpace;
         westWallMat.map = loadedWestTexture;
         westWallMat.bumpMap = loadedWestTexture;
-        westWallMat.bumpScale = 0.055;
+        westWallMat.bumpScale = 0.06;
+        westWallMat.roughness = 0.86;
+        westWallMat.metalness = 0.05;
         westWallMat.needsUpdate = true;
       },
       undefined,
       (err) => {
-        console.warn('Could not load custom west wall texture image, procedural fallback active:', err);
+        console.warn('Could not load /assets/aistudio/textura_madera4_5b075e57.jpg, trying fallback /imgs/textura_madera4.jpg:', err);
+        textureLoader.load('/imgs/textura_madera4.jpg', (fallbackTex) => {
+          fallbackTex.wrapS = THREE.RepeatWrapping;
+          fallbackTex.wrapT = THREE.RepeatWrapping;
+          fallbackTex.repeat.set(1, 1);
+          fallbackTex.colorSpace = THREE.SRGBColorSpace;
+          westWallMat.map = fallbackTex;
+          westWallMat.bumpMap = fallbackTex;
+          westWallMat.bumpScale = 0.06;
+          westWallMat.needsUpdate = true;
+        });
       }
     );
 
-    // East Wall Material (Silent Hill oxidized rusted steel panels with rivets and electrical soot)
+    // East Wall Material (Right Wall: weathered whitewashed wood planks with moss/lichen from user's photo)
     const eastWallMat = new THREE.MeshStandardMaterial({
       map: eastTex.map,
       bumpMap: eastTex.bump,
-      bumpScale: 0.06,
-      roughness: 0.72,
-      metalness: 0.38,
+      bumpScale: 0.055,
+      roughness: 0.88,
+      metalness: 0.05,
     });
+
+    // Directly load the user's uploaded reference photo for the Right Wall (East Wall: textura_madera3)
+    const eastTexturePath = '/assets/aistudio/textura_madera3_d68b8c27.jpg';
+    textureLoader.load(
+      eastTexturePath,
+      (loadedEastTexture) => {
+        loadedEastTexture.wrapS = THREE.RepeatWrapping;
+        loadedEastTexture.wrapT = THREE.RepeatWrapping;
+        loadedEastTexture.repeat.set(1, 1);
+        loadedEastTexture.colorSpace = THREE.SRGBColorSpace;
+        eastWallMat.map = loadedEastTexture;
+        eastWallMat.bumpMap = loadedEastTexture;
+        eastWallMat.bumpScale = 0.06;
+        eastWallMat.roughness = 0.88;
+        eastWallMat.metalness = 0.05;
+        eastWallMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load /assets/aistudio/textura_madera3_d68b8c27.jpg, trying fallback /imgs/textura_madera3.jpg:', err);
+        textureLoader.load('/imgs/textura_madera3.jpg', (fallbackTex) => {
+          fallbackTex.wrapS = THREE.RepeatWrapping;
+          fallbackTex.wrapT = THREE.RepeatWrapping;
+          fallbackTex.repeat.set(1, 1);
+          fallbackTex.colorSpace = THREE.SRGBColorSpace;
+          eastWallMat.map = fallbackTex;
+          eastWallMat.bumpMap = fallbackTex;
+          eastWallMat.bumpScale = 0.06;
+          eastWallMat.needsUpdate = true;
+        });
+      }
+    );
 
     // Floor Material (Weathered wood with peeling sage green paint matching user's photo)
     const floorMat = new THREE.MeshStandardMaterial({
@@ -309,21 +418,40 @@ export class EscapeRoomScene {
     southWall.rotation.y = Math.PI;
     this.scene.add(southWall);
 
-    // East Wall with Bathroom Doorway opening (industrial oxidized steel panels)
+    // East Wall with Bathroom Doorway opening (Right wall: weathered whitewashed wood planks with lichen)
     // 1. North Segment (Z: -6 to 0.4, length 6.4m, center Z = -2.8)
-    const eastWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3.4), eastWallMat);
+    const geoEastNorth = new THREE.PlaneGeometry(6.4, 3.4);
+    const uvsNorth = geoEastNorth.attributes.uv;
+    for (let i = 0; i < uvsNorth.count; i++) {
+      uvsNorth.setX(i, (uvsNorth.getX(i) * 6.4) / 3.0);
+    }
+    uvsNorth.needsUpdate = true;
+    const eastWallNorth = new THREE.Mesh(geoEastNorth, eastWallMat);
     eastWallNorth.position.set(5, 1.7, -2.8);
     eastWallNorth.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallNorth);
 
     // 2. South Segment (Z: 2.4 to 6.0, length 3.6m, center Z = 4.2)
-    const eastWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.4), eastWallMat);
+    const geoEastSouth = new THREE.PlaneGeometry(3.6, 3.4);
+    const uvsSouth = geoEastSouth.attributes.uv;
+    for (let i = 0; i < uvsSouth.count; i++) {
+      uvsSouth.setX(i, (uvsSouth.getX(i) * 3.6) / 3.0);
+    }
+    uvsSouth.needsUpdate = true;
+    const eastWallSouth = new THREE.Mesh(geoEastSouth, eastWallMat);
     eastWallSouth.position.set(5, 1.7, 4.2);
     eastWallSouth.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallSouth);
 
     // 3. Header Wall above bathroom doorway (Z: 0.4 to 2.4, Y: 2.3 to 3.4)
-    const eastWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1), eastWallMat);
+    const geoEastHeader = new THREE.PlaneGeometry(2.0, 1.1);
+    const uvsHeader = geoEastHeader.attributes.uv;
+    for (let i = 0; i < uvsHeader.count; i++) {
+      uvsHeader.setX(i, (uvsHeader.getX(i) * 2.0) / 3.0);
+      uvsHeader.setY(i, 1.0 - (1.0 - uvsHeader.getY(i)) * (1.1 / 3.4));
+    }
+    uvsHeader.needsUpdate = true;
+    const eastWallHeader = new THREE.Mesh(geoEastHeader, eastWallMat);
     eastWallHeader.position.set(5, 2.85, 1.4);
     eastWallHeader.rotation.y = -Math.PI / 2;
     this.scene.add(eastWallHeader);
@@ -331,19 +459,38 @@ export class EscapeRoomScene {
     // West Wall with open doorway into New Bedroom (X = -5.0, doorway at Z = [0.9, 2.7])
     // 1. North Segment (Z: -6.0 to 0.9, length 6.9m, center Z = -2.55)
     // Anchors the relocated electrical fuse box at Z = -3.2 firmly against the wall
-    const westWallNorth = new THREE.Mesh(new THREE.PlaneGeometry(6.9, 3.4), westWallMat);
+    const geoWestNorth = new THREE.PlaneGeometry(6.9, 3.4);
+    const uvsWestNorth = geoWestNorth.attributes.uv;
+    for (let i = 0; i < uvsWestNorth.count; i++) {
+      uvsWestNorth.setX(i, (uvsWestNorth.getX(i) * 6.9) / 3.0);
+    }
+    uvsWestNorth.needsUpdate = true;
+    const westWallNorth = new THREE.Mesh(geoWestNorth, westWallMat);
     westWallNorth.position.set(-5, 1.7, -2.55);
     westWallNorth.rotation.y = Math.PI / 2;
     this.scene.add(westWallNorth);
 
     // 2. Doorway Header above bedroom entrance (Z: 0.9 to 2.7, length 1.8m, height 1.2m, Y: 2.2 to 3.4)
-    const westWallHeader = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), westWallMat);
+    const geoWestHeader = new THREE.PlaneGeometry(1.8, 1.2);
+    const uvsWestHeader = geoWestHeader.attributes.uv;
+    for (let i = 0; i < uvsWestHeader.count; i++) {
+      uvsWestHeader.setX(i, (uvsWestHeader.getX(i) * 1.8) / 3.0);
+      uvsWestHeader.setY(i, 1.0 - (1.0 - uvsWestHeader.getY(i)) * (1.2 / 3.4));
+    }
+    uvsWestHeader.needsUpdate = true;
+    const westWallHeader = new THREE.Mesh(geoWestHeader, westWallMat);
     westWallHeader.position.set(-5, 2.8, 1.8);
     westWallHeader.rotation.y = Math.PI / 2;
     this.scene.add(westWallHeader);
 
     // 3. South Segment (Z: 2.7 to 6.0, length 3.3m, center Z = 4.35)
-    const westWallSouth = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 3.4), westWallMat);
+    const geoWestSouth = new THREE.PlaneGeometry(3.3, 3.4);
+    const uvsWestSouth = geoWestSouth.attributes.uv;
+    for (let i = 0; i < uvsWestSouth.count; i++) {
+      uvsWestSouth.setX(i, (uvsWestSouth.getX(i) * 3.3) / 3.0);
+    }
+    uvsWestSouth.needsUpdate = true;
+    const westWallSouth = new THREE.Mesh(geoWestSouth, westWallMat);
     westWallSouth.position.set(-5, 1.7, 4.35);
     westWallSouth.rotation.y = Math.PI / 2;
     this.scene.add(westWallSouth);
@@ -2887,6 +3034,63 @@ export class EscapeRoomScene {
     glass.position.set(0.18, 0.785, 0.12);
     nightstandGroup.add(lampGroup, glass);
 
+    // 6B. Objeto interactuable: Nota ensangrentada en la mesita de luz (nota.jpg / nota.png)
+    const noteGroup = new THREE.Group();
+    noteGroup.position.set(-0.14, 0.745, 0.08);
+
+    const noteTexLoader = new THREE.TextureLoader();
+    const noteTex = noteTexLoader.load('/imgs/nota.png');
+    noteTex.colorSpace = THREE.SRGBColorSpace;
+
+    const noteMat = new THREE.MeshStandardMaterial({
+      map: noteTex,
+      roughness: 0.88,
+      metalness: 0.04,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.15,
+      depthWrite: true,
+      emissive: new THREE.Color(0x000000),
+    });
+    this.highlightMaterials.set('nightstand_note', noteMat);
+
+    // Parchment paper sheet with transparent cut-out jagged edges (no white rectangle)
+    const paperSheet = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.22, 0.31),
+      noteMat
+    );
+    paperSheet.rotation.x = -Math.PI / 2;
+    paperSheet.rotation.z = 0.18; // natural casual angle
+    noteGroup.add(paperSheet);
+
+    // Alpha-masked contact shadow matching the exact torn parchment contour (no rectangular border)
+    const paperShadowMat = new THREE.MeshBasicMaterial({
+      map: noteTex,
+      color: 0x060504,
+      transparent: true,
+      alphaTest: 0.15,
+      opacity: 0.45,
+    });
+    const paperShadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.224, 0.314),
+      paperShadowMat
+    );
+    paperShadow.rotation.x = -Math.PI / 2;
+    paperShadow.rotation.z = 0.18;
+    paperShadow.position.set(0.003, -0.002, 0.003);
+    noteGroup.add(paperShadow);
+
+    // Generous hit box for responsive mobile tap detection
+    const noteHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.28, 0.38),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    noteHitBox.position.set(0, 0.10, 0);
+    noteGroup.add(noteHitBox);
+
+    nightstandGroup.add(noteGroup);
+    this.interactiveMeshes.set('nightstand_note', noteGroup);
+
     bedroomGroup.add(nightstandGroup);
 
     // =========================================================================
@@ -3000,21 +3204,35 @@ export class EscapeRoomScene {
     bedroomGroup.add(hangingManGroup);
 
     // 8. Silent Hill Room 302 Environmental Details (Faithful to Image 2)
-    // 4 Dark Framed Pictures on the North Wall
+    // 4 Framed Portraits on the North Wall displaying "las caras" of El Pibe
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f1a14, roughness: 0.8 });
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a1012, roughness: 0.3, metalness: 0.6 });
+    const texLoader = new THREE.TextureLoader();
+    const pibeFacePaths = [
+      '/imgs/Elpibe_1.jpg',
+      '/imgs/Elpibe_2.jpg',
+      '/imgs/Elpibe_3.jpg',
+      '/imgs/Elpibe_4.jpg',
+    ];
     const frameCoords = [
       [-6.5, 2.3],
       [-5.5, 2.3],
       [-6.5, 1.55],
       [-5.5, 1.55],
     ];
-    frameCoords.forEach(([fx, fy]) => {
+    frameCoords.forEach(([fx, fy], idx) => {
       const frameBorder = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.56, 0.03), frameMat);
       frameBorder.position.set(fx, fy, -1.18);
-      const pictureGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), glassMat);
-      pictureGlass.position.set(fx, fy, -1.16);
-      bedroomGroup.add(frameBorder, pictureGlass);
+
+      const faceTex = texLoader.load(pibeFacePaths[idx]);
+      faceTex.colorSpace = THREE.SRGBColorSpace;
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: faceTex,
+        roughness: 0.55,
+        metalness: 0.08,
+      });
+      const pictureMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), faceMat);
+      pictureMesh.position.set(fx, fy, -1.16);
+      bedroomGroup.add(frameBorder, pictureMesh);
     });
 
     // Scattered papers, playing cards, and torn photos on the floor (Image 2)
@@ -3434,6 +3652,7 @@ export class EscapeRoomScene {
       { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6), maxDist: 2.8 },
       { id: 'study_desk', pos: new THREE.Vector3(-2.8, 0.9, -1.2), maxDist: 3.0 },
       { id: 'fuse_box', pos: new THREE.Vector3(-4.88, 1.6, -3.2), maxDist: 2.4 },
+      { id: 'nightstand_note', pos: new THREE.Vector3(-8.34, 0.76, 5.38), maxDist: 3.2 },
     ];
 
     if (!this.isBathroomUnlocked) {
@@ -3478,6 +3697,9 @@ export class EscapeRoomScene {
         if (id === 'broken_tile') {
           mat.emissive.setHex(0x2d1f10);
           mat.emissiveIntensity = 0.4 + pulse * 0.3;
+        } else if (id === 'nightstand_note') {
+          mat.emissive.setHex(0x3e2c14);
+          mat.emissiveIntensity = 0.7 + pulse * 0.4;
         } else {
           mat.emissive.setHex(0x3e5228);
           mat.emissiveIntensity = 0.75 + pulse * 0.45;

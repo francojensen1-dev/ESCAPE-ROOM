@@ -35,6 +35,7 @@ import { BrokenTileModal } from './components/BrokenTileModal';
 import { LetterLockModal } from './components/LetterLockModal';
 import { BathroomDoorModal } from './components/BathroomDoorModal';
 import { SettingsModal } from './components/SettingsModal';
+import { NightstandNoteModal } from './components/NightstandNoteModal';
 import { Eye, Flashlight, Sliders } from 'lucide-react';
 
 export default function App() {
@@ -43,6 +44,8 @@ export default function App() {
 
   // Game Lifecycle
   const [gameStage, setGameStage] = useState<'intro' | 'playing' | 'jumpscare' | 'escaped'>('intro');
+  const [jumpscareReason, setJumpscareReason] = useState<'timeout' | 'called_too_much'>('timeout');
+  const [pibeCallCount, setPibeCallCount] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<number>(900); // 15 minutes = 900 seconds
   const [timeElapsed, setTimeElapsed] = useState<number>(0);
 
@@ -99,6 +102,7 @@ export default function App() {
     | 'broken_tile'
     | 'letterlock'
     | 'bathroom_door'
+    | 'nightstand_note'
     | 'settings';
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
@@ -184,7 +188,14 @@ export default function App() {
       case 'main_door':
         return { title: 'Puerta Principal de Escape', action: 'Inspeccionar Cadenas y Candados' };
       case 'door_peephole':
-        return { title: 'La Puerta del Pibe', action: 'Mirar por la Mirilla' };
+        return {
+          title: 'La Puerta del Pibe',
+          action: pibeCallCount >= 3
+            ? '⚠️ Mirilla (¡Peligro Extremo de Llamarlo!)'
+            : pibeCallCount > 0
+            ? `Mirar por la Mirilla / Llamar (${pibeCallCount}/4)`
+            : 'Mirar por la Mirilla / Llamar al Pibe',
+        };
       case 'bathroom_door':
         return lockState.bathroomDoor
           ? { title: 'Puerta del Baño (Abierta)', action: 'Entrar al Baño' }
@@ -204,6 +215,8 @@ export default function App() {
         return { title: 'Inodoro Decrépito (Baño)', action: 'Revisar Fondo del Agua Turbia' };
       case 'broken_tile':
         return { title: 'Azulejo Agrietado (Baño)', action: 'Inspeccionar Hueco en el Muro' };
+      case 'nightstand_note':
+        return { title: 'Nota Misteriosa (Mesa de Luz)', action: 'Examinar Nota Ensangrentada' };
       default:
         return null;
     }
@@ -241,6 +254,9 @@ export default function App() {
         break;
       case 'broken_tile':
         setActiveModal('broken_tile');
+        break;
+      case 'nightstand_note':
+        setActiveModal('nightstand_note');
         break;
     }
   }, []);
@@ -380,11 +396,22 @@ export default function App() {
   };
 
   /**
+   * Screamer jumpscare trigger
+   */
+  const handleTriggerScreamer = (reason: 'called_too_much' | 'timeout') => {
+    setJumpscareReason(reason);
+    setActiveModal(null);
+    setGameStage('jumpscare');
+  };
+
+  /**
    * Restart game
    */
   const handleRestart = () => {
     setTimeLeft(900);
     setTimeElapsed(0);
+    setPibeCallCount(0);
+    setJumpscareReason('timeout');
     setLockState({
       bathroomDoor: false,
       codeLock: false,
@@ -450,6 +477,8 @@ export default function App() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          setJumpscareReason('timeout');
+          setActiveModal(null);
           setGameStage('jumpscare');
           return 0;
         }
@@ -813,7 +842,12 @@ export default function App() {
       )}
 
       {activeModal === 'peephole' && (
-        <PeepholeModal onClose={() => setActiveModal(null)} />
+        <PeepholeModal
+          pibeCallCount={pibeCallCount}
+          onCallPibe={() => setPibeCallCount((prev) => prev + 1)}
+          onTriggerScreamer={handleTriggerScreamer}
+          onClose={() => setActiveModal(null)}
+        />
       )}
 
       {activeModal === 'fridge' && (
@@ -844,6 +878,10 @@ export default function App() {
         <NotesModal onClose={() => setActiveModal(null)} />
       )}
 
+      {activeModal === 'nightstand_note' && (
+        <NightstandNoteModal onClose={() => setActiveModal(null)} />
+      )}
+
       {activeModal === 'inventory' && (
         <InventoryDrawer
           items={inventory}
@@ -853,7 +891,7 @@ export default function App() {
       )}
 
       {gameStage === 'jumpscare' && (
-        <JumpscareModal onRestart={handleRestart} />
+        <JumpscareModal reason={jumpscareReason} onRestart={handleRestart} />
       )}
 
       {gameStage === 'escaped' && (

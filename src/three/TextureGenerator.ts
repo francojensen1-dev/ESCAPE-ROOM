@@ -1938,76 +1938,99 @@ export class TextureGenerator {
     bumpCanvas.height = h;
     const bctx = bumpCanvas.getContext('2d')!;
 
-    ctx.fillStyle = '#171410';
+    // Dark rustic aged wood base (burnt umber/warm brown)
+    ctx.fillStyle = '#2e1c12';
     ctx.fillRect(0, 0, w, h);
-    bctx.fillStyle = '#707070';
+    bctx.fillStyle = '#606060';
     bctx.fillRect(0, 0, w, h);
 
-    // Horizontal decaying wooden planks (plank height ~32px)
-    const plankH = 32;
-    for (let y = 0; y < h; y += plankH) {
-      const plankTone = 20 + Math.floor((Math.random() - 0.5) * 10);
-      ctx.fillStyle = `rgb(${plankTone + 6}, ${plankTone + 2}, ${Math.max(8, plankTone - 4)})`;
-      ctx.fillRect(0, y, w, plankH - 2);
+    // Vertical aged wood planks matching user's reference image textura_madera1
+    const plankCount = 14;
+    const plankW = w / plankCount;
 
-      bctx.fillStyle = `rgb(${110 + (Math.random() - 0.5) * 40}, 110, 110)`;
-      bctx.fillRect(0, y, w, plankH - 2);
+    for (let p = 0; p < plankCount; p++) {
+      const x = p * plankW;
+      const toneVar = (Math.random() - 0.5) * 16;
+      const r = Math.min(255, Math.max(0, Math.floor(65 + toneVar)));
+      const g = Math.min(255, Math.max(0, Math.floor(42 + toneVar * 0.7)));
+      const b = Math.min(255, Math.max(0, Math.floor(25 + toneVar * 0.5)));
 
-      // Wood grain ripples
-      ctx.strokeStyle = 'rgba(8, 6, 4, 0.35)';
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(x, 0, plankW - 3, h);
+
+      bctx.fillStyle = `rgb(${110 + (Math.random() - 0.5) * 30}, 110, 110)`;
+      bctx.fillRect(x, 0, plankW - 3, h);
+
+      // Vertical wood grain fibers
+      ctx.strokeStyle = 'rgba(25, 12, 6, 0.45)';
       ctx.lineWidth = 1.2;
-      for (let g = 0; g < 6; g++) {
+      for (let gIdx = 0; gIdx < 12; gIdx++) {
+        const gx = x + Math.random() * (plankW - 4);
         ctx.beginPath();
-        const gy = y + Math.random() * plankH;
-        ctx.moveTo(0, gy);
-        ctx.bezierCurveTo(250, gy + (Math.random() - 0.5) * 6, 750, gy + (Math.random() - 0.5) * 6, w, gy);
+        ctx.moveTo(gx, 0);
+        ctx.bezierCurveTo(
+          gx + (Math.random() - 0.5) * 4,
+          h * 0.35,
+          gx + (Math.random() - 0.5) * 4,
+          h * 0.75,
+          gx,
+          h
+        );
         ctx.stroke();
       }
 
-      // Deep dark gap shadow between boards
-      ctx.fillStyle = '#080605';
-      ctx.fillRect(0, y + plankH - 3, w, 3);
-      bctx.fillStyle = '#101010';
-      bctx.fillRect(0, y + plankH - 3, w, 3);
+      // Vertical crack seams and dark gap between adjacent planks
+      ctx.fillStyle = '#0a0604';
+      ctx.fillRect(x + plankW - 3, 0, 3, h);
+      bctx.fillStyle = '#080808';
+      bctx.fillRect(x + plankW - 3, 0, 3, h);
+
+      // Distressed flaking light-cyan / pale-blue paint patches (exact palette from user's photo)
+      const cyanTones = ['#729e9f', '#5e8e91', '#8bb4b5', '#4d7d81', '#9bc0c1'];
+      for (let flake = 0; flake < 25; flake++) {
+        const fx = x + Math.random() * (plankW - 10);
+        const fy = Math.random() * (h - 25);
+        const fw = 4 + Math.random() * (plankW * 0.65);
+        const fh = 6 + Math.random() * 45;
+
+        ctx.fillStyle = cyanTones[Math.floor(Math.random() * cyanTones.length)];
+        ctx.globalAlpha = 0.75 + Math.random() * 0.25;
+
+        // Ragged peeling paint edge
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + fw, fy + (Math.random() - 0.5) * 3);
+        ctx.lineTo(fx + fw * 0.9, fy + fh);
+        ctx.lineTo(fx + (Math.random() - 0.5) * 2, fy + fh * 0.85);
+        ctx.closePath();
+        ctx.fill();
+
+        bctx.fillStyle = '#d8d8d8';
+        bctx.fillRect(fx, fy, fw, fh);
+      }
+      ctx.globalAlpha = 1.0;
     }
 
-    // Peeling greenish-gray flaking paint on select boards (like Image 2)
-    ctx.fillStyle = 'rgba(52, 60, 50, 0.45)';
-    for (let p = 0; p < 35; p++) {
-      const px = Math.random() * (w - 120);
-      const py = Math.floor(Math.random() * (h / plankH)) * plankH;
-      ctx.fillRect(px, py, 60 + Math.random() * 120, plankH - 4);
-      bctx.fillStyle = '#c0c0c0';
-      bctx.fillRect(px, py, 60 + Math.random() * 120, plankH - 4);
-    }
+    // Grimy edge dirt and subtle vignette
+    const topVignette = ctx.createLinearGradient(0, 0, 0, 70);
+    topVignette.addColorStop(0, 'rgba(10, 8, 6, 0.75)');
+    topVignette.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = topVignette;
+    ctx.fillRect(0, 0, w, 70);
 
-    // Heavy water leaks pooling from ceiling downwards
-    for (let l = 0; l < 25; l++) {
-      const lx = Math.random() * w;
-      const lw = 8 + Math.random() * 20;
-      const lh = 120 + Math.random() * 260;
-      const grad = ctx.createLinearGradient(lx, 0, lx, lh);
-      grad.addColorStop(0, 'rgba(8, 12, 8, 0.85)');
-      grad.addColorStop(0.6, 'rgba(18, 24, 16, 0.45)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(lx, 0, lw, lh);
-    }
-
-    // Mold colonies on bottom edge
-    const moldGrad = ctx.createLinearGradient(0, 420, 0, h);
-    moldGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    moldGrad.addColorStop(1, 'rgba(8, 16, 10, 0.8)');
-    ctx.fillStyle = moldGrad;
-    ctx.fillRect(0, 420, w, 92);
+    const botVignette = ctx.createLinearGradient(0, h - 90, 0, h);
+    botVignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    botVignette.addColorStop(1, 'rgba(8, 6, 4, 0.85)');
+    ctx.fillStyle = botVignette;
+    ctx.fillRect(0, h - 90, w, 90);
 
     const map = new THREE.CanvasTexture(canvas);
-    map.wrapS = THREE.ClampToEdgeWrapping;
-    map.wrapT = THREE.ClampToEdgeWrapping;
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
 
     const bump = new THREE.CanvasTexture(bumpCanvas);
-    bump.wrapS = THREE.ClampToEdgeWrapping;
-    bump.wrapT = THREE.ClampToEdgeWrapping;
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
 
     return { map, bump };
   }
@@ -2032,141 +2055,110 @@ export class TextureGenerator {
     bumpCanvas.height = h;
     const bctx = bumpCanvas.getContext('2d')!;
 
-    // Base cold weathered concrete (gray to off-white tones matching reference image)
-    const bgGrad = ctx.createLinearGradient(0, 0, w, h);
-    bgGrad.addColorStop(0, '#686b6a');
-    bgGrad.addColorStop(0.4, '#8c908e');
-    bgGrad.addColorStop(0.7, '#747775');
-    bgGrad.addColorStop(1, '#565958');
-    ctx.fillStyle = bgGrad;
+    // Base aged timber (warm gray-brown)
+    ctx.fillStyle = '#423a32';
     ctx.fillRect(0, 0, w, h);
-
-    bctx.fillStyle = '#808080';
+    bctx.fillStyle = '#707070';
     bctx.fillRect(0, 0, w, h);
 
-    // Fine concrete grain and stippling
-    for (let i = 0; i < 6000; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      const r = Math.random() * 4;
-      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30, 32, 31, 0.25)' : 'rgba(215, 220, 218, 0.2)';
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
+    // Vertical aged wood planks with seafoam turquoise peeling paint (matching user reference image textura_madera4)
+    const plankCount = 16;
+    const plankW = w / plankCount;
 
-      bctx.fillStyle = Math.random() > 0.5 ? 'rgba(40, 40, 40, 0.3)' : 'rgba(200, 200, 200, 0.2)';
-      bctx.beginPath();
-      bctx.arc(x, y, r, 0, Math.PI * 2);
-      bctx.fill();
-    }
+    for (let p = 0; p < plankCount; p++) {
+      const x = p * plankW;
+      const toneVar = (Math.random() - 0.5) * 16;
+      const baseR = Math.min(255, Math.max(0, Math.floor(75 + toneVar)));
+      const baseG = Math.min(255, Math.max(0, Math.floor(66 + toneVar * 0.8)));
+      const baseB = Math.min(255, Math.max(0, Math.floor(54 + toneVar * 0.6)));
+      ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
+      ctx.fillRect(x, 0, plankW - 2, h);
 
-    // Heavy black soot and water damage clouds across upper left & middle (matching photo)
-    for (let s = 0; s < 45; s++) {
-      const sx = Math.random() * (w * 0.75);
-      const sy = Math.random() * (h * 0.85);
-      const srad = 30 + Math.random() * 90;
-      const soot = ctx.createRadialGradient(sx, sy, 5, sx, sy, srad);
-      soot.addColorStop(0, 'rgba(18, 19, 20, 0.7)');
-      soot.addColorStop(0.5, 'rgba(32, 34, 35, 0.45)');
-      soot.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = soot;
-      ctx.beginPath();
-      ctx.arc(sx, sy, srad, 0, Math.PI * 2);
-      ctx.fill();
-    }
+      bctx.fillStyle = `rgb(${110 + (Math.random() - 0.5) * 25}, 110, 110)`;
+      bctx.fillRect(x, 0, plankW - 2, h);
 
-    // Black mold spatter colonies (distinctive dark speckles and clusters from photo)
-    for (let cluster = 0; cluster < 60; cluster++) {
-      const cx = (w * 0.35) + Math.random() * (w * 0.6);
-      const cy = 40 + Math.random() * 380;
-      const count = 5 + Math.floor(Math.random() * 20);
-
-      for (let k = 0; k < count; k++) {
-        const kx = cx + (Math.random() - 0.5) * 60;
-        const ky = cy + (Math.random() - 0.5) * 50;
-        const kr = 2 + Math.random() * 7;
-        ctx.fillStyle = 'rgba(12, 13, 14, 0.85)';
+      // Fine vertical wood grain ridges
+      ctx.strokeStyle = 'rgba(30, 24, 18, 0.45)';
+      ctx.lineWidth = 1.1;
+      for (let g = 0; g < 14; g++) {
+        const gx = x + Math.random() * (plankW - 4);
         ctx.beginPath();
-        ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+        ctx.moveTo(gx, 0);
+        ctx.bezierCurveTo(
+          gx + (Math.random() - 0.5) * 3,
+          h * 0.33,
+          gx + (Math.random() - 0.5) * 3,
+          h * 0.67,
+          gx,
+          h
+        );
+        ctx.stroke();
+      }
+
+      // Vertical plank seam gap and dark shadow
+      ctx.fillStyle = '#110e0a';
+      ctx.fillRect(x + plankW - 2, 0, 2, h);
+      bctx.fillStyle = '#080808';
+      bctx.fillRect(x + plankW - 2, 0, 2, h);
+
+      // Distressed flaking seafoam green / turquoise paint patches (exact palette from user's photo)
+      const seafoamTones = ['#6ba398', '#589186', '#7cb3a9', '#4d8278', '#86c2b7', '#5f8f82'];
+      for (let f = 0; f < 30; f++) {
+        const fx = x + Math.random() * (plankW - 6);
+        const fy = Math.random() * (h - 20);
+        const fw = 3 + Math.random() * (plankW * 0.7);
+        const fh = 6 + Math.random() * 45;
+
+        ctx.fillStyle = seafoamTones[Math.floor(Math.random() * seafoamTones.length)];
+        ctx.globalAlpha = 0.75 + Math.random() * 0.25;
+
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + fw, fy + (Math.random() - 0.5) * 2);
+        ctx.lineTo(fx + fw * 0.9, fy + fh);
+        ctx.lineTo(fx, fy + fh * 0.9);
+        ctx.closePath();
         ctx.fill();
 
-        bctx.fillStyle = '#101010';
+        bctx.fillStyle = '#cecece';
+        bctx.fillRect(fx, fy, fw, fh);
+      }
+      ctx.globalAlpha = 1.0;
+
+      // Dark round rusted iron nail heads along the plank (Image detail)
+      if (Math.random() > 0.2) {
+        const nailY = 60 + Math.random() * (h - 120);
+        const nailX = x + plankW * 0.5 + (Math.random() - 0.5) * 6;
+
+        // Rust stain halo around nail
+        const halo = ctx.createRadialGradient(nailX, nailY, 1, nailX, nailY, 8);
+        halo.addColorStop(0, 'rgba(90, 45, 15, 0.6)');
+        halo.addColorStop(1, 'rgba(90, 45, 15, 0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(nailX, nailY, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dark iron nail head
+        ctx.fillStyle = '#141210';
+        ctx.beginPath();
+        ctx.arc(nailX, nailY, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        bctx.fillStyle = '#e8e8e8';
         bctx.beginPath();
-        bctx.arc(kx, ky, kr, 0, Math.PI * 2);
+        bctx.arc(nailX, nailY, 2.8, 0, Math.PI * 2);
         bctx.fill();
       }
-    }
-
-    // Vertical dark moisture drip trails running down from top
-    for (let d = 0; d < 30; d++) {
-      const dx = Math.random() * w;
-      const dlen = 80 + Math.random() * 320;
-      const dgrad = ctx.createLinearGradient(dx, 0, dx, dlen);
-      dgrad.addColorStop(0, 'rgba(15, 16, 17, 0.8)');
-      dgrad.addColorStop(0.4, 'rgba(25, 27, 28, 0.45)');
-      dgrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = dgrad;
-      ctx.fillRect(dx - 2, 0, 4 + Math.random() * 8, dlen);
-    }
-
-    // Chipped flaking plaster pits revealing dark interior masonry (like in photo lower-left)
-    for (let p = 0; p < 12; p++) {
-      const px = 40 + Math.random() * (w * 0.4);
-      const py = 120 + Math.random() * 300;
-      const pr = 15 + Math.random() * 35;
-
-      ctx.fillStyle = '#222425';
-      ctx.beginPath();
-      ctx.ellipse(px, py, pr, pr * 1.4, 0.1, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Sharp white chipped rim
-      ctx.strokeStyle = '#c5cac8';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      bctx.fillStyle = '#151515';
-      bctx.beginPath();
-      bctx.ellipse(px, py, pr, pr * 1.4, 0.1, 0, Math.PI * 2);
-      bctx.fill();
-    }
-
-    // Horizontal concrete seam/joint line near bottom third (matching photo)
-    const seamY = 410;
-    ctx.strokeStyle = '#1a1c1d';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(0, seamY);
-    ctx.bezierCurveTo(300, seamY + 2, 700, seamY - 2, w, seamY + 1);
-    ctx.stroke();
-
-    bctx.strokeStyle = '#050505';
-    bctx.lineWidth = 4;
-    bctx.beginPath();
-    bctx.moveTo(0, seamY);
-    bctx.bezierCurveTo(300, seamY + 2, 700, seamY - 2, w, seamY + 1);
-    bctx.stroke();
-
-    // Secondary fine cracks along seam
-    ctx.strokeStyle = 'rgba(20, 22, 23, 0.55)';
-    ctx.lineWidth = 1.5;
-    for (let c = 0; c < 5; c++) {
-      const cx = Math.random() * w;
-      ctx.beginPath();
-      ctx.moveTo(cx, seamY);
-      ctx.lineTo(cx + (Math.random() - 0.5) * 40, seamY + 35);
-      ctx.stroke();
     }
 
     const map = new THREE.CanvasTexture(canvas);
     map.wrapS = THREE.RepeatWrapping;
     map.wrapT = THREE.RepeatWrapping;
-    map.repeat.set(3, 1);
 
     const bump = new THREE.CanvasTexture(bumpCanvas);
     bump.wrapS = THREE.RepeatWrapping;
     bump.wrapT = THREE.RepeatWrapping;
-    bump.repeat.set(3, 1);
 
     return { map, bump };
   }
@@ -2191,78 +2183,98 @@ export class TextureGenerator {
     bumpCanvas.height = h;
     const bctx = bumpCanvas.getContext('2d')!;
 
-    // Dark iron base
-    ctx.fillStyle = '#1c1b18';
+    // Pale weathered whitewashed wood base (grayish off-white with cool blue-gray undertones)
+    ctx.fillStyle = '#b5bcc2';
     ctx.fillRect(0, 0, w, h);
-    bctx.fillStyle = '#606060';
+    bctx.fillStyle = '#808080';
     bctx.fillRect(0, 0, w, h);
 
-    // Vertical steel panel seams with rivet dots
-    ctx.strokeStyle = '#100e0c';
-    ctx.lineWidth = 4;
-    for (let x = 120; x < w; x += 160) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
+    // Vertical weathered wood planks (matching user reference image textura_madera3)
+    const plankCount = 14;
+    const plankW = w / plankCount;
 
-      bctx.strokeStyle = '#202020';
-      bctx.lineWidth = 5;
-      bctx.beginPath();
-      bctx.moveTo(x, 0);
-      bctx.lineTo(x, h);
-      bctx.stroke();
+    for (let p = 0; p < plankCount; p++) {
+      const x = p * plankW;
+      const toneVar = (Math.random() - 0.5) * 18;
+      const baseLuma = Math.min(235, Math.max(160, Math.floor(190 + toneVar)));
+      ctx.fillStyle = `rgb(${baseLuma - 4}, ${baseLuma}, ${baseLuma + 4})`;
+      ctx.fillRect(x, 0, plankW - 3, h);
 
-      // Rivets
-      for (let y = 15; y < h; y += 35) {
-        ctx.fillStyle = '#3a342c';
+      bctx.fillStyle = `rgb(${120 + (Math.random() - 0.5) * 30}, 120, 120)`;
+      bctx.fillRect(x, 0, plankW - 3, h);
+
+      // Vertical weathered wood grain lines & fissures
+      ctx.strokeStyle = 'rgba(75, 82, 88, 0.45)';
+      ctx.lineWidth = 1.2;
+      for (let g = 0; g < 15; g++) {
+        const gx = x + Math.random() * (plankW - 4);
         ctx.beginPath();
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.moveTo(gx, 0);
+        ctx.bezierCurveTo(
+          gx + (Math.random() - 0.5) * 4,
+          h * 0.35,
+          gx + (Math.random() - 0.5) * 4,
+          h * 0.75,
+          gx,
+          h
+        );
+        ctx.stroke();
+      }
+
+      // Deeper aged fissures and crack fissures along planks
+      ctx.strokeStyle = 'rgba(45, 50, 55, 0.65)';
+      ctx.lineWidth = 1.8;
+      for (let f = 0; f < 3; f++) {
+        const fx = x + Math.random() * (plankW - 4);
+        const fy = Math.random() * (h * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + (Math.random() - 0.5) * 2, fy + 40 + Math.random() * 80);
+        ctx.stroke();
+      }
+
+      // Dark joint seam and shadow groove between planks
+      ctx.fillStyle = '#22252a';
+      ctx.fillRect(x + plankW - 3, 0, 3, h);
+      bctx.fillStyle = '#101010';
+      bctx.fillRect(x + plankW - 3, 0, 3, h);
+
+      // Pale greenish-yellow moss / lichen patches (matching reference photo)
+      const lichenTones = ['#a2ab82', '#b3bd91', '#939e72', '#c1caa2', '#889467'];
+      for (let l = 0; l < 20; l++) {
+        const lx = x + Math.random() * (plankW - 8);
+        const ly = Math.random() * (h - 20);
+        const lw = 4 + Math.random() * (plankW * 0.6);
+        const lh = 8 + Math.random() * 35;
+
+        ctx.fillStyle = lichenTones[Math.floor(Math.random() * lichenTones.length)];
+        ctx.globalAlpha = 0.55 + Math.random() * 0.35;
+
+        ctx.beginPath();
+        ctx.arc(lx, ly, Math.min(lw, lh) * 0.5, 0, Math.PI * 2);
         ctx.fill();
 
-        bctx.fillStyle = '#d0d0d0';
-        bctx.beginPath();
-        bctx.arc(x, y, 3.5, 0, Math.PI * 2);
-        bctx.fill();
+        bctx.fillStyle = '#d5d5d5';
+        bctx.fillRect(lx - 2, ly - 2, 4, 4);
       }
+      ctx.globalAlpha = 1.0;
     }
 
-    // Heavy vibrant bubbling orange-red rust crust (matching Image 1's iconic rust)
-    for (let r = 0; r < 70; r++) {
-      const rx = Math.random() * w;
-      const ry = Math.random() * h;
-      const rad = 15 + Math.random() * 45;
-
-      const rustGrad = ctx.createRadialGradient(rx, ry, 2, rx, ry, rad);
-      rustGrad.addColorStop(0, 'rgba(138, 48, 14, 0.85)');
-      rustGrad.addColorStop(0.5, 'rgba(88, 30, 10, 0.65)');
-      rustGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = rustGrad;
-      ctx.beginPath();
-      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
-      ctx.fill();
-
-      bctx.fillStyle = 'rgba(230, 230, 230, 0.4)';
-      bctx.beginPath();
-      bctx.arc(rx, ry, rad * 0.7, 0, Math.PI * 2);
-      bctx.fill();
-    }
-
-    // Electrical soot blowout around the fuse box area (x: 420 to 580)
-    const sootGrad = ctx.createRadialGradient(480, 240, 20, 480, 240, 160);
-    sootGrad.addColorStop(0, 'rgba(5, 5, 5, 0.9)');
-    sootGrad.addColorStop(0.6, 'rgba(15, 12, 10, 0.6)');
-    sootGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = sootGrad;
-    ctx.fillRect(320, 100, 320, 280);
+    // Weathered rotting dark base at bottom of planks (Y near floor)
+    const rotGrad = ctx.createLinearGradient(0, h - 85, 0, h);
+    rotGrad.addColorStop(0, 'rgba(40, 42, 40, 0)');
+    rotGrad.addColorStop(0.5, 'rgba(28, 30, 26, 0.7)');
+    rotGrad.addColorStop(1, 'rgba(15, 16, 14, 0.95)');
+    ctx.fillStyle = rotGrad;
+    ctx.fillRect(0, h - 85, w, 85);
 
     const map = new THREE.CanvasTexture(canvas);
-    map.wrapS = THREE.ClampToEdgeWrapping;
-    map.wrapT = THREE.ClampToEdgeWrapping;
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
 
     const bump = new THREE.CanvasTexture(bumpCanvas);
-    bump.wrapS = THREE.ClampToEdgeWrapping;
-    bump.wrapT = THREE.ClampToEdgeWrapping;
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
 
     return { map, bump };
   }
