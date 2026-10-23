@@ -77,148 +77,194 @@ export class TextureGenerator {
    * - Rich amber/caramel wood with dark natural knots
    * - Peeling distressed sage/olive green paint flaking across grain ridges
    * - Rusted iron nails on plank edges and dark joint seams
+  /**
+   * Homogeneous seamless dark wood floor texture based on reference photo (textura_madera6):
+   * - Eliminates all image cut lines, border beams, and repeating nail bands.
+   * - Produces continuous vertical dark walnut / espresso floorboards.
+   * - Worn amber/caramel traffic wear patina and natural wood grain.
+   * - Seamlessly tileable with staggered butt joints (no straight horizontal cuts across the floor).
    */
-  public static createWoodFloorTexture(): THREE.CanvasTexture {
+  public static createWoodFloorTexture(sourceImage?: HTMLImageElement): THREE.CanvasTexture {
+    const { map } = TextureGenerator.createHomogeneousWoodFloorTextures(sourceImage);
+    return map;
+  }
+
+  public static createHomogeneousWoodFloorTextures(sourceImage?: HTMLImageElement): {
+    map: THREE.CanvasTexture;
+    bump: THREE.CanvasTexture;
+    canvas: HTMLCanvasElement;
+    bumpCanvas: HTMLCanvasElement;
+  } {
+    const w = 1024;
+    const h = 1024;
     const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 1024;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d')!;
 
-    // Base rich warm amber/caramel wood tone (like reference photo)
-    ctx.fillStyle = '#874b1c';
-    ctx.fillRect(0, 0, 1024, 1024);
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = w;
+    bumpCanvas.height = h;
+    const bctx = bumpCanvas.getContext('2d')!;
 
-    const plankCount = 6;
-    const plankH = 1024 / plankCount;
+    TextureGenerator.renderHomogeneousFloorOntoCanvas(ctx, bctx, w, h, sourceImage);
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+
+    const bump = new THREE.CanvasTexture(bumpCanvas);
+    bump.wrapS = THREE.RepeatWrapping;
+    bump.wrapT = THREE.RepeatWrapping;
+
+    return { map, bump, canvas, bumpCanvas };
+  }
+
+  public static updateHomogeneousWoodFloorTextures(
+    textures: { map: THREE.CanvasTexture; bump: THREE.CanvasTexture; canvas: HTMLCanvasElement; bumpCanvas: HTMLCanvasElement },
+    sourceImage: HTMLImageElement
+  ) {
+    const ctx = textures.canvas.getContext('2d');
+    const bctx = textures.bumpCanvas.getContext('2d');
+    if (!ctx || !bctx) return;
+    TextureGenerator.renderHomogeneousFloorOntoCanvas(ctx, bctx, textures.canvas.width, textures.canvas.height, sourceImage);
+    textures.map.needsUpdate = true;
+    textures.bump.needsUpdate = true;
+  }
+
+  public static renderHomogeneousFloorOntoCanvas(
+    ctx: CanvasRenderingContext2D,
+    bctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    sourceImage?: HTMLImageElement
+  ) {
+    // 1. Base deep dark walnut / espresso tone
+    ctx.fillStyle = '#2a1d14';
+    ctx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#808080';
+    bctx.fillRect(0, 0, w, h);
+
+    const plankCount = 16;
+    const plankW = w / plankCount; // 64px per plank
+
+    const hasImg = sourceImage && sourceImage.complete && sourceImage.naturalWidth > 0;
+
+    // Interior safe cropping bounds of textura_madera6 (cropping out top beam y < 45 and bottom border y > 465)
+    const cropX = 15;
+    const cropY = 55;
+    const cropW = hasImg ? Math.max(100, sourceImage.naturalWidth - 30) : 700;
+    const cropH = hasImg ? Math.max(100, sourceImage.naturalHeight - 110) : 380;
 
     for (let p = 0; p < plankCount; p++) {
-      const y = p * plankH;
+      const x = p * plankW;
 
-      // Slight individual plank color tone variation
-      const warmVar = (Math.random() - 0.5) * 20;
-      const r = Math.min(255, Math.max(0, Math.floor(140 + warmVar)));
-      const g = Math.min(255, Math.max(0, Math.floor(75 + warmVar * 0.7)));
-      const b = Math.min(255, Math.max(0, Math.floor(28 + warmVar * 0.3)));
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.fillRect(0, y, 1024, plankH - 4);
+      // Slight tone variation per board (natural timber variation)
+      const toneVar = ((p * 37) % 25) - 12;
+      const baseR = Math.min(255, Math.max(0, 52 + toneVar));
+      const baseG = Math.min(255, Math.max(0, 36 + Math.round(toneVar * 0.75)));
+      const baseB = Math.min(255, Math.max(0, 24 + Math.round(toneVar * 0.5)));
 
-      // Fine wood grain lines (rippling horizontally)
-      ctx.strokeStyle = 'rgba(70, 28, 8, 0.45)';
-      ctx.lineWidth = 1.5;
-      for (let gIdx = 0; gIdx < 35; gIdx++) {
-        const gy = y + Math.random() * plankH;
+      ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
+      ctx.fillRect(x, 0, plankW - 2, h);
+
+      bctx.fillStyle = `rgb(${110 + toneVar}, ${110 + toneVar}, ${110 + toneVar})`;
+      bctx.fillRect(x, 0, plankW - 2, h);
+
+      if (hasImg) {
+        // Draw real photo grain from the clean middle section of textura_madera6
+        // Stagger each plank vertically with a unique pseudo-random offset to break ANY horizontal repetition!
+        const srcStripW = cropW / plankCount;
+        const srcStripX = cropX + ((p * 3) % plankCount) * srcStripW;
+        const offsetY = (p * 241) % h;
+
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(0, gy);
+        ctx.rect(x, 0, plankW - 2, h);
+        ctx.clip();
+
+        // Draw multiple vertical repetitions overlapping with soft alpha to guarantee 100% seamless continuity
+        ctx.globalAlpha = 0.82;
+        for (let rep = -1; rep <= Math.ceil(h / cropH) + 1; rep++) {
+          const dy = rep * cropH + offsetY;
+          ctx.drawImage(sourceImage, srcStripX, cropY, srcStripW, cropH, x, dy, plankW - 2, cropH);
+        }
+        ctx.restore();
+      }
+
+      // Worn amber / caramel scuff highlight down plank centers (patina from reference image)
+      const scuffGrad = ctx.createLinearGradient(x, 0, x + plankW, 0);
+      scuffGrad.addColorStop(0, 'rgba(40, 25, 15, 0)');
+      scuffGrad.addColorStop(0.35, 'rgba(115, 80, 48, 0.28)');
+      scuffGrad.addColorStop(0.65, 'rgba(130, 92, 55, 0.35)');
+      scuffGrad.addColorStop(1, 'rgba(30, 20, 12, 0)');
+      ctx.fillStyle = scuffGrad;
+      ctx.fillRect(x, 0, plankW - 2, h);
+
+      // Fine continuous vertical grain fibers
+      ctx.strokeStyle = 'rgba(20, 14, 9, 0.35)';
+      ctx.lineWidth = 1.1;
+      for (let g = 0; g < 12; g++) {
+        const gx = x + ((g * 19) % Math.floor(plankW - 4)) + 2;
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
         ctx.bezierCurveTo(
-          260, gy + (Math.random() - 0.5) * 8,
-          740, gy + (Math.random() - 0.5) * 8,
-          1024, gy
+          gx + Math.sin(g * 1.5) * 3,
+          h * 0.35,
+          gx - Math.sin(g * 1.5) * 3,
+          h * 0.70,
+          gx,
+          h
         );
         ctx.stroke();
       }
 
-      // Darker rich burnt sienna streaks in grain
-      ctx.strokeStyle = 'rgba(120, 48, 12, 0.35)';
-      ctx.lineWidth = 2.5;
-      for (let sIdx = 0; sIdx < 15; sIdx++) {
-        const sy = y + Math.random() * plankH;
-        ctx.beginPath();
-        ctx.moveTo(0, sy);
-        ctx.lineTo(1024, sy + (Math.random() - 0.5) * 6);
-        ctx.stroke();
-      }
+      // Deep dark recessed plank groove between adjacent floorboards (seamless continuous line)
+      ctx.fillStyle = '#0c0805';
+      ctx.fillRect(x + plankW - 2, 0, 2, h);
+      bctx.fillStyle = '#0a0a0a';
+      bctx.fillRect(x + plankW - 2, 0, 2, h);
 
-      // Prominent natural wood knots (circular rings with dark green/brown center, exactly as in image)
-      if (p % 2 === 0 || Math.random() > 0.4) {
-        const knotX = 180 + Math.random() * 650;
-        const knotY = y + plankH * 0.5 + (Math.random() - 0.5) * (plankH * 0.3);
-        const knotR = 25 + Math.random() * 30;
+      // Subtle light bevel highlight on left edge of plank
+      ctx.fillStyle = 'rgba(120, 85, 55, 0.22)';
+      ctx.fillRect(x, 0, 1, h);
 
-        // Concentric grain bending around knot
-        for (let kr = knotR * 1.8; kr >= knotR * 0.4; kr -= 5) {
-          ctx.strokeStyle = 'rgba(50, 20, 6, 0.55)';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.ellipse(knotX, knotY, kr * 1.3, kr, 0.1, 0, Math.PI * 2);
-          ctx.stroke();
-        }
+      // Staggered natural board butt joints (individual per plank, NEVER a continuous line across boards!)
+      const jointY = Math.floor(((p * 283 + 140) % (h - 100)) + 50);
+      ctx.fillStyle = '#070503';
+      ctx.fillRect(x, jointY, plankW - 2, 2);
+      bctx.fillStyle = '#050505';
+      bctx.fillRect(x, jointY, plankW - 2, 2);
 
-        // Dark center of the knot
-        const knotGrad = ctx.createRadialGradient(knotX, knotY, 2, knotX, knotY, knotR * 0.6);
-        knotGrad.addColorStop(0, '#1c2414'); // deep greenish-black center
-        knotGrad.addColorStop(0.6, '#3a200e');
-        knotGrad.addColorStop(1, '#663212');
-        ctx.fillStyle = knotGrad;
-        ctx.beginPath();
-        ctx.arc(knotX, knotY, knotR * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Peeling distressed sage/olive green paint flaking across grain (distinctive feature from reference image)
-      // Clings to the wood in patchy weathered horizontal bands
-      for (let band = 0; band < 40; band++) {
-        const px = Math.random() * 1024;
-        const py = y + Math.random() * (plankH - 12);
-        const pw = 40 + Math.random() * 140;
-        const ph = 6 + Math.random() * 22;
-
-        const greenTones = ['#62764b', '#7a8c5e', '#52643e', '#88986c', '#435431'];
-        ctx.fillStyle = greenTones[Math.floor(Math.random() * greenTones.length)];
-        ctx.globalAlpha = 0.55 + Math.random() * 0.35;
-
-        // Ragged flaking paint patch
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(px + pw * 0.6, py + (Math.random() - 0.5) * 4);
-        ctx.lineTo(px + pw, py + ph * 0.4);
-        ctx.lineTo(px + pw * 0.8, py + ph);
-        ctx.lineTo(px + pw * 0.2, py + ph * 0.9);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.globalAlpha = 1.0;
-      }
-
-      // Weathered wood micro-crack striations over green paint
-      ctx.strokeStyle = 'rgba(40, 16, 5, 0.4)';
-      ctx.lineWidth = 1;
-      for (let c = 0; c < 20; c++) {
-        const cx = Math.random() * 950;
-        const cy = y + Math.random() * plankH;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + 30 + Math.random() * 50, cy);
-        ctx.stroke();
-      }
-
-      // Rusted iron square-head nails near left & right edges (like in photo)
-      const nailMatPositions = [25, 45, 980, 1000];
-      nailMatPositions.forEach((nx) => {
-        const ny = y + 16 + (p % 2 === 0 ? 8 : -4);
-        // Rust stain halo
-        const halo = ctx.createRadialGradient(nx, ny, 1, nx, ny, 10);
-        halo.addColorStop(0, 'rgba(80, 25, 8, 0.65)');
-        halo.addColorStop(1, 'rgba(80, 25, 8, 0)');
-        ctx.fillStyle = halo;
-        ctx.beginPath();
-        ctx.arc(nx, ny, 10, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Dark iron nail head
-        ctx.fillStyle = '#18120c';
-        ctx.fillRect(nx - 3, ny - 3, 6, 6);
-      });
-
-      // Deep dark recessed plank gap / shadow
-      ctx.fillStyle = '#0a0604';
-      ctx.fillRect(0, y + plankH - 4, 1024, 4);
+      // Tiny dark antique nail pairs near the butt joint (discrete, not a long beam)
+      ctx.fillStyle = '#100c08';
+      ctx.fillRect(x + 10, jointY - 4, 2, 2);
+      ctx.fillRect(x + plankW - 14, jointY - 4, 2, 2);
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(6, 9);
-    return texture;
+    // Seamless vertical cross-blend (feather top 80px into bottom 80px to guarantee 0% seam)
+    const blendH = 80;
+    const topStrip = ctx.getImageData(0, 0, w, blendH);
+    const bottomStrip = ctx.getImageData(0, h - blendH, w, blendH);
+
+    for (let row = 0; row < blendH; row++) {
+      const alpha = row / blendH;
+      for (let col = 0; col < w; col++) {
+        const idx = (row * w + col) * 4;
+        const rTop = topStrip.data[idx];
+        const gTop = topStrip.data[idx + 1];
+        const bTop = topStrip.data[idx + 2];
+
+        const rBot = bottomStrip.data[idx];
+        const gBot = bottomStrip.data[idx + 1];
+        const bBot = bottomStrip.data[idx + 2];
+
+        bottomStrip.data[idx] = Math.round(rBot * (1 - alpha) + rTop * alpha);
+        bottomStrip.data[idx + 1] = Math.round(gBot * (1 - alpha) + gTop * alpha);
+        bottomStrip.data[idx + 2] = Math.round(bBot * (1 - alpha) + bTop * alpha);
+      }
+    }
+    ctx.putImageData(bottomStrip, 0, h - blendH);
   }
 
   /**

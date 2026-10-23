@@ -362,33 +362,31 @@ export class EscapeRoomScene {
     );
 
     // Floor Material (Weathered wood with peeling sage green paint matching user's photo)
+    // Floor Textures (Homogeneous seamless dark wood floor based on textura_madera6)
+    const floorTextures = TextureGenerator.createHomogeneousWoodFloorTextures();
+    // 4 repeats across 10m width gives ~15.6cm realistic board width, 4 repeats across 12m depth gives 3m boards
+    floorTextures.map.repeat.set(4, 4);
+    floorTextures.bump.repeat.set(4, 4);
+
     const floorMat = new THREE.MeshStandardMaterial({
-      map: floorTex,
-      bumpMap: floorTex,
+      map: floorTextures.map,
+      bumpMap: floorTextures.bump,
       bumpScale: 0.045,
-      roughness: 0.78,
-      metalness: 0.05,
+      roughness: 0.76,
+      metalness: 0.04,
     });
 
-    // Directly load the user's uploaded high-resolution reference photo for the floor
-    // Scaled down (repeat 6x9) to eliminate the large zoomed-in plank effect
-    textureLoader.load(
-      '/assets/aistudio/maderas_gastadas_b8cf7d6a.jpg',
-      (loadedTexture) => {
-        loadedTexture.wrapS = THREE.RepeatWrapping;
-        loadedTexture.wrapT = THREE.RepeatWrapping;
-        loadedTexture.repeat.set(6, 9); // Scaled down: more realistic, narrower floorboards
-        loadedTexture.colorSpace = THREE.SRGBColorSpace;
-        floorMat.map = loadedTexture;
-        floorMat.bumpMap = loadedTexture;
-        floorMat.bumpScale = 0.045;
-        floorMat.needsUpdate = true;
-      },
-      undefined,
-      (err) => {
-        console.warn('Could not load custom floor texture image, procedural fallback active:', err);
-      }
-    );
+    // Seamlessly blend real grain from the clean interior of textura_madera6 (cropping out border beams)
+    const floorImg = new Image();
+    floorImg.crossOrigin = 'anonymous';
+    floorImg.onload = () => {
+      TextureGenerator.updateHomogeneousWoodFloorTextures(floorTextures, floorImg);
+      floorMat.needsUpdate = true;
+    };
+    floorImg.onerror = () => {
+      floorImg.src = '/imgs/textura_madera6.jpg';
+    };
+    floorImg.src = '/assets/aistudio/textura_madera6_4d492d66.jpg';
 
     const ceilingMat = new THREE.MeshStandardMaterial({
       color: 0x1a1a1c,
@@ -2565,14 +2563,43 @@ export class EscapeRoomScene {
     });
 
     const woodPlankTex = TextureGenerator.createWoodFloorTexture();
-    woodPlankTex.repeat.set(5, 5);
     const bedroomFloorMat = new THREE.MeshStandardMaterial({
       map: woodPlankTex,
       bumpMap: woodPlankTex,
       bumpScale: 0.045,
-      roughness: 0.82,
+      roughness: 0.78,
       metalness: 0.05,
     });
+
+    const bedroomTexLoader = new THREE.TextureLoader();
+    bedroomTexLoader.load(
+      '/assets/aistudio/textura_madera6_4d492d66.jpg',
+      (loadedBedFloor) => {
+        loadedBedFloor.wrapS = THREE.RepeatWrapping;
+        loadedBedFloor.wrapT = THREE.RepeatWrapping;
+        loadedBedFloor.repeat.set(1.92, 2.4); // Matching physical floorboard width & length
+        loadedBedFloor.colorSpace = THREE.SRGBColorSpace;
+        bedroomFloorMat.map = loadedBedFloor;
+        bedroomFloorMat.bumpMap = loadedBedFloor;
+        bedroomFloorMat.bumpScale = 0.055;
+        bedroomFloorMat.roughness = 0.76;
+        bedroomFloorMat.metalness = 0.04;
+        bedroomFloorMat.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        bedroomTexLoader.load('/imgs/textura_madera6.jpg', (fallbackBed) => {
+          fallbackBed.wrapS = THREE.RepeatWrapping;
+          fallbackBed.wrapT = THREE.RepeatWrapping;
+          fallbackBed.repeat.set(1.92, 2.4);
+          fallbackBed.colorSpace = THREE.SRGBColorSpace;
+          bedroomFloorMat.map = fallbackBed;
+          bedroomFloorMat.bumpMap = fallbackBed;
+          bedroomFloorMat.bumpScale = 0.055;
+          bedroomFloorMat.needsUpdate = true;
+        });
+      }
+    );
 
     const darkWoodMat = new THREE.MeshStandardMaterial({
       map: TextureGenerator.createDarkWoodFurnitureTexture(),
