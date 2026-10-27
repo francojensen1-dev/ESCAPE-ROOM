@@ -1,9 +1,9 @@
 /**
  * Virtual Analog Touch Joystick for Mobile First-Person Navigation
- * Uses Pointer Events with pointer capture to prevent losing touch tracking.
+ * Uses Pointer Events with global window tracking for smooth, stutter-free movement.
  */
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 interface VirtualJoystickProps {
   onMove: (vector: { x: number; y: number }) => void;
@@ -11,11 +11,62 @@ interface VirtualJoystickProps {
 
 export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
+  const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const activePointerId = useRef<number | null>(null);
 
   const radius = 50; // Maximum travel distance for the knob in pixels
+  const deadzone = 0.05;
+
+  const updateKnob = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.hypot(dx, dy);
+
+      let kx = dx;
+      let ky = dy;
+      if (dist > radius) {
+        const angle = Math.atan2(dy, dx);
+        kx = Math.cos(angle) * radius;
+        ky = Math.sin(angle) * radius;
+      }
+
+      if (knobRef.current) {
+        knobRef.current.style.transform = `translate3d(${kx}px, ${ky}px, 0px)`;
+      }
+
+      const normX = kx / radius;
+      const normY = -ky / radius;
+      const normLen = Math.hypot(normX, normY);
+
+      if (normLen < deadzone) {
+        onMove({ x: 0, y: 0 });
+      } else {
+        const scaledLen = (normLen - deadzone) / (1 - deadzone);
+        const angle = Math.atan2(normY, normX);
+        onMove({
+          x: Math.cos(angle) * scaledLen,
+          y: Math.sin(angle) * scaledLen,
+        });
+      }
+    },
+    [onMove]
+  );
+
+  const resetKnob = useCallback(() => {
+    activePointerId.current = null;
+    setIsDragging(false);
+    if (knobRef.current) {
+      knobRef.current.style.transform = 'translate3d(0px, 0px, 0px)';
+    }
+    onMove({ x: 0, y: 0 });
+  }, [onMove]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -23,66 +74,32 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
 
     activePointerId.current = e.pointerId;
     setIsDragging(true);
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Safe fallback if pointer capture fails
-    }
     updateKnob(e.clientX, e.clientY);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (activePointerId.current !== e.pointerId) return;
-    updateKnob(e.clientX, e.clientY);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (activePointerId.current !== e.pointerId) return;
-
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
+  useEffect(() => {
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      if (activePointerId.current === e.pointerId) {
+        updateKnob(e.clientX, e.clientY);
       }
-    } catch {
-      // Safe fallback
-    }
+    };
 
-    activePointerId.current = null;
-    setIsDragging(false);
-    setKnobPos({ x: 0, y: 0 });
-    onMove({ x: 0, y: 0 });
-  };
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      if (activePointerId.current === e.pointerId) {
+        resetKnob();
+      }
+    };
 
-  const updateKnob = (clientX: number, clientY: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+    window.addEventListener('pointermove', handleGlobalPointerMove, { passive: true });
+    window.addEventListener('pointerup', handleGlobalPointerUp, { passive: true });
+    window.addEventListener('pointercancel', handleGlobalPointerUp, { passive: true });
 
-    const dx = clientX - centerX;
-    const dy = clientY - centerY;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist <= radius) {
-      setKnobPos({ x: dx, y: dy });
-      // X: -1..1 (strafe left/right), Y: -1..1 (forward = positive Y, back = negative Y)
-      onMove({
-        x: dx / radius,
-        y: -dy / radius,
-      });
-    } else {
-      const angle = Math.atan2(dy, dx);
-      const kx = Math.cos(angle) * radius;
-      const ky = Math.sin(angle) * radius;
-      setKnobPos({ x: kx, y: ky });
-      onMove({
-        x: kx / radius,
-        y: -ky / radius,
-      });
-    }
-  };
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+    };
+  }, [updateKnob, resetKnob]);
 
   useEffect(() => {
     return () => {
@@ -94,9 +111,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
     <div
       ref={containerRef}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
       className={`relative w-32 h-32 rounded-full select-none touch-none flex items-center justify-center transition-all ${
         isDragging
           ? 'bg-amber-950/40 border-2 border-amber-500/70 shadow-[0_0_25px_rgba(245,158,11,0.35)] scale-105'
@@ -119,11 +133,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
 
       {/* Analog Thumb Knob */}
       <div
-        style={{
-          transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
-          transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
-        }}
-        className="w-14 h-14 rounded-full bg-gradient-to-b from-stone-700 via-stone-800 to-stone-950 border-2 border-amber-500/60 shadow-xl flex items-center justify-center pointer-events-none"
+        ref={knobRef}
+        className="w-14 h-14 rounded-full bg-gradient-to-b from-stone-700 via-stone-800 to-stone-950 border-2 border-amber-500/60 shadow-xl flex items-center justify-center pointer-events-none will-change-transform"
       >
         <div
           className={`w-4 h-4 rounded-full transition-colors ${

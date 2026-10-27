@@ -3386,8 +3386,6 @@ export class EscapeRoomScene {
    * vector: x (-1..1) for strafe, y (-1..1) for forward/back
    */
   public applyMovement(vector: { x: number; y: number }, delta: number) {
-    const moveSpeed = 2.4 * delta;
-
     // Movement forward/back & left/right relative to camera's horizontal yaw
     const currentYaw = this.touchYaw + this.gyroYaw;
     const forward = new THREE.Vector3(0, 0, -1);
@@ -3400,230 +3398,146 @@ export class EscapeRoomScene {
     right.y = 0;
     right.normalize();
 
-    const moveX = right.multiplyScalar(vector.x * moveSpeed);
-    const moveZ = forward.multiplyScalar(vector.y * moveSpeed);
+    const maxSpeed = 2.6; // Max speed in m/s
+    const targetVel = right
+      .multiplyScalar(vector.x * maxSpeed)
+      .add(forward.multiplyScalar(vector.y * maxSpeed));
 
-    const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
+    // Smooth velocity lerp for momentum and continuous fluid movement without jerky stops
+    const lerpFactor = Math.min(1.0, 16.0 * delta);
+    this.moveVelocity.lerp(targetVel, lerpFactor);
 
-    // Doorway opening to bathroom on East is at X = 5.0, between Z = 0.45 and Z = 2.35
-    const inBathroomDoorwayZ = nextPos.z >= 0.45 && nextPos.z <= 2.35;
-    // Doorway opening to new bedroom on West is at X = -5.0 (walkable opening between door post/panel at Z=1.30 and right post at Z=2.55)
-    const inBedroomDoorwayZ = nextPos.z >= 1.30 && nextPos.z <= 2.55;
+    if (this.moveVelocity.lengthSq() < 0.00001) {
+      this.moveVelocity.set(0, 0, 0);
+      return;
+    }
 
-    // Movement zones across 3 rooms:
-    // 1. East Bathroom: X [5.15, 11.0], Z [-1.6, 4.4]
-    // 2. Center Main Room: X [-4.2, 4.2], Z [-5.3, 5.2]
-    // 3. West Horror Bedroom: X [-10.8, -5.15], Z [-0.7, 5.5]
-    if (this.playerPosition.x >= -4.5 && this.playerPosition.x <= 4.5) {
-      // Currently inside Main Room
-      // Moving East towards Bathroom
-      if (nextPos.x > 4.2) {
-        if (inBathroomDoorwayZ && this.isBathroomUnlocked) {
-          nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
+    const moveStep = this.moveVelocity.clone().multiplyScalar(delta);
+
+    // Independent Axis Sliding: Attempt X movement first, then Z movement
+    const posPrev = this.playerPosition.clone();
+
+    // Step 1: Move along X
+    let tryX = new THREE.Vector3(posPrev.x + moveStep.x, posPrev.y, posPrev.z);
+    tryX = this.constrainPositionToBounds(tryX);
+
+    // Step 2: Move along Z
+    let tryZ = new THREE.Vector3(tryX.x, tryX.y, tryX.z + moveStep.z);
+    tryZ = this.constrainPositionToBounds(tryZ);
+
+    this.playerPosition.copy(tryZ);
+    this.camera.position.copy(this.playerPosition);
+  }
+
+  /**
+   * Minimum-penetration AABB collision helper for smooth wall & obstacle sliding
+   */
+  private collideBox(
+    pos: THREE.Vector3,
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+    margin = 0.2
+  ): THREE.Vector3 {
+    const eMinX = minX - margin;
+    const eMaxX = maxX + margin;
+    const eMinZ = minZ - margin;
+    const eMaxZ = maxZ + margin;
+
+    if (pos.x > eMinX && pos.x < eMaxX && pos.z > eMinZ && pos.z < eMaxZ) {
+      const dxLeft = Math.abs(pos.x - eMinX);
+      const dxRight = Math.abs(pos.x - eMaxX);
+      const dzBottom = Math.abs(pos.z - eMinZ);
+      const dzTop = Math.abs(pos.z - eMaxZ);
+
+      const minPen = Math.min(dxLeft, dxRight, dzBottom, dzTop);
+
+      if (minPen === dxLeft) pos.x = eMinX;
+      else if (minPen === dxRight) pos.x = eMaxX;
+      else if (minPen === dzBottom) pos.z = eMinZ;
+      else pos.z = eMaxZ;
+    }
+    return pos;
+  }
+
+  /**
+   * Constrain position across Main Room, Bathroom, Bedroom and all scene obstacles
+   */
+  private constrainPositionToBounds(pos: THREE.Vector3): THREE.Vector3 {
+    // 1. Room Shell & Doorway Transitions
+    if (pos.x > 4.2) {
+      // East Side / Bathroom direction
+      const inBathroomDoorZ = pos.z >= 0.45 && pos.z <= 2.35;
+      if (this.isBathroomUnlocked && inBathroomDoorZ) {
+        pos.x = Math.min(10.8, pos.x);
+        if (pos.x > 4.8) {
+          pos.z = Math.max(-1.6, Math.min(4.4, pos.z));
         } else {
-          nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
-        }
-      }
-      // Moving West towards Bedroom
-      else if (nextPos.x < -4.2) {
-        if (inBedroomDoorwayZ) {
-          nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
-        } else {
-          nextPos.x = Math.max(-4.2, nextPos.x);
-        }
-      }
-      nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
-    } else if (this.playerPosition.x > 4.5) {
-      // Currently inside or in doorway of Bathroom
-      if (inBathroomDoorwayZ) {
-        nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
-        if (nextPos.x > 4.8) {
-          nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
-        } else {
-          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+          pos.z = Math.max(0.45, Math.min(2.35, pos.z));
         }
       } else {
-        nextPos.x = Math.max(5.15, Math.min(11.0, nextPos.x));
-        nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
+        pos.x = Math.min(4.2, pos.x);
+        pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
+      }
+    } else if (pos.x < -4.2) {
+      // West Side / Bedroom direction
+      const inBedroomDoorZ = pos.z >= 1.30 && pos.z <= 2.55;
+      if (inBedroomDoorZ) {
+        pos.x = Math.max(-10.8, pos.x);
+        if (pos.x < -4.8) {
+          pos.z = Math.max(-0.7, Math.min(5.5, pos.z));
+        } else {
+          pos.z = Math.max(1.30, Math.min(2.55, pos.z));
+        }
+      } else {
+        pos.x = Math.max(-4.2, pos.x);
+        pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
       }
     } else {
-      // Currently inside or in doorway of New Bedroom (X < -4.5)
-      if (inBedroomDoorwayZ) {
-        nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
-        if (nextPos.x < -4.8) {
-          nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
-        } else {
-          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
-        }
-      } else {
-        nextPos.x = Math.max(-10.8, Math.min(-5.15, nextPos.x));
-        nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
+      // Main Room
+      pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
+    }
+
+    // 2. Obstacle Collisions
+    // Dining table & chairs
+    pos = this.collideBox(pos, -3.85, -1.75, -1.85, -0.65, 0.22);
+    pos = this.collideBox(pos, -3.60, -1.85, -0.70, 0.05, 0.15);
+    pos = this.collideBox(pos, -4.15, -3.65, -1.75, -1.15, 0.15);
+    pos = this.collideBox(pos, -2.80, -2.10, -2.32, -1.75, 0.15);
+
+    // Rotten Fridge & Credenza & Cart
+    pos = this.collideBox(pos, 2.95, 4.35, -5.20, -3.98, 0.25);
+    pos = this.collideBox(pos, 0.65, 2.65, -5.90, -5.15, 0.15);
+    pos = this.collideBox(pos, 1.65, 2.75, -2.85, -1.95, 0.20);
+
+    // Bathroom obstacles
+    if (pos.x > 4.5) {
+      pos = this.collideBox(pos, 6.45, 7.15, -1.90, -1.35, 0.20); // termotanque
+      pos = this.collideBox(pos, 4.95, 5.55, 3.15, 4.05, 0.15); // radiator
+      pos = this.collideBox(pos, 10.2, 11.4, 0.05, 2.75, 0.20); // tub
+      pos = this.collideBox(pos, 6.9, 8.1, 3.8, 5.0, 0.20); // toilet
+      pos = this.collideBox(pos, 7.8, 9.2, -1.9, -1.05, 0.20); // sink
+    }
+
+    // Bedroom obstacles
+    if (pos.x < -4.5) {
+      pos = this.collideBox(pos, -11.4, -8.7, 2.1, 5.0, 0.25); // bed
+      pos = this.collideBox(pos, -11.4, -7.0, -1.2, 0.15, 0.25); // cajonera + TV
+      pos = this.collideBox(pos, -8.8, -7.6, 4.6, 5.9, 0.20); // nightstand
+
+      // Hanging man / stool obstacle (cylinder)
+      const toHanging = new THREE.Vector2(pos.x - (-6.4), pos.z - 4.2);
+      const minDist = 0.45;
+      if (toHanging.length() < minDist) {
+        if (toHanging.length() === 0) toHanging.set(1, 0);
+        toHanging.normalize().multiplyScalar(minDist);
+        pos.x = -6.4 + toHanging.x;
+        pos.z = 4.2 + toHanging.y;
       }
     }
 
-    // 1. Mesa del comedor y sus sillas (Dining table & 4 vintage chairs):
-    // Sillas del sur (Chair 1 & Chair 2 al sur de la mesa): X [-3.60, -1.85], Z [-0.70, 0.05]
-    if (nextPos.x > -3.60 && nextPos.x < -1.85 && nextPos.z > -0.70 && nextPos.z < 0.05) {
-      if (this.playerPosition.z >= 0.05) nextPos.z = 0.05;
-      else if (this.playerPosition.x <= -3.60) nextPos.x = -3.60;
-      else if (this.playerPosition.x >= -1.85) nextPos.x = -1.85;
-      else nextPos.z = -0.70;
-    }
-    // Silla del oeste (Chair 4 al oeste de la mesa): X [-4.15, -3.65], Z [-1.75, -1.15]
-    if (nextPos.x > -4.15 && nextPos.x < -3.65 && nextPos.z > -1.75 && nextPos.z < -1.15) {
-      if (this.playerPosition.x <= -4.15) nextPos.x = -4.15;
-      else if (this.playerPosition.z <= -1.75) nextPos.z = -1.75;
-      else if (this.playerPosition.z >= -1.15) nextPos.z = -1.15;
-      else nextPos.x = -3.65;
-    }
-    // Silla del norte (Chair 3 al norte de la mesa): X [-2.80, -2.10], Z [-2.32, -1.75]
-    if (nextPos.x > -2.80 && nextPos.x < -2.10 && nextPos.z > -2.32 && nextPos.z < -1.75) {
-      if (this.playerPosition.z <= -2.32) nextPos.z = -2.32;
-      else if (this.playerPosition.x <= -2.80) nextPos.x = -2.80;
-      else if (this.playerPosition.x >= -2.10) nextPos.x = -2.10;
-      else nextPos.z = -1.75;
-    }
-    // Tablero principal de la mesa: X [-3.85, -1.75], Z [-1.85, -0.65]
-    if (nextPos.x > -3.85 && nextPos.x < -1.75 && nextPos.z > -1.85 && nextPos.z < -0.65) {
-      if (this.playerPosition.x <= -3.85) nextPos.x = -3.85;
-      else if (this.playerPosition.x >= -1.75) nextPos.x = -1.75;
-      else if (this.playerPosition.z <= -1.85) nextPos.z = -1.85;
-      else if (this.playerPosition.z >= -0.65) nextPos.z = -0.65;
-    }
-
-    // 2. La Heladera Podrida (Rotten Fridge): X [2.95, 4.35], Z [-5.20, -3.98]
-    if (nextPos.x > 2.95 && nextPos.x < 4.35 && nextPos.z > -5.20 && nextPos.z < -3.98) {
-      if (this.playerPosition.z >= -3.98) nextPos.z = -3.98;
-      else if (this.playerPosition.x <= 2.95) nextPos.x = 2.95;
-      else if (this.playerPosition.x >= 4.35) nextPos.x = 4.35;
-      else nextPos.z = -5.20;
-    }
-
-    // Credenza de cocina junto a la heladera: X [0.65, 2.65], Z < -5.15
-    if (nextPos.x > 0.65 && nextPos.x < 2.65 && nextPos.z < -5.15) {
-      nextPos.z = -5.15;
-    }
-
-    // 3. La Mesita / Carrito frente a la heladera (Utility Cart): X [1.65, 2.75], Z [-2.85, -1.95]
-    if (nextPos.x > 1.65 && nextPos.x < 2.75 && nextPos.z > -2.85 && nextPos.z < -1.95) {
-      if (this.playerPosition.x <= 1.65) nextPos.x = 1.65;
-      else if (this.playerPosition.x >= 2.75) nextPos.x = 2.75;
-      else if (this.playerPosition.z <= -2.85) nextPos.z = -2.85;
-      else if (this.playerPosition.z >= -1.95) nextPos.z = -1.95;
-    }
-
-    // 4. Puerta del Baño (Dividing Bathroom Door):
-    if (this.isBathroomUnlocked) {
-      // Puerta abierta y batida hacia la pared norte del baño: segmento de (5.0, 0.46) a (6.88, 0.58)
-      const pX = nextPos.x, pZ = nextPos.z;
-      const ax = 5.0, az = 0.46;
-      const bx = 6.88, bz = 0.58;
-      const dx = bx - ax, dz = bz - az;
-      const lenSq = dx * dx + dz * dz;
-      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
-      const projX = ax + t * dx;
-      const projZ = az + t * dz;
-      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
-      const doorRadius = 0.22;
-      if (distSq < doorRadius * doorRadius) {
-        const dist = Math.sqrt(distSq) || 0.001;
-        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
-        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
-      }
-    }
-
-    // 5. El Termotanque del baño y sus caños de cobre: X [6.45, 7.15], Z < -1.35
-    if (nextPos.x > 6.45 && nextPos.x < 7.15 && nextPos.z < -1.35) {
-      if (this.playerPosition.z >= -1.35) nextPos.z = -1.35;
-      else if (this.playerPosition.x <= 6.8) nextPos.x = 6.45;
-      else nextPos.x = 7.15;
-    }
-
-    // Radiador en la pared oeste del baño: X [5.0, 5.55], Z [3.15, 4.05]
-    if (nextPos.x > 4.95 && nextPos.x < 5.55 && nextPos.z > 3.15 && nextPos.z < 4.05) {
-      if (this.playerPosition.x >= 5.55) nextPos.x = 5.55;
-      else if (this.playerPosition.z <= 3.15) nextPos.z = 3.15;
-      else if (this.playerPosition.z >= 4.05) nextPos.z = 4.05;
-      else nextPos.x = 5.55;
-    }
-
-    // Otros obstáculos del baño (spacious layout):
-    // Bañera contra pared este: X > 10.2, Z in [0.05, 2.75]
-    if (nextPos.x > 10.2 && nextPos.z > 0.05 && nextPos.z < 2.75) {
-      nextPos.x = 10.2;
-    }
-
-    // Inodoro decrépito contra pared sur: X [6.9, 8.1], Z > 3.8
-    if (nextPos.x > 6.9 && nextPos.x < 8.1 && nextPos.z > 3.8) {
-      if (this.playerPosition.z <= 3.8) nextPos.z = 3.8;
-      else if (this.playerPosition.x <= 6.9) nextPos.x = 6.9;
-      else nextPos.x = 8.1;
-    }
-
-    // Lavamanos Silent Hill contra pared norte: X [7.8, 9.2], Z < -1.05
-    if (nextPos.x > 7.8 && nextPos.x < 9.2 && nextPos.z < -1.05) {
-      nextPos.z = -1.05;
-    }
-
-    // 6. Puerta de la Habitación / Bedroom (Hoja de madera entreabierta):
-    // Hoja batida hacia el bedroom: desde quicio (-5.0, 0.92) hasta extremo (-5.814, 1.255)
-    // A) Caja delimitadora de la hoja de la puerta y poste
-    if (nextPos.x > -5.95 && nextPos.x < -4.85 && nextPos.z > 0.85 && nextPos.z < 1.35) {
-      if (this.playerPosition.z >= 1.35) nextPos.z = 1.35;
-      else if (this.playerPosition.x <= -5.95) nextPos.x = -5.95;
-      else if (this.playerPosition.x >= -4.85) nextPos.x = -4.85;
-      else nextPos.z = 1.35;
-    }
-
-    // B) Proyección continua sobre el segmento oblicuo de la hoja
-    {
-      const pX = nextPos.x, pZ = nextPos.z;
-      const ax = -5.0, az = 0.92;
-      const bx = -5.814, bz = 1.255;
-      const dx = bx - ax, dz = bz - az;
-      const lenSq = dx * dx + dz * dz;
-      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
-      const projX = ax + t * dx;
-      const projZ = az + t * dz;
-      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
-      const doorRadius = 0.24;
-      if (distSq < doorRadius * doorRadius) {
-        const dist = Math.sqrt(distSq) || 0.001;
-        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
-        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
-      }
-    }
-
-    // Obstáculos del Bedroom:
-    // 1. Cama a lo largo de la pared oeste: X [-11.0, -8.7], Z [2.1, 5.0]
-    if (nextPos.x < -8.7 && nextPos.z > 2.1 && nextPos.z < 5.0) {
-      if (this.playerPosition.x >= -8.7) nextPos.x = -8.7;
-      else if (this.playerPosition.z <= 2.1) nextPos.z = 2.1;
-      else if (this.playerPosition.z >= 5.0) nextPos.z = 5.0;
-    }
-
-    // 2. Cajonera + TV de tubo a lo largo de pared norte: X [-10.8, -7.0], Z < 0.15
-    if (nextPos.x < -7.0 && nextPos.z < 0.15) {
-      nextPos.z = 0.15;
-    }
-
-    // 3. Mesita de luz a lo largo de pared sur: X [-8.8, -7.6], Z > 4.6
-    if (nextPos.x > -8.8 && nextPos.x < -7.6 && nextPos.z > 4.6) {
-      if (this.playerPosition.z <= 4.6) nextPos.z = 4.6;
-      else if (this.playerPosition.x >= -7.6) nextPos.x = -7.6;
-      else nextPos.x = -8.8;
-    }
-
-    // 4. Hombre colgado & Banquito volcado en X = -6.4, Z = 4.2 (radio 0.45m)
-    const toHanging = new THREE.Vector2(nextPos.x - (-6.4), nextPos.z - 4.2);
-    if (toHanging.length() < 0.45) {
-      toHanging.normalize().multiplyScalar(0.45);
-      nextPos.x = -6.4 + toHanging.x;
-      nextPos.z = 4.2 + toHanging.y;
-    }
-
-    this.playerPosition.copy(nextPos);
-    this.camera.position.copy(this.playerPosition);
+    return pos;
   }
 
   /**

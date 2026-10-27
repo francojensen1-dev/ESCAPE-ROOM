@@ -615,13 +615,9 @@ export default function App() {
         if (keyboardKeys.current['KeyA'] || keyboardKeys.current['ArrowLeft']) vx -= 1;
         if (keyboardKeys.current['KeyD'] || keyboardKeys.current['ArrowRight']) vx += 1;
 
-        // Clamp
-        vx = Math.max(-1, Math.min(1, vx));
-        vy = Math.max(-1, Math.min(1, vy));
+        sceneRef.current.applyMovement({ x: vx, y: vy }, delta);
 
         if (vx !== 0 || vy !== 0) {
-          sceneRef.current.applyMovement({ x: vx, y: vy }, delta);
-
           // Random walking footstep sound
           if (Math.random() < 0.04) {
             horrorAudio.playFootstep();
