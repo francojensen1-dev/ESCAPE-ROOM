@@ -551,169 +551,83 @@ export class TextureGenerator {
   }
 
   /**
-   * Retro 1950s/60s Mint-Cream Refrigerator Texture (matching user reference image)
-   * Pale distressed sage/mint-cream enamel with rounded corner highlights,
-   * vintage chrome handle, rust streaks from hinges, and attached clue note.
+   * Weathered Vintage Refrigerator Texture (Light Cream / Off-white enamel tone)
+   * High-detail 1:1 uniform procedural material texture with subtle age weathering,
+   * rust spots, and water drips.
    */
   public static createRottenFridgeTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
-    canvas.height = 768;
+    canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // 1. Base vintage 1950s pale sage / mint-cream enamel (matching photo)
-    const baseGrad = ctx.createLinearGradient(0, 0, 512, 768);
-    baseGrad.addColorStop(0, '#c7d3c4');
-    baseGrad.addColorStop(0.5, '#b9c7b5');
-    baseGrad.addColorStop(1, '#a6b5a1');
+    // 1. Light vintage cream / off-white enamel base
+    const baseGrad = ctx.createLinearGradient(0, 0, 512, 512);
+    baseGrad.addColorStop(0, '#e8e2d5');
+    baseGrad.addColorStop(0.5, '#dad3c3');
+    baseGrad.addColorStop(1, '#c8bfaf');
     ctx.fillStyle = baseGrad;
-    ctx.fillRect(0, 0, 512, 768);
+    ctx.fillRect(0, 0, 512, 512);
 
-    // Weathered enamel grime and discoloration mottling
-    for (let i = 0; i < 2200; i++) {
+    // Fine organic yellowed aging noise and grime mottling
+    for (let i = 0; i < 3500; i++) {
       const rx = Math.random() * 512;
-      const ry = Math.random() * 768;
-      const rad = 2 + Math.random() * 16;
+      const ry = Math.random() * 512;
+      const rad = 1 + Math.random() * 12;
       ctx.fillStyle = Math.random() > 0.6
-        ? 'rgba(75, 85, 70, 0.08)'
+        ? 'rgba(70, 58, 42, 0.07)'
         : Math.random() > 0.3
-        ? 'rgba(120, 95, 60, 0.05)'
-        : 'rgba(50, 40, 30, 0.06)';
+        ? 'rgba(120, 95, 55, 0.05)'
+        : 'rgba(40, 32, 24, 0.08)';
       ctx.beginPath();
       ctx.arc(rx, ry, rad, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Rounded corner edge shading for authentic vintage curvature
-    const edgeShadeL = ctx.createLinearGradient(0, 0, 40, 0);
-    edgeShadeL.addColorStop(0, 'rgba(40, 50, 38, 0.55)');
-    edgeShadeL.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = edgeShadeL;
-    ctx.fillRect(0, 0, 40, 768);
-
-    const edgeShadeR = ctx.createLinearGradient(512, 0, 472, 0);
-    edgeShadeR.addColorStop(0, 'rgba(40, 50, 38, 0.45)');
-    edgeShadeR.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = edgeShadeR;
-    ctx.fillRect(472, 0, 40, 768);
-
-    // Top crown rounded highlight
-    const topHighlight = ctx.createLinearGradient(0, 0, 0, 35);
-    topHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-    topHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = topHighlight;
-    ctx.fillRect(0, 0, 512, 35);
-
-    // 2. Freezer compartment horizontal seam (Y = 220)
-    ctx.fillStyle = '#1c221a';
-    ctx.fillRect(10, 218, 492, 6);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.fillRect(10, 224, 492, 2);
-
-    // Dark rubber gasket shadow
-    ctx.fillStyle = 'rgba(10, 15, 10, 0.4)';
-    ctx.fillRect(15, 214, 482, 4);
-
-    // 3. Vintage Refrigerator Chrome Brand Badge ("KELVINATOR / FRIGIDAIRE" style)
-    ctx.fillStyle = '#d0d8dc';
-    ctx.fillRect(216, 65, 80, 16);
-    ctx.strokeStyle = '#3a444a';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(216, 65, 80, 16);
-    ctx.fillStyle = '#1e282d';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('FRIGIDAIRE', 256, 77);
-
-    // 4. Vintage Chrome Heavy Latch Handle (with keyhole lock)
-    // Vertical mounting plate
-    ctx.fillStyle = '#8f9a9e';
-    ctx.fillRect(48, 250, 26, 170);
-    // Metallic chrome highlight
-    const chromeGrad = ctx.createLinearGradient(48, 0, 74, 0);
-    chromeGrad.addColorStop(0, '#5a6266');
-    chromeGrad.addColorStop(0.35, '#d6e0e4');
-    chromeGrad.addColorStop(0.7, '#8f9a9e');
-    chromeGrad.addColorStop(1, '#444a4e');
-    ctx.fillStyle = chromeGrad;
-    ctx.fillRect(50, 252, 22, 166);
-
-    // Latch lever arm
-    ctx.fillStyle = '#b0bcc2';
-    ctx.fillRect(66, 310, 36, 16);
-    ctx.strokeStyle = '#22282c';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(66, 310, 36, 16);
-
-    // Chrome handle screw bolts
-    ctx.fillStyle = '#2a3236';
-    ctx.beginPath();
-    ctx.arc(61, 266, 3.5, 0, Math.PI * 2);
-    ctx.arc(61, 404, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 5. Heavy Rust streaks trailing down from latch handle and bottom seams (from photo)
-    const rustDrips = [52, 64, 88, 120, 210, 380, 460];
-    rustDrips.forEach((rx) => {
-      const startY = 220 + Math.random() * 60;
-      const dripLen = 80 + Math.random() * 200;
-      const dripGrad = ctx.createLinearGradient(rx, startY, rx, startY + dripLen);
-      dripGrad.addColorStop(0, 'rgba(110, 48, 18, 0.75)');
-      dripGrad.addColorStop(0.4, 'rgba(85, 38, 14, 0.45)');
-      dripGrad.addColorStop(1, 'rgba(50, 20, 8, 0)');
-      ctx.fillStyle = dripGrad;
-      ctx.fillRect(rx - 2, startY, 5, dripLen);
-    });
-
-    // Heavy corroded bottom rust apron (matching photo)
-    const bottomRust = ctx.createLinearGradient(0, 600, 0, 768);
-    bottomRust.addColorStop(0, 'rgba(70, 32, 12, 0)');
-    bottomRust.addColorStop(0.3, 'rgba(105, 45, 16, 0.65)');
-    bottomRust.addColorStop(0.8, 'rgba(65, 24, 8, 0.92)');
-    bottomRust.addColorStop(1, 'rgba(30, 10, 4, 0.98)');
-    ctx.fillStyle = bottomRust;
-    ctx.fillRect(0, 600, 512, 168);
-
-    // Flaking rust blisters
-    for (let b = 0; b < 120; b++) {
-      const bx = Math.random() * 512;
-      const by = 620 + Math.random() * 140;
-      ctx.fillStyle = Math.random() > 0.5 ? '#421a08' : '#732e10';
+    // Subtle surface scratches
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1;
+    for (let s = 0; s < 30; s++) {
+      const sx = Math.random() * 512;
+      const sy = Math.random() * 512;
+      const len = 15 + Math.random() * 45;
       ctx.beginPath();
-      ctx.arc(bx, by, 1 + Math.random() * 5, 0, Math.PI * 2);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + (Math.random() - 0.5) * len, sy + len);
+      ctx.stroke();
+    }
+
+    // Rust spots and oxidation
+    for (let r = 0; r < 180; r++) {
+      const rx = Math.random() * 512;
+      const ry = Math.random() * 512;
+      const rRad = 2 + Math.random() * 7;
+      const rustGrad = ctx.createRadialGradient(rx, ry, 0, rx, ry, rRad);
+      rustGrad.addColorStop(0, 'rgba(120, 52, 18, 0.65)');
+      rustGrad.addColorStop(0.6, 'rgba(85, 36, 12, 0.35)');
+      rustGrad.addColorStop(1, 'rgba(50, 20, 6, 0)');
+      ctx.fillStyle = rustGrad;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rRad, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 6. Yellowed Clue Note taped to the door: "HAY ALGO EN EL CONGELADOR"
-    ctx.save();
-    ctx.translate(210, 340);
-    ctx.rotate(0.06);
-
-    // Drop shadow
-    ctx.fillStyle = 'rgba(20, 25, 18, 0.4)';
-    ctx.fillRect(3, 3, 140, 105);
-
-    // Weathered paper
-    ctx.fillStyle = '#b8aa62';
-    ctx.fillRect(0, 0, 140, 105);
-
-    // Cellophane tape strip at top
-    ctx.fillStyle = 'rgba(240, 235, 200, 0.45)';
-    ctx.fillRect(45, -8, 50, 18);
-
-    // Handwritten message
-    ctx.fillStyle = '#1c1608';
-    ctx.font = 'bold 12px "JetBrains Mono", monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('LLAVE OXIDADA', 12, 32);
-    ctx.fillText('ADENTRO...', 12, 54);
-    ctx.font = 'italic 11px sans-serif';
-    ctx.fillStyle = '#4a1212';
-    ctx.fillText('(NO COMER)', 12, 78);
-
-    ctx.restore();
+    // Vertical water leak streaks
+    for (let w = 0; w < 10; w++) {
+      const wx = Math.random() * 512;
+      const wy = Math.random() * 256;
+      const wLen = 80 + Math.random() * 220;
+      const leakGrad = ctx.createLinearGradient(wx, wy, wx, wy + wLen);
+      leakGrad.addColorStop(0, 'rgba(80, 42, 16, 0.5)');
+      leakGrad.addColorStop(0.5, 'rgba(50, 25, 10, 0.25)');
+      leakGrad.addColorStop(1, 'rgba(20, 10, 4, 0)');
+      ctx.fillStyle = leakGrad;
+      ctx.fillRect(wx - 1, wy, 3, wLen);
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
   }
@@ -3315,6 +3229,201 @@ export class TextureGenerator {
     bump.wrapT = THREE.RepeatWrapping;
 
     return { map, bump };
+  }
+
+  /**
+   * Bedroom Wall Security Monitors: 4 Horror Warning Textures
+   */
+  public static createBedroomWallWarningTextures(): THREE.CanvasTexture[] {
+    const textures: THREE.CanvasTexture[] = [];
+    const w = 512;
+    const h = 384;
+
+    const screensConfig = [
+      {
+        bg: '#140202',
+        scanColor: 'rgba(255, 0, 0, 0.08)',
+        headerText: '● REC  CAM 01 - BEDROOM',
+        headerColor: '#ff3333',
+        mainText: 'NUNCA ESCAPARÁS',
+        mainColor: '#ff1111',
+        subText: 'NO HAY SALIDA  •  CONFINAMIENTO',
+        subColor: '#aa2222',
+        hazardColor: '#aa0000',
+        glitchText: 'NUNCA ESCAPARÁS',
+      },
+      {
+        bg: '#021410',
+        scanColor: 'rgba(0, 255, 170, 0.08)',
+        headerText: '● LIVE  CAM 02 - MONITOR',
+        headerColor: '#00ffaa',
+        mainText: 'ESTÁS ATRAPADO',
+        mainColor: '#00ffaa',
+        subText: 'ÉL TE OBSERVA  •  SIN RETORNO',
+        subColor: '#00a870',
+        hazardColor: '#008855',
+        glitchText: 'ESTÁS ATRAPADO',
+      },
+      {
+        bg: '#120210',
+        scanColor: 'rgba(255, 0, 150, 0.08)',
+        headerText: 'SYSTEM ERROR 666  // ALERTA',
+        headerColor: '#ff2299',
+        mainText: 'TU DESTINO ESTÁ SELLADO',
+        mainColor: '#ff2244',
+        subText: 'EL FINAL SE ACERCA',
+        subColor: '#d91838',
+        hazardColor: '#880044',
+        glitchText: 'TU DESTINO ESTÁ SELLADO',
+      },
+      {
+        bg: '#1a0c02',
+        scanColor: 'rgba(255, 170, 0, 0.08)',
+        headerText: '● CAM 04 - SEGURIDAD',
+        headerColor: '#ffaa00',
+        mainText: 'NO HAY SALIDA',
+        mainColor: '#ff5500',
+        subText: 'PROHIBIDO ESCAPAR  •  PELIGRO',
+        subColor: '#cc4400',
+        hazardColor: '#aa4400',
+        glitchText: 'NO HAY SALIDA',
+      },
+    ];
+
+    screensConfig.forEach((cfg) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+
+      // 1. CRT Background
+      ctx.fillStyle = cfg.bg;
+      ctx.fillRect(0, 0, w, h);
+
+      // CRT Scanlines
+      for (let y = 0; y < h; y += 3) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, y, w, 1);
+      }
+
+      // Static noise
+      for (let i = 0; i < 1500; i++) {
+        const nx = Math.random() * w;
+        const ny = Math.random() * h;
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(nx, ny, 2, 2);
+      }
+
+      // 2. Top & Bottom Hazard Stripes Banners
+      const stripeW = 16;
+      ctx.fillStyle = cfg.hazardColor;
+      for (let x = -30; x < w + 30; x += stripeW * 2) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + stripeW, 0);
+        ctx.lineTo(x + stripeW - 12, 28);
+        ctx.lineTo(x - 12, 28);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(x, h - 28);
+        ctx.lineTo(x + stripeW, h - 28);
+        ctx.lineTo(x + stripeW - 12, h);
+        ctx.lineTo(x - 12, h);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Banner black outlines
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 28, w, 3);
+      ctx.fillRect(0, h - 31, w, 3);
+
+      // 3. Header Text & Timestamp
+      ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = cfg.headerColor;
+      ctx.fillText(cfg.headerText, 20, 52);
+
+      const timeStr = '1986-10-27  03:14:' + Math.floor(10 + Math.random() * 49);
+      ctx.fillText(timeStr, w - 210, 52);
+
+      // 4. Center Warning Symbol / Graphic
+      ctx.strokeStyle = cfg.mainColor;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      // Triangle hazard icon in center
+      const triX = w / 2;
+      const triY = 125;
+      ctx.moveTo(triX, triY - 30);
+      ctx.lineTo(triX + 34, triY + 28);
+      ctx.lineTo(triX - 34, triY + 28);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Exclamation mark inside triangle
+      ctx.fillStyle = cfg.mainColor;
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('!', triX, triY + 20);
+
+      // 5. Main Distressed Warning Text
+      // Glitch offset text shadow
+      ctx.font = '900 32px "Courier New", monospace, sans-serif';
+      ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+      ctx.fillText(cfg.glitchText, w / 2 + 3, 225);
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+      ctx.fillText(cfg.glitchText, w / 2 - 3, 223);
+
+      ctx.fillStyle = cfg.mainColor;
+      ctx.fillText(cfg.mainText, w / 2, 224);
+
+      // 6. Subtext / Warning Details
+      ctx.font = 'bold 16px "Courier New", monospace';
+      ctx.fillStyle = cfg.subColor;
+      ctx.fillText(cfg.subText, w / 2, 270);
+
+      // 7. Horizontal glitch bar
+      const gy = 80 + Math.random() * 200;
+      const gh = 6 + Math.random() * 12;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.fillRect(0, gy, w, gh);
+
+      // 9. Outer CRT Curved Shadow Vignette
+      const vig = ctx.createRadialGradient(w / 2, h / 2, w * 0.35, w / 2, h / 2, w * 0.65);
+      vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      vig.addColorStop(1, 'rgba(0, 0, 0, 0.75)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      textures.push(texture);
+    });
+
+    return textures;
+  }
+
+  public static createBedroomWallOffScreenTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 384;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = '#060709';
+    ctx.fillRect(0, 0, 512, 384);
+
+    // Subtle off glass reflection
+    const grad = ctx.createLinearGradient(0, 0, 512, 384);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+    grad.addColorStop(0.3, 'rgba(255, 255, 255, 0.01)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 384);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 }
 

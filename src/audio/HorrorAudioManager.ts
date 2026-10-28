@@ -430,10 +430,10 @@ class HorrorAudioManager {
     if (this.isMuted) return;
     this.resume();
 
-    // Trigger registered UI & camera shake listeners
+    // Trigger registered UI & camera shake listeners asynchronously
     this.knockListeners.forEach((fn) => {
       try {
-        fn();
+        setTimeout(fn, 0);
       } catch {
         // Ignore
       }

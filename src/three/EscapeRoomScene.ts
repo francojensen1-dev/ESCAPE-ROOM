@@ -89,6 +89,14 @@ export class EscapeRoomScene {
   private tvScreenMesh: THREE.Mesh | null = null;
   private tvLight: THREE.PointLight | null = null;
   private bedroomLampLight: THREE.PointLight | null = null;
+  private bedroomWallScreens: {
+    mesh: THREE.Mesh;
+    light: THREE.PointLight;
+    onMat: THREE.MeshBasicMaterial;
+    offMat: THREE.MeshStandardMaterial;
+    isOn: boolean;
+    toggleTimer: number;
+  }[] = [];
 
   // Callbacks
   private onInteractionUpdate: SceneInteractionCallback | null = null;
@@ -1369,9 +1377,9 @@ export class EscapeRoomScene {
 
     // 2. Rounded Crown Top Cap (Vintage 1950s aerodynamic rounded profile)
     const crownMat = new THREE.MeshStandardMaterial({
-      color: 0xbed0bd,
-      roughness: 0.5,
-      metalness: 0.2,
+      color: 0xd8d2c2,
+      roughness: 0.60,
+      metalness: 0.15,
     });
     const crownCap = new THREE.Mesh(
       new THREE.CylinderGeometry(0.40, 0.44, 0.80, 16),
@@ -1405,27 +1413,12 @@ export class EscapeRoomScene {
     gasketLine.position.set(0, 1.28, 0.41);
     fridgeGroup.add(gasketLine);
 
-    // 4. Vintage Heavy Chrome Latch Handle with Keyhole Lock
+    // 4. Vintage Chrome Brand Emblem Plate near top
     const chromeMat = new THREE.MeshStandardMaterial({
       color: 0xc8d2d6,
       metalness: 0.88,
       roughness: 0.22,
     });
-    // Vertical chrome latch bracket
-    const handleBracket = new THREE.Mesh(
-      new THREE.BoxGeometry(0.045, 0.36, 0.04),
-      chromeMat
-    );
-    handleBracket.position.set(-0.34, 1.12, 0.465);
-    fridgeGroup.add(handleBracket);
-
-    // Latch lever arm
-    const handleLever = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.035, 0.05),
-      chromeMat
-    );
-    handleLever.position.set(-0.28, 1.16, 0.48);
-    fridgeGroup.add(handleLever);
 
     // Chrome Brand Emblem Plate near top
     const emblem = new THREE.Mesh(
@@ -1434,6 +1427,21 @@ export class EscapeRoomScene {
     );
     emblem.position.set(0, 1.68, 0.45);
     fridgeGroup.add(emblem);
+
+    // Vintage 3D Chrome Door Handle / Latch Lever on main door
+    const handleBracket = new THREE.Mesh(
+      new THREE.BoxGeometry(0.045, 0.36, 0.04),
+      chromeMat
+    );
+    handleBracket.position.set(-0.34, 0.88, 0.465);
+    fridgeGroup.add(handleBracket);
+
+    const handleLever = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.035, 0.05),
+      chromeMat
+    );
+    handleLever.position.set(-0.28, 0.92, 0.48);
+    fridgeGroup.add(handleLever);
 
     // Heavy oxidized steel door hinges on the right side
     const hingeMat = new THREE.MeshStandardMaterial({ color: 0x3d3024, metalness: 0.8, roughness: 0.4 });
@@ -1457,28 +1465,9 @@ export class EscapeRoomScene {
       fridgeGroup.add(foot);
     });
 
-    // 6. Ground Contact Shadow Plane
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x060606,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-    });
-    const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.1), shadowMat);
-    contactShadow.rotation.x = -Math.PI / 2;
-    contactShadow.position.set(0, 0.008, 0.05);
-    fridgeGroup.add(contactShadow);
 
-    // Rotten food puddle beneath fridge
-    const puddleMat = new THREE.MeshStandardMaterial({
-      color: 0x1b2413,
-      roughness: 0.2,
-      metalness: 0.1,
-    });
-    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.68, 16), puddleMat);
-    puddle.rotation.x = -Math.PI / 2;
-    puddle.position.set(0, 0.012, 0.42);
-    fridgeGroup.add(puddle);
+
+
 
     this.scene.add(fridgeGroup);
     this.interactiveMeshes.set('rotten_fridge', fridgeGroup);
@@ -2195,55 +2184,13 @@ export class EscapeRoomScene {
     this.scene.add(this.bathroomDoorPivot);
     this.interactiveMeshes.set('bathroom_door', this.bathroomDoorPivot);
 
-    // 6. Wall-Mounted Water Heater / Boiler ("Postmeslip") on North Wall
-    const boilerGroup = new THREE.Group();
-    boilerGroup.position.set(6.8, 2.15, -1.72);
 
-    const boilerMat = new THREE.MeshStandardMaterial({
-      map: TextureGenerator.createWaterHeaterTexture(),
-      roughness: 0.35,
-      metalness: 0.2,
-    });
-    // Main boiler cylinder with rounded shape
-    const boilerBody = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.24, 0.82, 24),
-      boilerMat
-    );
-    boilerBody.rotation.y = Math.PI / 2;
-
-    const boilerTopCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      boilerMat
-    );
-    boilerTopCap.position.y = 0.41;
-
-    const boilerBottomCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-      boilerMat
-    );
-    boilerBottomCap.position.y = -0.41;
-
-    // Steel bracket wall mounts
-    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x222224, metalness: 0.9, roughness: 0.4 });
-    const upperBracket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 0.15), bracketMat);
-    upperBracket.position.set(0, 0.25, -0.15);
-    const lowerBracket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 0.15), bracketMat);
-    lowerBracket.position.set(0, -0.25, -0.15);
-
-    // Two copper/chrome water pipes running down to the floor
-    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x8a6245, metalness: 0.8, roughness: 0.4 });
-    const leftPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.25, 8), pipeMat);
-    leftPipe.position.set(-0.1, -1.05, 0.0);
-    const rightPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.25, 8), pipeMat);
-    rightPipe.position.set(0.1, -1.05, 0.0);
-
-    boilerGroup.add(boilerBody, boilerTopCap, boilerBottomCap, upperBracket, lowerBracket, leftPipe, rightPipe);
-    this.scene.add(boilerGroup);
 
     // 7. Spherical Frosted Wall Sconce Lamp above Sink
     const sconceGroup = new THREE.Group();
     sconceGroup.position.set(8.5, 2.15, -1.86);
 
+    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x222224, metalness: 0.9, roughness: 0.4 });
     const sconceArm = new THREE.Mesh(
       new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8),
       bracketMat
@@ -2524,12 +2471,7 @@ export class EscapeRoomScene {
 
     this.scene.add(tubGroup);
 
-    // Showerhead & flexible hose on East wall
-    const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
-    const showerHead = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 12), rodMat);
-    showerHead.position.set(11.35, 1.95, 0.35);
-    showerHead.rotation.z = Math.PI / 3;
-    this.scene.add(showerHead);
+
 
     // 12. Broken Wall Tile (Azulejo Roto del Baño)
     // Placed above the bathtub rim on the East tiled wall at (11.38, 0.76, 0.35)
@@ -3225,28 +3167,9 @@ export class EscapeRoomScene {
     const floorPropsGroup = new THREE.Group();
     floorPropsGroup.position.set(-6.4, 0, 4.2);
 
-    // Sombra en el piso
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x050505,
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false,
-    });
-    const floorShadow = new THREE.Mesh(new THREE.CircleGeometry(0.60, 24), shadowMat);
-    floorShadow.rotation.x = -Math.PI / 2;
-    floorShadow.position.set(0, 0.004, 0);
-    floorPropsGroup.add(floorShadow);
 
-    // Charco de sangre seca en el piso
-    const bloodPuddleMat = new THREE.MeshStandardMaterial({
-      color: 0x220808,
-      roughness: 0.3,
-      metalness: 0.1,
-    });
-    const bloodPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.48, 16), bloodPuddleMat);
-    bloodPuddle.rotation.x = -Math.PI / 2;
-    bloodPuddle.position.set(0, 0.008, 0);
-    floorPropsGroup.add(bloodPuddle);
+
+
 
     // Banquito de madera volcado apoyado en el piso
     const stoolGroup = new THREE.Group();
@@ -3328,26 +3251,54 @@ export class EscapeRoomScene {
 
     bedroomGroup.add(hangingManGroup);
 
-    // 8. 4 Dark Turned-Off Wall Screens on the North Wall of the Bedroom
+    // 8. 4 Dynamic Wall Security Monitors on the North Wall of the Bedroom (turned ON/OFF with warnings)
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f1a14, roughness: 0.8 });
+    const warningTextures = TextureGenerator.createBedroomWallWarningTextures();
+    const offTexture = TextureGenerator.createBedroomWallOffScreenTexture();
+
     const screenOffMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0c,
-      roughness: 0.85,
-      metalness: 0.15,
+      map: offTexture,
+      roughness: 0.65,
+      metalness: 0.25,
     });
-    const frameCoords = [
-      [-6.5, 2.3],
-      [-5.5, 2.3],
-      [-6.5, 1.55],
-      [-5.5, 1.55],
+
+    const frameConfigs = [
+      { pos: [-6.5, 2.3], texIdx: 0, lightColor: 0xff1111 },
+      { pos: [-5.5, 2.3], texIdx: 1, lightColor: 0x00ffaa },
+      { pos: [-6.5, 1.55], texIdx: 2, lightColor: 0xff0066 },
+      { pos: [-5.5, 1.55], texIdx: 3, lightColor: 0xffaa00 },
     ];
-    frameCoords.forEach(([fx, fy]) => {
+
+    this.bedroomWallScreens = [];
+
+    frameConfigs.forEach(({ pos: [fx, fy], texIdx, lightColor }, idx) => {
       const frameBorder = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.56, 0.03), frameMat);
       frameBorder.position.set(fx, fy, -1.18);
 
+      const screenOnMat = new THREE.MeshBasicMaterial({
+        map: warningTextures[texIdx],
+        color: 0xffffff,
+      });
+
       const pictureMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), screenOffMat);
       pictureMesh.position.set(fx, fy, -1.16);
+
+      // Light cast by glowing warning monitor onto wall & room
+      const monitorLight = new THREE.PointLight(lightColor, 0, 3.5, 2.0);
+      monitorLight.position.set(fx, fy, -0.95);
+      bedroomGroup.add(monitorLight);
+
       bedroomGroup.add(frameBorder, pictureMesh);
+
+      // Staggered initial timing so they turn on and off asynchronously
+      this.bedroomWallScreens.push({
+        mesh: pictureMesh,
+        light: monitorLight,
+        onMat: screenOnMat,
+        offMat: screenOffMat,
+        isOn: idx % 2 === 0,
+        toggleTimer: 1.0 + idx * 1.5,
+      });
     });
 
     // Scattered papers, playing cards, and torn photos on the floor (Image 2)
@@ -3625,12 +3576,7 @@ export class EscapeRoomScene {
       }
     }
 
-    // 5. El Termotanque del baño y sus caños de cobre: X [6.45, 7.15], Z < -1.35
-    if (nextPos.x > 6.45 && nextPos.x < 7.15 && nextPos.z < -1.35) {
-      if (this.playerPosition.z >= -1.35) nextPos.z = -1.35;
-      else if (this.playerPosition.x <= 6.8) nextPos.x = 6.45;
-      else nextPos.x = 7.15;
-    }
+
 
     // Radiador en la pared oeste del baño: X [5.0, 5.55], Z [3.15, 4.05]
     if (nextPos.x > 4.95 && nextPos.x < 5.55 && nextPos.z > 3.15 && nextPos.z < 4.05) {
@@ -4046,6 +3992,35 @@ export class EscapeRoomScene {
       const lampPulse = 0.60 + Math.sin(time * 8.0) * 0.05 + (Math.random() > 0.96 ? -0.15 : 0.0);
       this.bedroomLampLight.intensity = Math.max(0.3, lampPulse);
     }
+
+    // Dynamic Bedroom Wall Security Monitors ON/OFF & CRT Glitch Flicker
+    this.bedroomWallScreens.forEach((scr, idx) => {
+      if (time >= scr.toggleTimer) {
+        scr.isOn = !scr.isOn;
+        // Stay ON for 2.5 - 6.0 sec, stay OFF for 1.5 - 4.5 sec
+        const duration = scr.isOn
+          ? (2.5 + Math.random() * 3.5)
+          : (1.5 + Math.random() * 3.0);
+        scr.toggleTimer = time + duration;
+
+        scr.mesh.material = scr.isOn ? scr.onMat : scr.offMat;
+      }
+
+      if (scr.isOn) {
+        // CRT micro glitch flickering while ON
+        const isGlitch = Math.random() > 0.93;
+        const glitchFactor = isGlitch ? 0.35 : 1.0;
+        const baseIntensity = 0.9 + Math.sin(time * 12.0 + idx * 2.0) * 0.2;
+        scr.light.intensity = Math.max(0.1, baseIntensity * glitchFactor);
+        if (isGlitch) {
+          scr.onMat.color.setHex(0x888888);
+        } else {
+          scr.onMat.color.setHex(0xffffff);
+        }
+      } else {
+        scr.light.intensity = 0.0;
+      }
+    });
 
     // 8. Render
     this.renderer.render(this.scene, this.camera);
