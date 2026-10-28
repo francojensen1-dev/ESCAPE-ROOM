@@ -197,7 +197,7 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
                   Cada dial tiene 5 opciones de letras disponibles.
                 </p>
                 <p className="text-xs font-mono text-stone-400">
-                  Pista: La palabra oculta detrás del azulejo roto en el baño.
+                  Selecciona la combinación correcta de 5 letras para abrir este candado.
                 </p>
               </div>
             )}

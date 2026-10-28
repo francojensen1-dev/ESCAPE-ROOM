@@ -45,21 +45,21 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
               La <strong className="text-amber-400 font-semibold">Puerta Principal</strong> está bloqueada con cadenas macizas y cuatro seguros. Además, la habitación del baño está cerrada con llave:
             </p>
 
-            <ul className="list-disc list-inside space-y-1.5 text-xs text-stone-300 font-sans pl-1">
+            <ul className="list-disc list-inside space-y-2 text-xs text-stone-300 font-sans pl-1">
               <li>
-                <span className="font-semibold text-amber-300">🚪 Puerta del Baño:</span> Cerrada con llave. Escondí la <strong className="text-amber-400 font-semibold">llave de latón dentro de la heladera podrida</strong> para que no la encuentren.
+                <span className="font-semibold text-amber-300">🚪 Paso al Baño:</span> Escondí la pequeña llave de latón en el único lugar helado de esta sala... entre la escarcha y los restos podridos.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">1. Candado de 4 dígitos:</span> El año que inició el horror está marcado en el <strong className="text-amber-400 font-semibold">calendario de la pared</strong>.
+                <span className="font-semibold text-amber-300">1. Candado Numérico:</span> El primer seguro responde a un año detenido en el tiempo... una fecha congelada en el papel de la pared.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> En la caja de fusibles al lado de la puerta del baño: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA]</strong>.
+                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> La caja metálica de la pared oculta la combinación de palancas: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA]</strong>.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">3. Candado de hierro:</span> Una vez dentro del baño, arrojé la llave pesada al fondo del <strong className="text-amber-400 font-semibold">inodoro sucio</strong>.
+                <span className="font-semibold text-amber-300">3. Candado de Hierro:</span> La llave pesada del candado yace olvidada en lo más profundo de las fétidas aguas del baño.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">4. Candado de 5 letras:</span> Grabé la combinación en el hueco de la pared. Busca con atención el <strong className="text-amber-400 font-semibold">azulejo con fisuras</strong> en el baño... no resalta a simple vista.
+                <span className="font-semibold text-amber-300">4. Candado de 5 Letras:</span> En las paredes cerámicas del baño, busca la grieta suelta donde quedó grabado el destino final.
               </li>
             </ul>
 

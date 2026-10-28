@@ -102,7 +102,7 @@ export const FuseBoxModal: React.FC<FuseBoxModalProps> = ({
               </div>
             ) : (
               <p className="text-xs font-mono text-stone-400">
-                Pista: Revisa el diario en el escritorio para la combinación de palancas.
+                Ajusta la posición de las tres palancas de la caja de fusibles.
               </p>
             )}
           </div>

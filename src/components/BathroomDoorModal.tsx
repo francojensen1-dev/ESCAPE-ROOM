@@ -112,11 +112,11 @@ export const BathroomDoorModal: React.FC<BathroomDoorModalProps> = ({
             ) : hasFridgeKey ? (
               <div className="space-y-2">
                 <p className="text-xs text-stone-300 font-sans leading-relaxed">
-                  Tienes en tu poder la <strong className="text-amber-400">Llave Antigua de Latón</strong> encontrada congelada en la heladera podrida. El perfil de la llave coincide con este cerrojo.
+                  Tienes en tu poder la <strong className="text-amber-400">Llave Antigua de Latón</strong>. El perfil de la llave coincide con este cerrojo.
                 </p>
                 <div className="p-2 rounded bg-amber-950/40 border border-amber-600/40 text-amber-300 text-[11px] font-mono flex items-center justify-center gap-2">
                   <Key className="w-4 h-4 text-amber-400" />
-                  <span>LLAVE DE LA HELADERA LISTA PARA USAR</span>
+                  <span>LLAVE DE LATÓN LISTA PARA USAR</span>
                 </div>
               </div>
             ) : (
@@ -124,10 +124,10 @@ export const BathroomDoorModal: React.FC<BathroomDoorModalProps> = ({
                 <p className="text-xs text-stone-300 font-sans leading-relaxed">
                   Esta puerta de madera maciza divide la habitación principal del baño contiguo. La cerradura de latón está firmemente trabada.
                 </p>
-                <div className="p-2.5 rounded bg-stone-950 border border-red-900/40 text-[11px] font-mono text-stone-400 flex items-start gap-2 text-left">
+                <div className="p-2.5 rounded bg-stone-950 border border-amber-900/40 text-[11px] font-mono text-stone-400 flex items-start gap-2 text-left">
                   <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-stone-300">Pista:</strong> Busca la llave de latón en la heladera podrida de la habitación principal.
+                    La cerradura de latón está cerrada. Requiere una llave para abrirse.
                   </span>
                 </div>
               </div>
@@ -142,7 +142,7 @@ export const BathroomDoorModal: React.FC<BathroomDoorModalProps> = ({
               className="mt-5 w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 active:scale-98 text-black font-mono text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2"
             >
               <Key className="w-4 h-4 text-black" />
-              {unlocking ? 'DESTABRANDO CERROJO...' : 'USAR LLAVE DE LA HELADERA Y ABRIR'}
+              {unlocking ? 'DESTRABANDO CERROJO...' : 'USAR LLAVE DE LATÓN Y ABRIR'}
             </button>
           )}
 

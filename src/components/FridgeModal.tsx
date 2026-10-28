@@ -1,11 +1,13 @@
 /**
- * Rotten Refrigerator Modal (Heladera con Comida Podrida)
- * Inspection view showing decayed interior, buzzing flies, moldy jars,
- * and the hidden brass key needed for the main door padlock.
+ * Refrigerator Modal (Heladera)
+ * Displays fridge interior image (/imgs/refrijerador_2.png when key is present,
+ * /imgs/refrijerador_1.png after key is collected).
+ * Interactive key zone in top-left opens a popup with /imgs/llave.png and
+ * "Conseguiste la llave del baño".
  */
 
 import React, { useState } from 'react';
-import { X, Key, AlertTriangle, Check } from 'lucide-react';
+import { X, Key, Sparkles } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
 
@@ -21,105 +23,87 @@ export const FridgeModal: React.FC<FridgeModalProps> = ({
   onClose,
 }) => {
   const [collected, setCollected] = useState(hasKey);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [showKeyPopup, setShowKeyPopup] = useState(false);
 
   const handleGrabKey = () => {
     if (collected) return;
     setCollected(true);
+    setShowKeyPopup(true);
     horrorAudio.playUnlockClick();
     sensorManager.vibrate([60, 40, 80]);
     onPickUpKey();
-    setFeedback('¡Has obtenido la LLAVE ANTIGUA DE LATÓN!');
+  };
+
+  const handleClosePopup = () => {
+    setShowKeyPopup(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      {/* Container */}
-      <div className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-emerald-400" />
-            <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              REFRIGERADOR EN DESCOMPOSICIÓN
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 select-none backdrop-blur-sm">
+      {/* Floating Close Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-50 p-3 rounded-full bg-stone-900/90 border border-stone-700 text-stone-300 hover:text-white hover:bg-stone-800 transition-colors shadow-2xl cursor-pointer hover:scale-105 active:scale-95"
+        title="Cerrar heladera"
+      >
+        <X className="w-6 h-6" />
+      </button>
 
-        {/* Fridge Interior Visual */}
-        <div className="relative h-72 sm:h-80 bg-gradient-to-b from-[#252c1e] to-[#12160e] p-4 flex flex-col justify-between overflow-hidden border-y border-stone-800">
-          {/* Grime and Flies effect */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(120,180,60,0.15),_transparent_70%)] pointer-events-none" />
+      {/* Main Image View without card/box container */}
+      <div className="relative max-w-5xl max-h-[85vh] flex items-center justify-center p-2">
+        <div className="relative inline-block max-w-full max-h-[85vh]">
+          {/* Main Fridge Image */}
+          <img
+            src={collected ? '/imgs/refrijerador_1.png' : '/imgs/refrijerador_2.png'}
+            alt="Heladera"
+            className="max-w-full max-h-[85vh] object-contain filter drop-shadow-[0_10px_35px_rgba(0,0,0,0.9)]"
+          />
 
-          {/* Top Freezer Shelf */}
-          <div className="relative border-b-2 border-stone-700 pb-3 flex items-center justify-around bg-black/30 rounded p-2">
-            <div className="text-center">
-              <div className="w-16 h-12 bg-amber-950/80 border border-amber-900/60 rounded flex items-center justify-center text-[10px] text-amber-200 font-mono">
-                [CARNE NEGRA]
-              </div>
-              <span className="text-[10px] text-stone-400 mt-1 block">Podrido hace años</span>
-            </div>
-
-            {/* Hidden Key in Freezer Shelf */}
-            <div className="text-center">
-              {!collected ? (
-                <button
-                  onClick={handleGrabKey}
-                  className="group relative px-4 py-3 bg-amber-950/90 hover:bg-amber-900 border-2 border-amber-500/80 rounded-lg flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse transition-transform active:scale-95"
-                >
-                  <Key className="w-7 h-7 text-amber-400 group-hover:rotate-12 transition-transform" />
-                  <span className="text-xs font-mono font-bold text-amber-300">
-                    TOCAR LLAVE
-                  </span>
-                </button>
-              ) : (
-                <div className="px-4 py-3 bg-stone-800/40 border border-stone-700/50 rounded-lg flex flex-col items-center gap-1 opacity-60">
-                  <Check className="w-6 h-6 text-emerald-400" />
-                  <span className="text-[11px] font-mono text-stone-400">LLAVE RECOGIDA</span>
-                </div>
-              )}
-            </div>
-
-            <div className="text-center">
-              <div className="w-14 h-12 bg-stone-800/90 border border-stone-700 rounded flex items-center justify-center text-[10px] text-stone-300 font-mono">
-                [FRASCO HONGOS]
-              </div>
-              <span className="text-[10px] text-stone-400 mt-1 block">Moho verde</span>
-            </div>
-          </div>
-
-          {/* Bottom Vegetable Crisper */}
-          <div className="relative bg-black/40 border border-stone-700/60 rounded p-3 flex items-center justify-between">
-            <div className="text-xs text-stone-400 space-y-1">
-              <p className="text-stone-300 font-mono font-semibold">
-                Olor nauseabundo...
-              </p>
-              <p className="text-[11px] text-stone-400">
-                Alguien escondió la llave entre la escarcha podrida para que nadie se atreviera a buscarla.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer info & button */}
-        <div className="p-4 bg-stone-950 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs font-mono text-amber-400">
-            {feedback || (collected ? 'Ya tienes la llave antigua en tu inventario.' : 'Toca la llave oxidada para recogerla.')}
-          </div>
-          <button
-            onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
-          >
-            CERRAR HELADERA
-          </button>
+          {/* Invisible Interactive Key Hotspot on the key in the image */}
+          {!collected && (
+            <button
+              onClick={handleGrabKey}
+              title="Agarrar llave"
+              className="absolute top-[18%] left-[29%] w-[10%] aspect-square cursor-pointer focus:outline-none z-10 hover:bg-amber-400/20 active:bg-amber-500/30 rounded-full transition-colors"
+            />
+          )}
         </div>
       </div>
+
+      {/* Pop-up modal when Key is found */}
+      {showKeyPopup && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-stone-900/95 border-2 border-amber-500/80 rounded-2xl p-6 shadow-[0_0_50px_rgba(245,158,11,0.5)] text-center flex flex-col items-center">
+            <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-3 text-amber-400">
+              <Sparkles className="w-6 h-6 animate-spin-slow" />
+            </div>
+
+            {/* Llave image */}
+            <div className="relative w-36 h-36 my-2 bg-stone-950 border border-stone-800 rounded-xl p-3 flex items-center justify-center shadow-inner">
+              <img
+                src="/imgs/llave.png"
+                alt="Llave del baño"
+                className="max-w-full max-h-full object-contain filter drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+              />
+            </div>
+
+            {/* Key Pickup Text */}
+            <h3 className="text-lg font-bold font-mono text-amber-300 mt-3 mb-1">
+              Conseguiste la llave del baño
+            </h3>
+            <p className="text-xs text-stone-400 font-mono mb-6">
+              Ha sido añadida a tu inventario.
+            </p>
+
+            <button
+              onClick={handleClosePopup}
+              className="w-full py-2.5 px-6 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold font-mono text-sm tracking-wide shadow-lg transition-transform active:scale-95 cursor-pointer"
+            >
+              ACEPTAR
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

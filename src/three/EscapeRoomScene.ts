@@ -1663,8 +1663,8 @@ export class EscapeRoomScene {
     const chair3 = buildVintageChair(0.35, -0.80, 0.08);
     tableGroup.add(chair3);
 
-    // Chair 4: Far left corner, slightly tilted/askew as seen in the eerie reference photo
-    const chair4 = buildVintageChair(-0.95, -0.25, -Math.PI / 2 + 0.35, 0.08, -0.06);
+    // Chair 4: Head of table (pulled back to avoid clipping the tabletop/apron)
+    const chair4 = buildVintageChair(-1.35, -0.05, -Math.PI / 2 + 0.15, 0.02, -0.01);
     tableGroup.add(chair4);
 
     this.scene.add(tableGroup);
@@ -2362,11 +2362,11 @@ export class EscapeRoomScene {
 
     this.scene.add(sinkGroup);
 
-    // 10. Decrepit Porcelain Toilet (Inodoro) - PROMINENTLY PLACED ON SOUTH WALL
-    // Completely away from the door! Facing into the room with wide walking clearance.
+    // 10. Decrepit Dirty PSX Toilet (Inodoro) - PROMINENTLY PLACED ON SOUTH WALL
     const toiletGroup = new THREE.Group();
-    toiletGroup.position.set(7.5, 0, 4.35);
-    toiletGroup.rotation.y = 0; // Back against South wall (Z = 4.8), facing North into room!
+    // Position of toiletGroup: Line 2367 (moved forward to Z = 3.95 so it doesn't clip through wall at Z = 4.8)
+    toiletGroup.position.set(7.5, 0, 3.95);
+    toiletGroup.rotation.y = 0; // Back against South wall, facing North into room!
 
     const porcelainMat = new THREE.MeshStandardMaterial({
       color: 0xc8c4b7,
@@ -2376,111 +2376,131 @@ export class EscapeRoomScene {
     });
     this.highlightMaterials.set('toilet', porcelainMat);
 
-    const toiletBase = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.42, 0.64), porcelainMat);
-    toiletBase.position.set(0, 0.21, -0.05);
-    toiletGroup.add(toiletBase);
+    // Authentic GLTF toilet model loaded into toiletGroup
 
-    const toiletBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.20, 0.34, 16), porcelainMat);
-    toiletBowl.position.set(0, 0.42, -0.15);
-    toiletGroup.add(toiletBowl);
+    // Load authentic psx_toilet_dirty.glb
+    const toiletLoader = new GLTFLoader();
+    toiletLoader.load(
+      '/models/psx_toilet_dirty.glb',
+      (gltf) => {
+        const toiletModel = gltf.scene;
+        // Rotate -90 degrees around Y so tank/mochila is against South wall and bowl faces North
+        toiletModel.rotation.y = -Math.PI / 2;
 
-    // Murky stagnant water in bowl
-    const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x0a1610,
-      roughness: 0.1,
-      metalness: 0.7,
-    });
-    const waterMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), waterMat);
-    waterMesh.position.set(0, 0.48, -0.15);
-    toiletGroup.add(waterMesh);
+        const box = new THREE.Box3().setFromObject(toiletModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxH = Math.max(size.y, 0.001);
+        const targetH = 1.05; // enlarged toilet scale for better room proportion
+        const scale = targetH / maxH;
+        toiletModel.scale.set(scale, scale, scale);
 
-    // Glint of submerged iron key
-    const keyGlint = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.015, 0.09),
-      new THREE.MeshStandardMaterial({ color: 0x8a7042, metalness: 0.85, roughness: 0.3 })
+        const newBox = new THREE.Box3().setFromObject(toiletModel);
+        toiletModel.position.y = -newBox.min.y;
+
+        toiletModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            const nameLower = (mesh.name || '').toLowerCase();
+
+            // Hide all lid / seat / cover / hinge / black / dark parts
+            if (
+              nameLower.includes('lid') ||
+              nameLower.includes('seat') ||
+              nameLower.includes('tapa') ||
+              nameLower.includes('cover') ||
+              nameLower.includes('hinge') ||
+              nameLower.includes('black') ||
+              nameLower.includes('dark') ||
+              nameLower.includes('top')
+            ) {
+              mesh.visible = false;
+              return;
+            }
+
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (mesh.material) {
+              const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+              let isBlackMat = false;
+              materials.forEach((m) => {
+                const std = m as THREE.MeshStandardMaterial;
+                // If material color is dark/black (the black seat/lid material)
+                if (std.color && std.color.r < 0.35 && std.color.g < 0.35 && std.color.b < 0.35 && !std.map) {
+                  isBlackMat = true;
+                }
+                if (std.map) std.map.colorSpace = THREE.SRGBColorSpace;
+                std.emissive = porcelainMat.emissive;
+              });
+
+              if (isBlackMat) {
+                mesh.visible = false;
+                return;
+              }
+            }
+          }
+        });
+        toiletGroup.add(toiletModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load psx_toilet_dirty.glb:', err);
+      }
     );
-    keyGlint.position.set(0.03, 0.49, -0.14);
-    keyGlint.rotation.y = 0.4;
-    toiletGroup.add(keyGlint);
-
-    const toiletTank = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.54, 0.24), porcelainMat);
-    toiletTank.position.set(0, 0.66, 0.24);
-    toiletGroup.add(toiletTank);
 
     this.scene.add(toiletGroup);
     this.interactiveMeshes.set('toilet', toiletGroup);
 
-    // 11. Bathtub (Bañera con Sangre) along East Wall (matching reference photo)
+    // 11. Bathtub (Bañera PSX) along East Wall
     const tubGroup = new THREE.Group();
-    tubGroup.position.set(10.95, 0.31, 1.4);
+    tubGroup.position.set(10.77, 0, 1.4);
 
-    // Outer cyan/teal apron panel (exact teal shade from photo)
-    const tubApronMat = new THREE.MeshStandardMaterial({
-      color: 0x325e68,
-      roughness: 0.45,
-      metalness: 0.15,
-    });
-    const tubApron = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.62, 2.6),
-      tubApronMat
-    );
-    tubGroup.add(tubApron);
+    const tubLoader = new GLTFLoader();
+    tubLoader.load(
+      '/models/bathtub_dirty_psx_low-poly.glb',
+      (gltf) => {
+        const tubModel = gltf.scene;
+        // Rotate 90 degrees around Y so bathtub runs parallel along the East wall (Z axis)
+        tubModel.rotation.y = Math.PI / 2;
 
-    // White porcelain rim
-    const tubRim = new THREE.Mesh(
-      new THREE.BoxGeometry(0.82, 0.04, 2.62),
-      porcelainMat
-    );
-    tubRim.position.y = 0.32;
-    tubGroup.add(tubRim);
+        const box = new THREE.Box3().setFromObject(tubModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.z, 0.001);
+        const targetLen = 2.2; // ~2.2m realistic tub length
+        const scale = targetLen / maxDim;
+        tubModel.scale.set(scale, scale, scale);
 
-    // Dark pool of blood-red stagnant water inside bathtub
-    const bloodWaterMat = new THREE.MeshStandardMaterial({
-      color: 0x5a0c0c,
-      roughness: 0.12,
-      metalness: 0.5,
-    });
-    const bloodWater = new THREE.Mesh(
-      new THREE.BoxGeometry(0.66, 0.02, 2.44),
-      bloodWaterMat
+        const newBox = new THREE.Box3().setFromObject(tubModel);
+        tubModel.position.y = -newBox.min.y;
+
+        tubModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (mesh.material) {
+              const m = mesh.material as THREE.MeshStandardMaterial;
+              if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+            }
+          }
+        });
+        tubGroup.add(tubModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load bathtub_dirty_psx_low-poly.glb:', err);
+      }
     );
-    bloodWater.position.y = 0.24;
-    tubGroup.add(bloodWater);
 
     this.scene.add(tubGroup);
 
-    // Horizontal shower curtain rod spanning across at Y = 2.15m
-    const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
-    const curtainRod = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.018, 0.018, 2.7, 8),
-      rodMat
-    );
-    curtainRod.rotation.x = Math.PI / 2;
-    curtainRod.position.set(10.55, 2.15, 1.4);
-    this.scene.add(curtainRod);
-
     // Showerhead & flexible hose on East wall
+    const rodMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.3 });
     const showerHead = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 12), rodMat);
     showerHead.position.set(11.35, 1.95, 0.35);
     showerHead.rotation.z = Math.PI / 3;
     this.scene.add(showerHead);
-
-    // Grimy moldy shower curtain hanging half-drawn (Z: 1.3 to 2.6)
-    const curtainTex = TextureGenerator.createShowerCurtainTexture();
-    const curtainMat = new THREE.MeshStandardMaterial({
-      map: curtainTex,
-      roughness: 0.7,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.92,
-    });
-    const showerCurtain = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.25, 1.65),
-      curtainMat
-    );
-    showerCurtain.position.set(10.55, 1.32, 2.0);
-    showerCurtain.rotation.y = Math.PI / 2;
-    this.scene.add(showerCurtain);
 
     // 12. Broken Wall Tile (Azulejo Roto del Baño)
     // Placed above the bathtub rim on the East tiled wall at (11.38, 0.76, 0.35)
@@ -2889,118 +2909,88 @@ export class EscapeRoomScene {
 
     bedroomGroup.add(tvGroup);
 
-    // 5. ASSET: CAMA (Bed) along West Wall in South-West Corner (Matching Image 1 & 2)
-    // Position: Center at X = -9.9, Z = 3.6 (spanning Z: 2.3 to 4.9)
+    // 5. ASSET: CAMA (Bed with Blood) along West Wall in South-West Corner
     const bedGroup = new THREE.Group();
-    bedGroup.position.set(-9.9, 0, 3.6);
+    // Positioned flush against West wall at X = -10.5
+    bedGroup.position.set(-10.5, 0, 4.5);
 
-    // Headboard at North end (Z = -1.15 relative to bed center, height 1.25m)
-    const hbGroup = new THREE.Group();
-    hbGroup.position.set(0, 0, -1.15);
+    const bedLoader = new GLTFLoader();
+    bedLoader.load(
+      '/models/psx_bed_with_blood.glb',
+      (gltf) => {
+        const bedModel = gltf.scene;
+        // Rotate 180 degrees around Y so headboard faces North wall
+        bedModel.rotation.y = Math.PI;
 
-    // 2 Outer Vertical Iron Posts with Brass Ball Finials
-    [-0.72, 0.72].forEach((px) => {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 1.25, 8), ironFrameMat);
-      post.position.set(px, 0.625, 0);
-      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), brassMat);
-      finial.position.set(px, 1.26, 0);
-      hbGroup.add(post, finial);
-    });
+        const box = new THREE.Box3().setFromObject(bedModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxLen = Math.max(size.x, size.z, 0.001);
+        const targetLen = 2.4; // 2.4m realistic bed length
+        const scale = targetLen / maxLen;
+        bedModel.scale.set(scale, scale, scale);
 
-    // Curved Top Horizontal Iron Arch Rail
-    const topRail = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.44, 8), ironFrameMat);
-    topRail.rotation.z = Math.PI / 2;
-    topRail.position.set(0, 1.15, 0);
-    const midRail = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.44, 8), ironFrameMat);
-    midRail.rotation.z = Math.PI / 2;
-    midRail.position.set(0, 0.45, 0);
-    hbGroup.add(topRail, midRail);
+        const newBox = new THREE.Box3().setFromObject(bedModel);
+        bedModel.position.y = -newBox.min.y;
 
-    // 5 Vertical Iron Spindles
-    for (let s = -2; s <= 2; s++) {
-      const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.68, 6), ironFrameMat);
-      spindle.position.set(s * 0.24, 0.80, 0);
-      hbGroup.add(spindle);
-    }
-    bedGroup.add(hbGroup);
+        const applyBedMaterial = (tex?: THREE.Texture) => {
+          if (tex) {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.flipY = false;
+            tex.needsUpdate = true;
+          }
+          bedModel.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
 
-    // Footboard at South end (Z = 1.15 relative to bed center, height 0.85m)
-    const fbGroup = new THREE.Group();
-    fbGroup.position.set(0, 0, 1.15);
-    [-0.72, 0.72].forEach((px) => {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.85, 8), ironFrameMat);
-      post.position.set(px, 0.425, 0);
-      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.034, 8, 8), brassMat);
-      finial.position.set(px, 0.86, 0);
-      fbGroup.add(post, finial);
-    });
-    const fbTopRail = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.44, 8), ironFrameMat);
-    fbTopRail.rotation.z = Math.PI / 2;
-    fbTopRail.position.set(0, 0.78, 0);
-    const fbMidRail = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.44, 8), ironFrameMat);
-    fbMidRail.rotation.z = Math.PI / 2;
-    fbMidRail.position.set(0, 0.40, 0);
-    fbGroup.add(fbTopRail, fbMidRail);
-    for (let s = -2; s <= 2; s++) {
-      const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.36, 6), ironFrameMat);
-      spindle.position.set(s * 0.24, 0.59, 0);
-      fbGroup.add(spindle);
-    }
-    bedGroup.add(fbGroup);
+              const existingMap = tex || (mesh.material as any)?.map;
+              if (existingMap) {
+                existingMap.colorSpace = THREE.SRGBColorSpace;
+                existingMap.needsUpdate = true;
+              }
 
-    // Longitudinal Bed Rails & Wooden Slats
-    [-0.70, 0.70].forEach((rx) => {
-      const sideRail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 2.30), ironFrameMat);
-      sideRail.position.set(rx, 0.38, 0);
-      bedGroup.add(sideRail);
-    });
-    for (let sl = -1.0; sl <= 1.0; sl += 0.22) {
-      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.02, 0.12), darkWoodMat);
-      slat.position.set(0, 0.36, sl);
-      bedGroup.add(slat);
-    }
+              mesh.material = new THREE.MeshStandardMaterial({
+                map: existingMap || null,
+                color: 0xffffff,
+                roughness: 0.75,
+                metalness: 0.1,
+                side: THREE.DoubleSide,
+              });
+            }
+          });
+        };
 
-    // Stained Dirty Mattress (with sweat rings, grime & dried blood from Image 2)
-    const mattressTex = TextureGenerator.createDirtyMattressTexture();
-    const mattressMat = new THREE.MeshStandardMaterial({
-      map: mattressTex,
-      roughness: 0.85,
-      metalness: 0.02,
-    });
-    const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.28, 2.22), mattressMat);
-    mattress.position.set(0, 0.52, 0);
-    bedGroup.add(mattress);
-
-    // Stained Pillow at the South end (as drawn in Image 1 floorplan)
-    const pillowMat = new THREE.MeshStandardMaterial({ color: 0x9e9587, roughness: 0.9 });
-    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.14, 0.42), pillowMat);
-    pillow.position.set(0, 0.70, 0.85);
-    pillow.rotation.x = -0.15;
-    bedGroup.add(pillow);
-
-    // Rumpled Disheveled Dirty Blanket (sagging over the side into the room)
-    const blanketMat = new THREE.MeshStandardMaterial({ color: 0x544738, roughness: 0.92 });
-    const blanket = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.08, 1.45), blanketMat);
-    blanket.position.set(0.06, 0.68, -0.15);
-    const blanketDrape = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 1.15), blanketMat);
-    blanketDrape.position.set(0.74, 0.48, -0.15);
-    bedGroup.add(blanket, blanketDrape);
-
-    // Decayed book and scattered notes on bed (Image 2 detail)
-    const bookCover = new THREE.Mesh(
-      new THREE.BoxGeometry(0.20, 0.035, 0.28),
-      new THREE.MeshStandardMaterial({ color: 0x2a3e2a, roughness: 0.8 })
+        // Extract embedded GLTF PNG texture directly from parser dependencies
+        if (gltf.parser && typeof gltf.parser.getDependencies === 'function') {
+          gltf.parser
+            .getDependencies('texture')
+            .then((textures: THREE.Texture[]) => {
+              const bedTexture = textures && textures.length > 0 ? textures[0] : undefined;
+              applyBedMaterial(bedTexture);
+            })
+            .catch(() => {
+              applyBedMaterial();
+            });
+        } else {
+          applyBedMaterial();
+        }
+        bedGroup.add(bedModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load psx_bed_with_blood.glb:', err);
+      }
     );
-    bookCover.position.set(-0.25, 0.70, -0.45);
-    bookCover.rotation.y = 0.35;
-    bedGroup.add(bookCover);
 
     bedroomGroup.add(bedGroup);
 
     // 6. ASSET: MESITA DE LUZ (Nightstand) beside the Bed along South Wall
-    // Position: X = -8.2, Y = 0, Z = 5.3
+    // Position: X = -9.25, Y = 0, Z = 3.8 (attached to bed)
     const nightstandGroup = new THREE.Group();
-    nightstandGroup.position.set(-8.2, 0, 5.3);
+    nightstandGroup.position.set(-9.25, 0, 5.5);
+    nightstandGroup.rotation.set(0, Math.PI, 0);
 
     // Nightstand Body
     const nsBody = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.68, 0.54), darkWoodMat);
@@ -3028,9 +3018,9 @@ export class EscapeRoomScene {
       });
     });
 
-    // Vintage Bedside Lamp on top of Nightstand
+    // Vintage Bedside Lamp on top of Nightstand (corner position to leave space for other objects)
     const lampGroup = new THREE.Group();
-    lampGroup.position.set(0, 0.74, 0);
+    lampGroup.position.set(-0.18, 0.74, -0.16);
 
     const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.03, 12), brassMat);
     lampBase.position.y = 0.015;
@@ -3053,13 +3043,46 @@ export class EscapeRoomScene {
     this.bedroomLampLight = bedLampLight;
     lampGroup.add(bedLampLight);
 
-    // Cloudy glass of water & pill blister pack
-    const glass = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.032, 0.028, 0.09, 8),
-      new THREE.MeshStandardMaterial({ color: 0x90a4a8, roughness: 0.15, transparent: true, opacity: 0.55 })
+    // Pill bottle/blister pack model (pastillas.glb) on top of nightstand
+    const pillsGroup = new THREE.Group();
+    pillsGroup.position.set(0.16, 0.74, 0.12);
+
+    const pillsLoader = new GLTFLoader();
+    pillsLoader.load(
+      '/models/pastillas.glb',
+      (gltf) => {
+        const pillsModel = gltf.scene;
+        const box = new THREE.Box3().setFromObject(pillsModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+        const targetSize = 0.26;
+        const scale = targetSize / maxDim;
+        pillsModel.scale.set(scale, scale, scale);
+
+        const newBox = new THREE.Box3().setFromObject(pillsModel);
+        pillsModel.position.y = -newBox.min.y;
+
+        pillsModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (mesh.material) {
+              const m = mesh.material as THREE.MeshStandardMaterial;
+              if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+            }
+          }
+        });
+        pillsGroup.add(pillsModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load pastillas.glb:', err);
+      }
     );
-    glass.position.set(0.18, 0.785, 0.12);
-    nightstandGroup.add(lampGroup, glass);
+
+    nightstandGroup.add(lampGroup, pillsGroup);
 
     // 6B. Objeto interactuable: Nota ensangrentada en la mesita de luz (nota.jpg / nota.png)
     const noteGroup = new THREE.Group();
@@ -3117,6 +3140,52 @@ export class EscapeRoomScene {
 
     nightstandGroup.add(noteGroup);
     this.interactiveMeshes.set('nightstand_note', noteGroup);
+
+    // 6C. Revolver prop on top of Nightstand
+    const revolverGroup = new THREE.Group();
+    revolverGroup.position.set(0.14, 0.745, -0.06);
+
+    const revolverLoader = new GLTFLoader();
+    revolverLoader.load(
+      '/models/revolver_psx.glb',
+      (gltf) => {
+        const revolverModel = gltf.scene;
+        // Lay flat on side resting on nightstand top surface
+        revolverModel.rotation.set(Math.PI / 2, 0, 0.5);
+
+        const box = new THREE.Box3().setFromObject(revolverModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+        const targetSize = 0.28; // ~28cm revolver length
+        const scale = targetSize / maxDim;
+        revolverModel.scale.set(scale, scale, scale);
+
+        const newBox = new THREE.Box3().setFromObject(revolverModel);
+        revolverModel.position.y = -newBox.min.y;
+
+        revolverModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (mesh.material) {
+              const m = mesh.material as THREE.MeshStandardMaterial;
+              if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+              m.roughness = Math.max(m.roughness ?? 0.4, 0.3);
+              m.metalness = Math.max(m.metalness ?? 0.8, 0.7);
+            }
+          }
+        });
+        revolverGroup.add(revolverModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load revolver_psx.glb:', err);
+      }
+    );
+
+    nightstandGroup.add(revolverGroup);
 
     bedroomGroup.add(nightstandGroup);
 
@@ -3230,34 +3299,24 @@ export class EscapeRoomScene {
 
     bedroomGroup.add(hangingManGroup);
 
-    // 8. Silent Hill Room 302 Environmental Details (Faithful to Image 2)
-    // 4 Framed Portraits on the North Wall displaying "las caras" of El Pibe
+    // 8. 4 Dark Turned-Off Wall Screens on the North Wall of the Bedroom
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f1a14, roughness: 0.8 });
-    const texLoader = new THREE.TextureLoader();
-    const pibeFacePaths = [
-      '/imgs/Elpibe_1.jpg',
-      '/imgs/Elpibe_2.jpg',
-      '/imgs/Elpibe_3.jpg',
-      '/imgs/Elpibe_4.jpg',
-    ];
+    const screenOffMat = new THREE.MeshStandardMaterial({
+      color: 0x0a0a0c,
+      roughness: 0.85,
+      metalness: 0.15,
+    });
     const frameCoords = [
       [-6.5, 2.3],
       [-5.5, 2.3],
       [-6.5, 1.55],
       [-5.5, 1.55],
     ];
-    frameCoords.forEach(([fx, fy], idx) => {
+    frameCoords.forEach(([fx, fy]) => {
       const frameBorder = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.56, 0.03), frameMat);
       frameBorder.position.set(fx, fy, -1.18);
 
-      const faceTex = texLoader.load(pibeFacePaths[idx]);
-      faceTex.colorSpace = THREE.SRGBColorSpace;
-      const faceMat = new THREE.MeshStandardMaterial({
-        map: faceTex,
-        roughness: 0.55,
-        metalness: 0.08,
-      });
-      const pictureMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), faceMat);
+      const pictureMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), screenOffMat);
       pictureMesh.position.set(fx, fy, -1.16);
       bedroomGroup.add(frameBorder, pictureMesh);
     });
@@ -3386,6 +3445,8 @@ export class EscapeRoomScene {
    * vector: x (-1..1) for strafe, y (-1..1) for forward/back
    */
   public applyMovement(vector: { x: number; y: number }, delta: number) {
+    const moveSpeed = 2.4 * delta;
+
     // Movement forward/back & left/right relative to camera's horizontal yaw
     const currentYaw = this.touchYaw + this.gyroYaw;
     const forward = new THREE.Vector3(0, 0, -1);
@@ -3398,146 +3459,230 @@ export class EscapeRoomScene {
     right.y = 0;
     right.normalize();
 
-    const maxSpeed = 2.6; // Max speed in m/s
-    const targetVel = right
-      .multiplyScalar(vector.x * maxSpeed)
-      .add(forward.multiplyScalar(vector.y * maxSpeed));
+    const moveX = right.multiplyScalar(vector.x * moveSpeed);
+    const moveZ = forward.multiplyScalar(vector.y * moveSpeed);
 
-    // Smooth velocity lerp for momentum and continuous fluid movement without jerky stops
-    const lerpFactor = Math.min(1.0, 16.0 * delta);
-    this.moveVelocity.lerp(targetVel, lerpFactor);
+    const nextPos = this.playerPosition.clone().add(moveX).add(moveZ);
 
-    if (this.moveVelocity.lengthSq() < 0.00001) {
-      this.moveVelocity.set(0, 0, 0);
-      return;
-    }
+    // Doorway opening to bathroom on East is at X = 5.0, between Z = 0.45 and Z = 2.35
+    const inBathroomDoorwayZ = nextPos.z >= 0.45 && nextPos.z <= 2.35;
+    // Doorway opening to new bedroom on West is at X = -5.0 (walkable opening between door post/panel at Z=1.30 and right post at Z=2.55)
+    const inBedroomDoorwayZ = nextPos.z >= 1.30 && nextPos.z <= 2.55;
 
-    const moveStep = this.moveVelocity.clone().multiplyScalar(delta);
-
-    // Independent Axis Sliding: Attempt X movement first, then Z movement
-    const posPrev = this.playerPosition.clone();
-
-    // Step 1: Move along X
-    let tryX = new THREE.Vector3(posPrev.x + moveStep.x, posPrev.y, posPrev.z);
-    tryX = this.constrainPositionToBounds(tryX);
-
-    // Step 2: Move along Z
-    let tryZ = new THREE.Vector3(tryX.x, tryX.y, tryX.z + moveStep.z);
-    tryZ = this.constrainPositionToBounds(tryZ);
-
-    this.playerPosition.copy(tryZ);
-    this.camera.position.copy(this.playerPosition);
-  }
-
-  /**
-   * Minimum-penetration AABB collision helper for smooth wall & obstacle sliding
-   */
-  private collideBox(
-    pos: THREE.Vector3,
-    minX: number,
-    maxX: number,
-    minZ: number,
-    maxZ: number,
-    margin = 0.2
-  ): THREE.Vector3 {
-    const eMinX = minX - margin;
-    const eMaxX = maxX + margin;
-    const eMinZ = minZ - margin;
-    const eMaxZ = maxZ + margin;
-
-    if (pos.x > eMinX && pos.x < eMaxX && pos.z > eMinZ && pos.z < eMaxZ) {
-      const dxLeft = Math.abs(pos.x - eMinX);
-      const dxRight = Math.abs(pos.x - eMaxX);
-      const dzBottom = Math.abs(pos.z - eMinZ);
-      const dzTop = Math.abs(pos.z - eMaxZ);
-
-      const minPen = Math.min(dxLeft, dxRight, dzBottom, dzTop);
-
-      if (minPen === dxLeft) pos.x = eMinX;
-      else if (minPen === dxRight) pos.x = eMaxX;
-      else if (minPen === dzBottom) pos.z = eMinZ;
-      else pos.z = eMaxZ;
-    }
-    return pos;
-  }
-
-  /**
-   * Constrain position across Main Room, Bathroom, Bedroom and all scene obstacles
-   */
-  private constrainPositionToBounds(pos: THREE.Vector3): THREE.Vector3 {
-    // 1. Room Shell & Doorway Transitions
-    if (pos.x > 4.2) {
-      // East Side / Bathroom direction
-      const inBathroomDoorZ = pos.z >= 0.45 && pos.z <= 2.35;
-      if (this.isBathroomUnlocked && inBathroomDoorZ) {
-        pos.x = Math.min(10.8, pos.x);
-        if (pos.x > 4.8) {
-          pos.z = Math.max(-1.6, Math.min(4.4, pos.z));
+    // Movement zones across 3 rooms:
+    // 1. East Bathroom: X [5.15, 11.0], Z [-1.6, 4.4]
+    // 2. Center Main Room: X [-4.2, 4.2], Z [-5.3, 5.2]
+    // 3. West Horror Bedroom: X [-10.8, -5.15], Z [-0.7, 5.5]
+    if (this.playerPosition.x >= -4.5 && this.playerPosition.x <= 4.5) {
+      // Currently inside Main Room
+      // Moving East towards Bathroom
+      if (nextPos.x > 4.2) {
+        if (inBathroomDoorwayZ && this.isBathroomUnlocked) {
+          nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
         } else {
-          pos.z = Math.max(0.45, Math.min(2.35, pos.z));
+          nextPos.x = Math.max(-4.2, Math.min(4.2, nextPos.x));
         }
-      } else {
-        pos.x = Math.min(4.2, pos.x);
-        pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
       }
-    } else if (pos.x < -4.2) {
-      // West Side / Bedroom direction
-      const inBedroomDoorZ = pos.z >= 1.30 && pos.z <= 2.55;
-      if (inBedroomDoorZ) {
-        pos.x = Math.max(-10.8, pos.x);
-        if (pos.x < -4.8) {
-          pos.z = Math.max(-0.7, Math.min(5.5, pos.z));
+      // Moving West towards Bedroom
+      else if (nextPos.x < -4.2) {
+        if (inBedroomDoorwayZ) {
+          nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
         } else {
-          pos.z = Math.max(1.30, Math.min(2.55, pos.z));
+          nextPos.x = Math.max(-4.2, nextPos.x);
+        }
+      }
+      nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+    } else if (this.playerPosition.x > 4.5) {
+      // Currently inside or in doorway of Bathroom
+      if (inBathroomDoorwayZ) {
+        nextPos.x = Math.max(-4.2, Math.min(11.0, nextPos.x));
+        if (nextPos.x > 4.8) {
+          nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
+        } else {
+          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
         }
       } else {
-        pos.x = Math.max(-4.2, pos.x);
-        pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
+        nextPos.x = Math.max(5.15, Math.min(11.0, nextPos.x));
+        nextPos.z = Math.max(-1.6, Math.min(4.4, nextPos.z));
       }
     } else {
-      // Main Room
-      pos.z = Math.max(-5.3, Math.min(5.2, pos.z));
-    }
-
-    // 2. Obstacle Collisions
-    // Dining table & chairs
-    pos = this.collideBox(pos, -3.85, -1.75, -1.85, -0.65, 0.22);
-    pos = this.collideBox(pos, -3.60, -1.85, -0.70, 0.05, 0.15);
-    pos = this.collideBox(pos, -4.15, -3.65, -1.75, -1.15, 0.15);
-    pos = this.collideBox(pos, -2.80, -2.10, -2.32, -1.75, 0.15);
-
-    // Rotten Fridge & Credenza & Cart
-    pos = this.collideBox(pos, 2.95, 4.35, -5.20, -3.98, 0.25);
-    pos = this.collideBox(pos, 0.65, 2.65, -5.90, -5.15, 0.15);
-    pos = this.collideBox(pos, 1.65, 2.75, -2.85, -1.95, 0.20);
-
-    // Bathroom obstacles
-    if (pos.x > 4.5) {
-      pos = this.collideBox(pos, 6.45, 7.15, -1.90, -1.35, 0.20); // termotanque
-      pos = this.collideBox(pos, 4.95, 5.55, 3.15, 4.05, 0.15); // radiator
-      pos = this.collideBox(pos, 10.2, 11.4, 0.05, 2.75, 0.20); // tub
-      pos = this.collideBox(pos, 6.9, 8.1, 3.8, 5.0, 0.20); // toilet
-      pos = this.collideBox(pos, 7.8, 9.2, -1.9, -1.05, 0.20); // sink
-    }
-
-    // Bedroom obstacles
-    if (pos.x < -4.5) {
-      pos = this.collideBox(pos, -11.4, -8.7, 2.1, 5.0, 0.25); // bed
-      pos = this.collideBox(pos, -11.4, -7.0, -1.2, 0.15, 0.25); // cajonera + TV
-      pos = this.collideBox(pos, -8.8, -7.6, 4.6, 5.9, 0.20); // nightstand
-
-      // Hanging man / stool obstacle (cylinder)
-      const toHanging = new THREE.Vector2(pos.x - (-6.4), pos.z - 4.2);
-      const minDist = 0.45;
-      if (toHanging.length() < minDist) {
-        if (toHanging.length() === 0) toHanging.set(1, 0);
-        toHanging.normalize().multiplyScalar(minDist);
-        pos.x = -6.4 + toHanging.x;
-        pos.z = 4.2 + toHanging.y;
+      // Currently inside or in doorway of New Bedroom (X < -4.5)
+      if (inBedroomDoorwayZ) {
+        nextPos.x = Math.max(-10.8, Math.min(4.2, nextPos.x));
+        if (nextPos.x < -4.8) {
+          nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
+        } else {
+          nextPos.z = Math.max(-5.3, Math.min(5.2, nextPos.z));
+        }
+      } else {
+        nextPos.x = Math.max(-10.8, Math.min(-5.15, nextPos.x));
+        nextPos.z = Math.max(-0.7, Math.min(5.5, nextPos.z));
       }
     }
 
-    return pos;
+    // 1. Mesa del comedor y sus sillas (Dining table & 4 vintage chairs):
+    // Sillas del sur (Chair 1 & Chair 2 al sur de la mesa): X [-3.60, -1.85], Z [-0.70, 0.05]
+    if (nextPos.x > -3.60 && nextPos.x < -1.85 && nextPos.z > -0.70 && nextPos.z < 0.05) {
+      if (this.playerPosition.z >= 0.05) nextPos.z = 0.05;
+      else if (this.playerPosition.x <= -3.60) nextPos.x = -3.60;
+      else if (this.playerPosition.x >= -1.85) nextPos.x = -1.85;
+      else nextPos.z = -0.70;
+    }
+    // Silla del oeste (Chair 4 al oeste de la mesa): X [-4.15, -3.65], Z [-1.75, -1.15]
+    if (nextPos.x > -4.15 && nextPos.x < -3.65 && nextPos.z > -1.75 && nextPos.z < -1.15) {
+      if (this.playerPosition.x <= -4.15) nextPos.x = -4.15;
+      else if (this.playerPosition.z <= -1.75) nextPos.z = -1.75;
+      else if (this.playerPosition.z >= -1.15) nextPos.z = -1.15;
+      else nextPos.x = -3.65;
+    }
+    // Silla del norte (Chair 3 al norte de la mesa): X [-2.80, -2.10], Z [-2.32, -1.75]
+    if (nextPos.x > -2.80 && nextPos.x < -2.10 && nextPos.z > -2.32 && nextPos.z < -1.75) {
+      if (this.playerPosition.z <= -2.32) nextPos.z = -2.32;
+      else if (this.playerPosition.x <= -2.80) nextPos.x = -2.80;
+      else if (this.playerPosition.x >= -2.10) nextPos.x = -2.10;
+      else nextPos.z = -1.75;
+    }
+    // Tablero principal de la mesa: X [-3.85, -1.75], Z [-1.85, -0.65]
+    if (nextPos.x > -3.85 && nextPos.x < -1.75 && nextPos.z > -1.85 && nextPos.z < -0.65) {
+      if (this.playerPosition.x <= -3.85) nextPos.x = -3.85;
+      else if (this.playerPosition.x >= -1.75) nextPos.x = -1.75;
+      else if (this.playerPosition.z <= -1.85) nextPos.z = -1.85;
+      else if (this.playerPosition.z >= -0.65) nextPos.z = -0.65;
+    }
+
+    // 2. La Heladera Podrida (Rotten Fridge): X [2.95, 4.35], Z [-5.20, -3.98]
+    if (nextPos.x > 2.95 && nextPos.x < 4.35 && nextPos.z > -5.20 && nextPos.z < -3.98) {
+      if (this.playerPosition.z >= -3.98) nextPos.z = -3.98;
+      else if (this.playerPosition.x <= 2.95) nextPos.x = 2.95;
+      else if (this.playerPosition.x >= 4.35) nextPos.x = 4.35;
+      else nextPos.z = -5.20;
+    }
+
+    // Credenza de cocina junto a la heladera: X [0.65, 2.65], Z < -5.15
+    if (nextPos.x > 0.65 && nextPos.x < 2.65 && nextPos.z < -5.15) {
+      nextPos.z = -5.15;
+    }
+
+    // 3. La Mesita / Carrito frente a la heladera (Utility Cart): X [1.65, 2.75], Z [-2.85, -1.95]
+    if (nextPos.x > 1.65 && nextPos.x < 2.75 && nextPos.z > -2.85 && nextPos.z < -1.95) {
+      if (this.playerPosition.x <= 1.65) nextPos.x = 1.65;
+      else if (this.playerPosition.x >= 2.75) nextPos.x = 2.75;
+      else if (this.playerPosition.z <= -2.85) nextPos.z = -2.85;
+      else if (this.playerPosition.z >= -1.95) nextPos.z = -1.95;
+    }
+
+    // 4. Puerta del Baño (Dividing Bathroom Door):
+    if (this.isBathroomUnlocked) {
+      // Puerta abierta y batida hacia la pared norte del baño: segmento de (5.0, 0.46) a (6.88, 0.58)
+      const pX = nextPos.x, pZ = nextPos.z;
+      const ax = 5.0, az = 0.46;
+      const bx = 6.88, bz = 0.58;
+      const dx = bx - ax, dz = bz - az;
+      const lenSq = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
+      const projX = ax + t * dx;
+      const projZ = az + t * dz;
+      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
+      const doorRadius = 0.22;
+      if (distSq < doorRadius * doorRadius) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
+        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
+      }
+    }
+
+    // 5. El Termotanque del baño y sus caños de cobre: X [6.45, 7.15], Z < -1.35
+    if (nextPos.x > 6.45 && nextPos.x < 7.15 && nextPos.z < -1.35) {
+      if (this.playerPosition.z >= -1.35) nextPos.z = -1.35;
+      else if (this.playerPosition.x <= 6.8) nextPos.x = 6.45;
+      else nextPos.x = 7.15;
+    }
+
+    // Radiador en la pared oeste del baño: X [5.0, 5.55], Z [3.15, 4.05]
+    if (nextPos.x > 4.95 && nextPos.x < 5.55 && nextPos.z > 3.15 && nextPos.z < 4.05) {
+      if (this.playerPosition.x >= 5.55) nextPos.x = 5.55;
+      else if (this.playerPosition.z <= 3.15) nextPos.z = 3.15;
+      else if (this.playerPosition.z >= 4.05) nextPos.z = 4.05;
+      else nextPos.x = 5.55;
+    }
+
+    // Otros obstáculos del baño (spacious layout):
+    // Bañera contra pared este: X > 10.2, Z in [0.05, 2.75]
+    if (nextPos.x > 10.2 && nextPos.z > 0.05 && nextPos.z < 2.75) {
+      nextPos.x = 10.2;
+    }
+
+    // Inodoro decrépito contra pared sur: X [6.9, 8.1], Z > 3.8
+    if (nextPos.x > 6.9 && nextPos.x < 8.1 && nextPos.z > 3.8) {
+      if (this.playerPosition.z <= 3.8) nextPos.z = 3.8;
+      else if (this.playerPosition.x <= 6.9) nextPos.x = 6.9;
+      else nextPos.x = 8.1;
+    }
+
+    // Lavamanos Silent Hill contra pared norte: X [7.8, 9.2], Z < -1.05
+    if (nextPos.x > 7.8 && nextPos.x < 9.2 && nextPos.z < -1.05) {
+      nextPos.z = -1.05;
+    }
+
+    // 6. Puerta de la Habitación / Bedroom (Hoja de madera entreabierta):
+    // Hoja batida hacia el bedroom: desde quicio (-5.0, 0.92) hasta extremo (-5.814, 1.255)
+    // A) Caja delimitadora de la hoja de la puerta y poste
+    if (nextPos.x > -5.95 && nextPos.x < -4.85 && nextPos.z > 0.85 && nextPos.z < 1.35) {
+      if (this.playerPosition.z >= 1.35) nextPos.z = 1.35;
+      else if (this.playerPosition.x <= -5.95) nextPos.x = -5.95;
+      else if (this.playerPosition.x >= -4.85) nextPos.x = -4.85;
+      else nextPos.z = 1.35;
+    }
+
+    // B) Proyección continua sobre el segmento oblicuo de la hoja
+    {
+      const pX = nextPos.x, pZ = nextPos.z;
+      const ax = -5.0, az = 0.92;
+      const bx = -5.814, bz = 1.255;
+      const dx = bx - ax, dz = bz - az;
+      const lenSq = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((pX - ax) * dx + (pZ - az) * dz) / lenSq));
+      const projX = ax + t * dx;
+      const projZ = az + t * dz;
+      const distSq = (pX - projX) * (pX - projX) + (pZ - projZ) * (pZ - projZ);
+      const doorRadius = 0.24;
+      if (distSq < doorRadius * doorRadius) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        nextPos.x = projX + ((pX - projX) / dist) * doorRadius;
+        nextPos.z = projZ + ((pZ - projZ) / dist) * doorRadius;
+      }
+    }
+
+    // Obstáculos del Bedroom:
+    // 1. Cama a lo largo de la pared oeste: X [-11.0, -8.7], Z [2.1, 5.0]
+    if (nextPos.x < -8.7 && nextPos.z > 2.1 && nextPos.z < 5.0) {
+      if (this.playerPosition.x >= -8.7) nextPos.x = -8.7;
+      else if (this.playerPosition.z <= 2.1) nextPos.z = 2.1;
+      else if (this.playerPosition.z >= 5.0) nextPos.z = 5.0;
+    }
+
+    // 2. Cajonera + TV de tubo a lo largo de pared norte: X [-10.8, -7.0], Z < 0.15
+    if (nextPos.x < -7.0 && nextPos.z < 0.15) {
+      nextPos.z = 0.15;
+    }
+
+    // 3. Mesita de luz a lo largo de pared sur: X [-8.8, -7.6], Z > 4.6
+    if (nextPos.x > -8.8 && nextPos.x < -7.6 && nextPos.z > 4.6) {
+      if (this.playerPosition.z <= 4.6) nextPos.z = 4.6;
+      else if (this.playerPosition.x >= -7.6) nextPos.x = -7.6;
+      else nextPos.x = -8.8;
+    }
+
+    // 4. Hombre colgado & Banquito volcado en X = -6.4, Z = 4.2 (radio 0.45m)
+    const toHanging = new THREE.Vector2(nextPos.x - (-6.4), nextPos.z - 4.2);
+    if (toHanging.length() < 0.45) {
+      toHanging.normalize().multiplyScalar(0.45);
+      nextPos.x = -6.4 + toHanging.x;
+      nextPos.z = 4.2 + toHanging.y;
+    }
+
+    this.playerPosition.copy(nextPos);
+    this.camera.position.copy(this.playerPosition);
   }
 
   /**

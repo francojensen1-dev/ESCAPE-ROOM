@@ -87,7 +87,7 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({ onStartExperie
         {/* Tip */}
         <div className="mt-4 flex items-center gap-2 text-[11px] text-amber-400/90 font-mono">
           <Lightbulb className="w-3.5 h-3.5 shrink-0" />
-          <span>Tip: Inspecciona la heladera podrida y mira por el visor de la puerta.</span>
+          <span>Tip: Explora e investiga el diario de la mesa principal para encontrar pistas.</span>
         </div>
 
         {/* Start Button */}

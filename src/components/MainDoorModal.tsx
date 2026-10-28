@@ -113,7 +113,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               <div>
                 <p className="text-xs font-semibold text-stone-200">1. Candado Numérico (4 Dígitos)</p>
                 <p className="text-[10px] text-stone-400">
-                  {lockState.codeLock ? 'Combinación correcta (1986)' : 'Pista en el calendario'}
+                  {lockState.codeLock ? 'Candado abierto' : 'Candado de combinación de 4 dígitos'}
                 </p>
               </div>
             </div>
@@ -139,7 +139,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               <div>
                 <p className="text-xs font-semibold text-stone-200">2. Pestillo Electromagnético (220V)</p>
                 <p className="text-[10px] text-stone-400">
-                  {lockState.fuseLock ? 'Circuito puenteado con éxito' : 'Alimentado por caja de fusibles'}
+                  {lockState.fuseLock ? 'Circuito desenergizado' : 'Alimentado por caja de fusibles'}
                 </p>
               </div>
             </div>
@@ -161,10 +161,10 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
                 <p className="text-xs font-semibold text-stone-200">3. Candado de Hierro Herrumbroso</p>
                 <p className="text-[10px] text-stone-400">
                   {lockState.toiletKeyLock
-                    ? 'Abierto con la llave del inodoro'
+                    ? 'Candado abierto'
                     : hasToiletKey
-                    ? 'Tienes la llave de hierro del baño'
-                    : 'Requiere la llave sumergida en el inodoro'}
+                    ? 'Tienes una llave de hierro que coincide'
+                    : 'Requiere una llave de hierro de cerrojo pesada'}
                 </p>
               </div>
             </div>
@@ -190,11 +190,11 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
             <div className="flex items-center gap-2.5">
               <Type className={`w-4 h-4 ${lockState.letterLock ? 'text-emerald-400' : 'text-amber-500'}`} />
               <div>
-                <p className="text-xs font-semibold text-stone-200">4. Candado de 5 Letras (Azulejo)</p>
+                <p className="text-xs font-semibold text-stone-200">4. Candado de 5 Letras</p>
                 <p className="text-[10px] text-stone-400">
                   {lockState.letterLock
-                    ? 'Palabra correcta (MORIR)'
-                    : 'Código oculto tras el azulejo roto del baño'}
+                    ? 'Candado abierto'
+                    : 'Candado de combinación con 5 letras'}
                 </p>
               </div>
             </div>

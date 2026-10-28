@@ -283,8 +283,8 @@ export default function App() {
         ...prev,
         {
           id: 'key_fridge',
-          name: 'Llave Antigua de Latón',
-          description: 'Encontrada congelada en la heladera. Abre la puerta del baño contiguo.',
+          name: 'Llave del Baño',
+          description: 'La llave de la puerta del baño encontrada en la heladera.',
           icon: 'key',
         },
       ];
@@ -302,7 +302,7 @@ export default function App() {
         {
           id: 'key_toilet',
           name: 'Llave de Hierro Herrumbrosa',
-          description: 'Llave pesada y fangosa recuperada del fondo del inodoro del baño.',
+          description: 'Una llave de hierro pesada y herrumbrosa.',
           icon: 'key',
         },
       ];
@@ -615,9 +615,13 @@ export default function App() {
         if (keyboardKeys.current['KeyA'] || keyboardKeys.current['ArrowLeft']) vx -= 1;
         if (keyboardKeys.current['KeyD'] || keyboardKeys.current['ArrowRight']) vx += 1;
 
-        sceneRef.current.applyMovement({ x: vx, y: vy }, delta);
+        // Clamp
+        vx = Math.max(-1, Math.min(1, vx));
+        vy = Math.max(-1, Math.min(1, vy));
 
         if (vx !== 0 || vy !== 0) {
+          sceneRef.current.applyMovement({ x: vx, y: vy }, delta);
+
           // Random walking footstep sound
           if (Math.random() < 0.04) {
             horrorAudio.playFootstep();

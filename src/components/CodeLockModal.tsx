@@ -113,7 +113,7 @@ export const CodeLockModal: React.FC<CodeLockModalProps> = ({
               </p>
             ) : (
               <p className="text-xs font-mono text-stone-400">
-                Pista: El año del calendario colgado en la pared.
+                Ingresa la combinación de 4 dígitos para abrir este candado.
               </p>
             )}
             {errorMsg && <p className="text-xs font-mono text-red-400 mt-1">{errorMsg}</p>}
