@@ -1,16 +1,10 @@
-/**
- * Door Peephole (Visor de la Puerta del Pibe) Modal
- * Shows the approaching sequence images of 'El Pibe' through a circular fisheye lens.
- * Includes a "Llamar al pibe" button. If the user calls him repeatedly,
- * the sequence advances until triggering an immediate screamer game-over.
- */
-
 import React, { useEffect, useState } from 'react';
-import { X, Eye, Volume2, AlertOctagon, Skull } from 'lucide-react';
+import { X, Eye, Volume2, AlertOctagon } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
 
 export interface PeepholeModalProps {
+  pibeStage: number; // 0: lejos, 1: medio, 2: cerca (golpeando), 3: pegado a la mirilla
   pibeCallCount: number;
   onCallPibe: () => void;
   onTriggerScreamer: (reason: 'called_too_much') => void;
@@ -25,38 +19,28 @@ const PIBE_STAGES: readonly string[] = [
 ];
 
 export const PeepholeModal: React.FC<PeepholeModalProps> = ({
+  pibeStage,
   pibeCallCount,
   onCallPibe,
   onTriggerScreamer,
   onClose,
 }) => {
-  // Candidate resolver with exact uploaded files first
-  const getPibeCandidates = (stage: number): string[] => {
+  // Candidate resolver with exact uploaded files
+  const getPibeCandidates = (stageNumber: number): string[] => {
     return [
-      `/imgs/Elpibe_${stage}.jpg`,
-      `/imgs/elpibe_${stage}.jpg`,
-      `/imgs/Elpibe${stage}.jpg`,
-      `/imgs/elpibe${stage}.jpg`,
-      `/imgs/Elpibe_${stage}.png`,
-      `/imgs/Elpibe_${stage}.jpeg`,
+      `/imgs/Elpibe_${stageNumber}.jpg`,
+      `/imgs/elpibe_${stageNumber}.jpg`,
+      `/imgs/Elpibe${stageNumber}.jpg`,
+      `/imgs/elpibe${stageNumber}.jpg`,
+      `/imgs/Elpibe_${stageNumber}.png`,
+      `/imgs/Elpibe_${stageNumber}.jpeg`,
     ];
   };
-
-  // Sequence index: 0 (distant), 1 (mid), 2 (near), 3 (extreme close)
-  const [sequenceIndex, setSequenceIndex] = useState<number>(() => {
-    return Math.min(3, Math.max(0, pibeCallCount));
-  });
 
   const [candidateIndex, setCandidateIndex] = useState<number>(0);
   const [imageError, setImageError] = useState<boolean>(false);
   const [flickerState, setFlickerState] = useState<number>(1);
   const [knockShake, setKnockShake] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string>(() => {
-    if (pibeCallCount === 0) return 'El pasillo está en penumbra absoluta. Una silueta inmóvil acecha a lo lejos.';
-    if (pibeCallCount === 1) return 'Golpeaste la puerta. La figura avanzó lentamente por el corredor.';
-    if (pibeCallCount === 2) return '¡Se escuchan pisadas pesadas y apresuradas! Está a pocos metros.';
-    return '¡ESTÁ PEGADO A LA PUERTA! Una sonrisa desquiciada llena el visor.';
-  });
 
   // Preload all 4 stages on mount
   useEffect(() => {
@@ -66,26 +50,24 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
     });
   }, []);
 
-  // Sync sequence index with pibeCallCount & reset candidate search
+  // Reset candidate index whenever pibeStage changes
   useEffect(() => {
-    const nextIdx = Math.min(3, pibeCallCount);
-    setSequenceIndex(nextIdx);
     setCandidateIndex(0);
     setImageError(false);
-  }, [pibeCallCount]);
+  }, [pibeStage]);
 
   useEffect(() => {
-    // Increase atmospheric horror tension
-    horrorAudio.updateTension(0.85);
+    // Increase horror tension according to stage
+    horrorAudio.updateTension(0.35 + pibeStage * 0.2);
     sensorManager.vibrate([40, 80, 40]);
 
-    // Shake lens whenever door knock sounds fire
+    // Shake lens whenever door knock sound fires
     const unregisterKnock = horrorAudio.onDoorKnock(() => {
       setKnockShake(true);
-      setTimeout(() => setKnockShake(false), 360);
+      setTimeout(() => setKnockShake(false), 380);
     });
 
-    // Flickering fluorescent lighting interval
+    // Flickering lighting
     const flickerInterval = setInterval(() => {
       const rand = Math.random();
       if (rand > 0.65) {
@@ -99,78 +81,73 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
       }
     }, 420);
 
-    // Passive creep progression: if player just stares without calling, sequence naturally creeps closer
-    const naturalCreepTimer1 = setTimeout(() => {
-      setSequenceIndex((prev) => {
-        if (prev < 1) {
-          horrorAudio.playHeartbeatSound();
-          sensorManager.vibrate([80, 40, 80]);
-          return 1;
-        }
-        return prev;
-      });
-    }, 4500);
-
-    const naturalCreepTimer2 = setTimeout(() => {
-      setSequenceIndex((prev) => {
-        if (prev < 2) {
-          horrorAudio.playDoorKnocks(0.5);
-          sensorManager.vibrate([120, 60, 120]);
-          return 2;
-        }
-        return prev;
-      });
-    }, 9500);
-
     return () => {
       unregisterKnock();
       clearInterval(flickerInterval);
-      clearTimeout(naturalCreepTimer1);
-      clearTimeout(naturalCreepTimer2);
       horrorAudio.updateTension(0.2);
     };
-  }, []);
+  }, [pibeStage]);
 
   // Handle calling 'El Pibe'
   const handleCallPibe = () => {
-    const newCount = pibeCallCount + 1;
-    onCallPibe();
+    if (pibeStage >= 3 || pibeCallCount >= 3) {
+      // Deadly call limit or extreme proximity reached -> Screamer!
+      horrorAudio.playDoorKnocks(1.0);
+      sensorManager.vibrate([400, 100, 500]);
+      setTimeout(() => {
+        onTriggerScreamer('called_too_much');
+      }, 350);
+      return;
+    }
 
     // Sound effect & heavy haptic feedback
     horrorAudio.playDoorKnocks(1.0);
     sensorManager.vibrate([150, 80, 200, 100, 250]);
 
-    // Violent screen shake
+    // Screen shake
     setKnockShake(true);
     setTimeout(() => setKnockShake(false), 450);
 
-    // Advance sequence image
-    const newIdx = Math.min(3, newCount);
-    setSequenceIndex(newIdx);
+    // Call parent handler
+    onCallPibe();
+  };
 
-    if (newCount === 1) {
-      setStatusMessage('Gritaste al pasillo: "¿Quién anda ahí?". Un eco áspero responde a lo lejos.');
-      horrorAudio.playCreak();
-    } else if (newCount === 2) {
-      setStatusMessage('¡Llamaste otra vez! Pasos frenéticos se acercan a toda velocidad.');
-      horrorAudio.playHeartbeatSound();
-    } else if (newCount === 3) {
-      setStatusMessage('¡EL PIBE ESTÁ JUSTO AL FRENTE! Su respiración helada empaña la mirilla.');
-      horrorAudio.playCreak();
-      sensorManager.vibrate([250, 100, 300]);
-    } else if (newCount >= 4) {
-      // Deadly call limit reached: trigger jumpscare screamer!
-      setStatusMessage('¡LO LLAMASTE DEMASIADO! La puerta tiembla...');
-      horrorAudio.playCreak();
-      sensorManager.vibrate([400, 100, 500]);
-      setTimeout(() => {
-        onTriggerScreamer('called_too_much');
-      }, 400);
+  // Status message & threat level info matching exact pibeStage (0..3)
+  const getStatusInfo = () => {
+    switch (pibeStage) {
+      case 0:
+        return {
+          text: 'El pasillo está en penumbra absoluta. Una silueta lejana e inmóvil acecha al fondo del corredor.',
+          badge: 'Pasillo en silencio - El Pibe está lejos',
+          badgeClass: 'text-stone-400',
+        };
+      case 1:
+        return {
+          text: 'Se escuchan pisadas pesadas en el pasillo. La figura avanza lentamente por el corredor.',
+          badge: 'El Pibe se está aproximando...',
+          badgeClass: 'text-amber-400 font-semibold',
+        };
+      case 2:
+        return {
+          text: '¡GOLPES EN LA PUERTA! El Pibe está justo del otro lado tocando y golpeando la madera.',
+          badge: '¡ALERTA! El Pibe está golpeando la puerta',
+          badgeClass: 'text-amber-300 font-bold animate-pulse',
+        };
+      case 3:
+      default:
+        return {
+          text: '¡ESTÁ PEGADO A LA MIRILLA! Su rostro desquiciado e inquietante llena por completo el visor.',
+          badge: '¡PELIGRO EXTREMO: NO LO VUELVAS A LLAMAR!',
+          badgeClass: 'text-red-400 font-bold animate-pulse',
+        };
     }
   };
 
-  // Image source based on sequence index & candidate variants
-  const candidates = getPibeCandidates(sequenceIndex + 1);
+  const statusInfo = getStatusInfo();
+
+  // Image source based on pibeStage (0..3) -> file index 1..4
+  const stageNumber = Math.min(4, Math.max(1, pibeStage + 1));
+  const candidates = getPibeCandidates(stageNumber);
   const currentImgFile = candidates[candidateIndex] || candidates[0];
 
   const handleImageError = () => {
@@ -217,14 +194,14 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
           {/* Sequence Image of El Pibe */}
           {!imageError ? (
             <img
-              key={`${sequenceIndex}-${candidateIndex}`}
+              key={`stage-${pibeStage}-${candidateIndex}`}
               src={currentImgFile}
-              alt={`El Pibe en el pasillo - fase ${sequenceIndex + 1}`}
+              alt={`El Pibe en el pasillo - fase ${stageNumber}`}
               onError={handleImageError}
               className="w-full h-full object-cover transition-opacity duration-300 select-none pointer-events-none"
             />
           ) : (
-            /* Fallback dark corridor view if user image is not uploaded */
+            /* Fallback dark corridor view */
             <div className="relative w-full h-full flex flex-col items-center justify-center bg-black/95 p-4 text-center">
               <Eye className="w-12 h-12 text-stone-600 animate-pulse mb-2" />
               <p className="text-stone-300 text-xs font-mono font-bold uppercase tracking-wider">
@@ -233,16 +210,16 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
             </div>
           )}
 
-          {/* Subtle natural glass reflections & lens edge vignette */}
+          {/* Natural glass reflections & lens edge vignette */}
           <div className="absolute inset-0 rounded-full border-[12px] border-black/75 pointer-events-none z-30" />
           <div className="absolute inset-0 bg-[radial-gradient(circle,_transparent_55%,_rgba(0,0,0,0.6)_85%,_rgba(0,0,0,0.95)_100%)] pointer-events-none z-30" />
         </div>
       </div>
 
-      {/* Atmospheric Hint & Feedback */}
-      <div className="mt-3.5 text-center max-w-sm px-4 min-h-[44px] flex items-center justify-center">
-        <p className="text-xs sm:text-sm text-stone-300 font-mono italic leading-snug">
-          "{statusMessage}"
+      {/* Synchronized Status Message */}
+      <div className="mt-3.5 text-center max-w-sm px-4 min-h-[48px] flex items-center justify-center">
+        <p className="text-xs sm:text-sm text-stone-200 font-mono italic leading-snug">
+          "{statusInfo.text}"
         </p>
       </div>
 
@@ -251,9 +228,9 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
         <button
           onClick={handleCallPibe}
           className={`w-full py-3 px-4 rounded-xl font-mono text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-95 cursor-pointer ${
-            pibeCallCount >= 3
+            pibeStage >= 3 || pibeCallCount >= 3
               ? 'bg-red-700 hover:bg-red-600 text-white shadow-[0_0_25px_rgba(220,38,38,0.7)] animate-pulse'
-              : pibeCallCount >= 2
+              : pibeStage >= 2
               ? 'bg-amber-700 hover:bg-amber-600 text-amber-50 shadow-[0_0_18px_rgba(217,119,6,0.5)]'
               : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
           }`}
@@ -270,28 +247,25 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
           <div className="flex items-center gap-1.5">
             <AlertOctagon
               className={`w-3.5 h-3.5 ${
-                pibeCallCount >= 3
+                pibeStage >= 3
                   ? 'text-red-500 animate-ping'
-                  : pibeCallCount >= 2
+                  : pibeStage >= 2
                   ? 'text-amber-500'
                   : 'text-stone-500'
               }`}
             />
-            <span className={pibeCallCount >= 3 ? 'text-red-400 font-bold' : ''}>
-              {pibeCallCount === 0 && 'Pasillo en silencio'}
-              {pibeCallCount === 1 && 'El Pibe escuchó tu voz'}
-              {pibeCallCount === 2 && 'El Pibe se aproxima rápido'}
-              {pibeCallCount >= 3 && '¡PELIGRO EXTREMO: NO LO VUELVAS A LLAMAR!'}
+            <span className={statusInfo.badgeClass}>
+              {statusInfo.badge}
             </span>
           </div>
 
-          {/* Indicator pips */}
+          {/* Indicator pips matching pibeStage */}
           <div className="flex gap-1">
             {[0, 1, 2, 3].map((pip) => (
               <div
                 key={pip}
                 className={`w-2.5 h-2.5 rounded-full border transition-all ${
-                  pibeCallCount > pip
+                  pibeStage >= pip
                     ? pip === 3
                       ? 'bg-red-600 border-red-500 shadow-[0_0_8px_#ff0000]'
                       : 'bg-amber-500 border-amber-400 shadow-[0_0_6px_#f59e0b]'
@@ -313,3 +287,4 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
     </div>
   );
 };
+

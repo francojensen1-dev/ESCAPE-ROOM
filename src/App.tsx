@@ -47,6 +47,7 @@ export default function App() {
   const [gameStage, setGameStage] = useState<'intro' | 'playing' | 'jumpscare' | 'escaped'>('intro');
   const [jumpscareReason, setJumpscareReason] = useState<'timeout' | 'called_too_much'>('timeout');
   const [pibeCallCount, setPibeCallCount] = useState<number>(0);
+  const [pibeStage, setPibeStage] = useState<number>(0); // 0: lejos, 1: medio, 2: cerca (golpeando), 3: pegado a la mirilla
   const [timeLeft, setTimeLeft] = useState<number>(900); // 15 minutes = 900 seconds
   const [timeElapsed, setTimeElapsed] = useState<number>(0);
 
@@ -191,13 +192,27 @@ export default function App() {
       case 'main_door':
         return { title: 'Puerta Principal de Escape', action: 'Inspeccionar Cadenas y Candados' };
       case 'door_peephole':
+        if (pibeStage === 0) {
+          return {
+            title: 'La Puerta del Pibe',
+            action: 'Mirar por la Mirilla (El Pibe está lejos)',
+          };
+        }
+        if (pibeStage === 1) {
+          return {
+            title: 'La Puerta del Pibe',
+            action: 'Mirar por la Mirilla (Pasos en el pasillo...)',
+          };
+        }
+        if (pibeStage === 2) {
+          return {
+            title: 'La Puerta del Pibe',
+            action: '⚠️ Mirar por la Mirilla (¡Golpes en la puerta!)',
+          };
+        }
         return {
           title: 'La Puerta del Pibe',
-          action: pibeCallCount >= 3
-            ? '⚠️ Mirilla (¡Peligro Extremo de Llamarlo!)'
-            : pibeCallCount > 0
-            ? `Mirar por la Mirilla / Llamar (${pibeCallCount}/4)`
-            : 'Mirar por la Mirilla / Llamar al Pibe',
+          action: '🚨 ¡PELIGRO EXTREMO! (Pegado a la mirilla)',
         };
       case 'bathroom_door':
         return lockState.bathroomDoor
@@ -427,6 +442,7 @@ export default function App() {
     setTimeLeft(900);
     setTimeElapsed(0);
     setPibeCallCount(0);
+    setPibeStage(0);
     setJumpscareReason('timeout');
     setLockState({
       bathroomDoor: false,
@@ -528,52 +544,46 @@ export default function App() {
   }, [gameStage, timeLeft]);
 
   /**
-   * "El Pibe" Stalker Proximity & Random Door Knocks ("Golpes en la puerta")
-   * Whenever "el pibe" is near the door (due to player approaching the door or periodic hallway stalking),
-   * sudden heavy knocks sound randomly against the door.
+   * "El Pibe" Stalker Proximity & Dynamic Approach/Retreat Cycle
+   * Periodically approaches (0 -> 1 -> 2 -> 3) and retreats (3 -> 2 -> 1 -> 0).
+   * Whenever he approaches stage 2 or 3, he knocks on the door reproducing the sound & vibration.
    */
   useEffect(() => {
     if (gameStage !== 'playing') return;
 
-    let knockTimeout: number | undefined;
-    let isStalkerRoamingNearDoor = false;
+    // Dynamic approach/retreat cycle every 6.5 seconds
+    const stalkerInterval = window.setInterval(() => {
+      setPibeStage((currentStage) => {
+        let nextStage = currentStage;
 
-    // Periodic roaming cycle: El Pibe walks up to the door every ~22 seconds
-    const stalkerCycle = window.setInterval(() => {
-      isStalkerRoamingNearDoor = true;
-      setTimeout(() => {
-        isStalkerRoamingNearDoor = false;
-      }, 10000);
-    }, 22000);
+        // 70% chance to advance closer, 30% chance to retreat if not at 0
+        const shouldAdvance = currentStage < 3 && (currentStage === 0 || Math.random() < 0.70);
 
-    const triggerKnockCheck = () => {
-      const dist = sceneRef.current ? sceneRef.current.getDistanceToPibeDoor() : 6.0;
-      const isPlayerAtDoor = dist < 3.8 || activeModal === 'peephole';
-      const isPibeNearDoor = isPlayerAtDoor || isStalkerRoamingNearDoor;
-
-      if (isPibeNearDoor) {
-        // Distance-scaled volume: loud and punchy when near La Puerta del Pibe, slightly muffled if across the room
-        const volumeFactor = Math.max(0.35, Math.min(1.0, 1.0 - (dist - 1.2) * 0.12));
-        horrorAudio.playDoorKnocks(volumeFactor);
-        if (sceneRef.current) {
-          sceneRef.current.triggerDoorKnockImpact();
+        if (shouldAdvance) {
+          nextStage = Math.min(3, currentStage + 1);
+        } else {
+          nextStage = Math.max(0, currentStage - 1);
         }
-        sensorManager.vibrate([70, 45, 70, 45, 95]);
-      }
 
-      // Next random knock in 3.5s to 9.0s
-      const nextDelay = 3500 + Math.random() * 5500;
-      knockTimeout = window.setTimeout(triggerKnockCheck, nextDelay);
-    };
+        // When reaching stage 2 or 3 (or advancing closer to door), play door knock sounds!
+        if (nextStage >= 2 && nextStage >= currentStage) {
+          const dist = sceneRef.current ? sceneRef.current.getDistanceToPibeDoor() : 4.0;
+          const volumeFactor = Math.max(0.45, Math.min(1.0, 1.0 - (dist - 1.2) * 0.12));
+          horrorAudio.playDoorKnocks(volumeFactor);
+          if (sceneRef.current) {
+            sceneRef.current.triggerDoorKnockImpact();
+          }
+          sensorManager.vibrate([70, 40, 90, 40, 120]);
+        }
 
-    // First knock check after initial 3.5 seconds
-    knockTimeout = window.setTimeout(triggerKnockCheck, 3500);
+        return nextStage;
+      });
+    }, 6500);
 
     return () => {
-      if (knockTimeout) clearTimeout(knockTimeout);
-      clearInterval(stalkerCycle);
+      clearInterval(stalkerInterval);
     };
-  }, [gameStage, activeModal]);
+  }, [gameStage]);
 
   /**
    * Keyboard Movement Listener (W, A, S, D & Arrows for Desktop)
@@ -870,8 +880,12 @@ export default function App() {
 
       {activeModal === 'peephole' && (
         <PeepholeModal
+          pibeStage={pibeStage}
           pibeCallCount={pibeCallCount}
-          onCallPibe={() => setPibeCallCount((prev) => prev + 1)}
+          onCallPibe={() => {
+            setPibeCallCount((prev) => prev + 1);
+            setPibeStage((prev) => Math.min(3, prev + 1));
+          }}
           onTriggerScreamer={handleTriggerScreamer}
           onClose={() => setActiveModal(null)}
         />

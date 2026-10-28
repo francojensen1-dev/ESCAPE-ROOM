@@ -3159,12 +3159,12 @@ export class EscapeRoomScene {
     paperShadow.position.set(0.003, -0.002, 0.003);
     noteGroup.add(paperShadow);
 
-    // Generous hit box for responsive mobile tap detection
+    // Generous hit box for responsive mobile tap detection across the entire nightstand surface
     const noteHitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.38, 0.28, 0.38),
+      new THREE.BoxGeometry(0.80, 0.55, 0.75),
       new THREE.MeshBasicMaterial({ visible: false })
     );
-    noteHitBox.position.set(0, 0.10, 0);
+    noteHitBox.position.set(0, 0.20, 0);
     noteGroup.add(noteHitBox);
 
     nightstandGroup.add(noteGroup);
@@ -3688,11 +3688,12 @@ export class EscapeRoomScene {
     }
 
     // Obstáculos del Bedroom:
-    // 1. Cama a lo largo de la pared oeste: X [-11.0, -8.7], Z [2.1, 5.0]
-    if (nextPos.x < -8.7 && nextPos.z > 2.1 && nextPos.z < 5.0) {
-      if (this.playerPosition.x >= -8.7) nextPos.x = -8.7;
-      else if (this.playerPosition.z <= 2.1) nextPos.z = 2.1;
-      else if (this.playerPosition.z >= 5.0) nextPos.z = 5.0;
+    // 1. Cama a lo largo de la pared oeste: X [-11.4, -9.5], Z [3.2, 5.8]
+    if (nextPos.x < -9.5 && nextPos.z > 3.2 && nextPos.z < 5.8) {
+      if (this.playerPosition.x >= -9.5) nextPos.x = -9.5;
+      else if (this.playerPosition.z <= 3.2) nextPos.z = 3.2;
+      else if (this.playerPosition.z >= 5.8) nextPos.z = 5.8;
+      else nextPos.x = -9.5;
     }
 
     // 2. Cajonera + TV de tubo a lo largo de pared norte: X [-10.8, -7.0], Z < 0.15
@@ -3700,11 +3701,12 @@ export class EscapeRoomScene {
       nextPos.z = 0.15;
     }
 
-    // 3. Mesita de luz a lo largo de pared sur: X [-8.8, -7.6], Z > 4.6
-    if (nextPos.x > -8.8 && nextPos.x < -7.6 && nextPos.z > 4.6) {
-      if (this.playerPosition.z <= 4.6) nextPos.z = 4.6;
-      else if (this.playerPosition.x >= -7.6) nextPos.x = -7.6;
-      else nextPos.x = -8.8;
+    // 3. Mesita de luz a lo largo de la pared sur: X [-9.6, -8.7], Z > 5.15
+    if (nextPos.x > -9.6 && nextPos.x < -8.7 && nextPos.z > 5.15) {
+      if (this.playerPosition.z <= 5.15) nextPos.z = 5.15;
+      else if (this.playerPosition.x >= -8.7) nextPos.x = -8.7;
+      else if (this.playerPosition.x <= -9.6) nextPos.x = -9.6;
+      else nextPos.z = 5.15;
     }
 
     // 4. Hombre colgado & Banquito volcado en X = -6.4, Z = 4.2 (radio 0.45m)
@@ -3772,7 +3774,7 @@ export class EscapeRoomScene {
       { id: 'rotten_fridge', pos: new THREE.Vector3(3.6, 1.2, -4.6), maxDist: 2.8 },
       { id: 'study_desk', pos: new THREE.Vector3(-2.8, 0.9, -1.2), maxDist: 3.0 },
       { id: 'fuse_box', pos: new THREE.Vector3(-4.88, 1.6, -3.2), maxDist: 2.4 },
-      { id: 'nightstand_note', pos: new THREE.Vector3(-8.34, 0.76, 5.38), maxDist: 3.2 },
+      { id: 'nightstand_note', pos: new THREE.Vector3(-9.11, 0.76, 5.42), maxDist: 3.4 },
     ];
 
     if (!this.isBathroomUnlocked) {
