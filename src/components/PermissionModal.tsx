@@ -15,24 +15,31 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({ onStartExperie
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-2 sm:p-4 overflow-hidden select-none">
-      {/* Main title image container */}
-      <div className="relative max-w-xl w-full max-h-[92vh] flex items-center justify-center">
+      {/* Container locked to 4:5 aspect ratio (1080x1350) for maximum viewport size & exact alignment */}
+      <div className="relative aspect-[4/5] h-[95vh] max-h-[96vh] max-w-[96vw] flex items-center justify-center">
         <img
           src="/imgs/title.png"
           alt="Escape From The Pibe Room"
-          className="w-full h-auto max-h-[92vh] object-contain drop-shadow-[0_0_35px_rgba(220,38,38,0.25)] pointer-events-none"
+          className="w-full h-full object-contain drop-shadow-[0_0_40px_rgba(220,38,38,0.35)] pointer-events-none select-none"
         />
 
-        {/* Invisible interactive button placed over the red 'Viví la experiencia (jugar ahora)' graphic */}
+        {/* Invisible button calibrated precisely over '▶ Viví la experiencia (jugar ahora)' (x: 20.2%-79.8%, y: 70.8%-77.0%) */}
         <button
           type="button"
           onClick={handleStart}
           disabled={requesting}
           aria-label="Viví la experiencia (jugar ahora)"
-          className="absolute left-[8%] right-[8%] bottom-[3%] h-[14%] rounded-full cursor-pointer bg-transparent hover:bg-red-500/20 active:bg-red-500/40 border border-transparent hover:border-red-500/40 transition-all focus:outline-none"
+          style={{
+            left: '20.2%',
+            width: '59.6%',
+            top: '70.8%',
+            height: '6.2%',
+          }}
+          className="absolute rounded-full cursor-pointer bg-transparent hover:bg-red-500/20 active:bg-red-500/40 hover:ring-2 hover:ring-red-500/50 hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-[0.98] transition-all focus:outline-none"
         />
       </div>
     </div>
   );
 };
+
 
