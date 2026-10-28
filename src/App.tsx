@@ -230,7 +230,9 @@ export default function App() {
       case 'fuse_box':
         return { title: 'Caja de Fusibles 220V', action: 'Manipular Interruptores' };
       case 'toilet':
-        return { title: 'Inodoro Decrépito (Baño)', action: 'Revisar Fondo del Agua Turbia' };
+        return inventory.some((i) => i.id === 'key_toilet') || lockState.toiletKeyLock
+          ? { title: 'Inodoro Decrépito', action: 'El inodoro está vacío' }
+          : { title: 'Inodoro Decrépito (Baño)', action: 'Revisar Fondo del Agua Turbia' };
       case 'broken_tile':
         return { title: 'Azulejo Agrietado (Baño)', action: 'Inspeccionar Hueco en el Muro' };
       case 'nightstand_note':
@@ -268,6 +270,11 @@ export default function App() {
         setActiveModal('fusebox');
         break;
       case 'toilet':
+        if (inventory.some((i) => i.id === 'key_toilet') || lockState.toiletKeyLock) {
+          showToast('El inodoro está vacío. Ya obtuviste la llave.');
+          sensorManager.vibrate(20);
+          break;
+        }
         setActiveModal('toilet');
         break;
       case 'broken_tile':
@@ -277,7 +284,7 @@ export default function App() {
         setActiveModal('nightstand_note');
         break;
     }
-  }, []);
+  }, [inventory, lockState.toiletKeyLock, showToast]);
 
   /**
    * Helper to evaluate if all 4 chains and padlocks are removed from the main door
