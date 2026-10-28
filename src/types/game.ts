@@ -35,7 +35,8 @@ export interface LockState {
   fuseLock: boolean;      // Opened by fixing electrical fuse box
   toiletKeyLock: boolean; // Opened with iron key pulled from the toilet
   letterLock: boolean;    // Opened with 5-letter word found on the broken tile (MORIR)
-  allChainsRemoved: boolean; // All 4 main door locks opened
+  rustedCodeLock: boolean; // Opened with 4-digit code (5413)
+  allChainsRemoved: boolean; // All 5 main door locks opened
 }
 
 export type InteractiveTargetId =

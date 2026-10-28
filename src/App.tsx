@@ -34,6 +34,7 @@ import { ToiletModal } from './components/ToiletModal';
 import { BrokenTileModal } from './components/BrokenTileModal';
 import { LetterLockModal } from './components/LetterLockModal';
 import { BathroomDoorModal } from './components/BathroomDoorModal';
+import { RustedCodeLockModal } from './components/RustedCodeLockModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NightstandNoteModal } from './components/NightstandNoteModal';
 import { Eye, Flashlight, Sliders } from 'lucide-react';
@@ -84,6 +85,7 @@ export default function App() {
     fuseLock: false,
     toiletKeyLock: false,
     letterLock: false,
+    rustedCodeLock: false,
     allChainsRemoved: false,
   });
   const [hasDiscoveredTileCode, setHasDiscoveredTileCode] = useState<boolean>(false);
@@ -101,6 +103,7 @@ export default function App() {
     | 'toilet'
     | 'broken_tile'
     | 'letterlock'
+    | 'rusted_codelock'
     | 'bathroom_door'
     | 'nightstand_note'
     | 'settings';
@@ -269,7 +272,8 @@ export default function App() {
       state.codeLock &&
       state.fuseLock &&
       state.toiletKeyLock &&
-      state.letterLock
+      state.letterLock &&
+      state.rustedCodeLock
     );
   };
 
@@ -388,6 +392,18 @@ export default function App() {
   };
 
   /**
+   * Solve 4-digit rusted combination padlock (Lock 6: 5413)
+   */
+  const handleSolveRustedCodeLock = () => {
+    setLockState((prev) => {
+      const next = { ...prev, rustedCodeLock: true };
+      next.allChainsRemoved = isEveryLockUnlocked(next);
+      if (sceneRef.current) sceneRef.current.updateLocks(next);
+      return next;
+    });
+  };
+
+  /**
    * Victory escape
    */
   const handleEscapeSuccess = () => {
@@ -418,6 +434,7 @@ export default function App() {
       fuseLock: false,
       toiletKeyLock: false,
       letterLock: false,
+      rustedCodeLock: false,
       allChainsRemoved: false,
     });
     setHasDiscoveredTileCode(false);
@@ -439,6 +456,7 @@ export default function App() {
         fuseLock: false,
         toiletKeyLock: false,
         letterLock: false,
+        rustedCodeLock: false,
         allChainsRemoved: false,
       });
     }
@@ -802,6 +820,7 @@ export default function App() {
           inventory={inventory}
           onOpenCodeLock={() => setActiveModal('codelock')}
           onOpenLetterLock={() => setActiveModal('letterlock')}
+          onOpenRustedCodeLock={() => setActiveModal('rusted_codelock')}
           onUseToiletKey={handleUseToiletKeyOnDoor}
           onEscapeSuccess={handleEscapeSuccess}
           onClose={() => setActiveModal(null)}
@@ -837,6 +856,14 @@ export default function App() {
         <LetterLockModal
           isUnlocked={lockState.letterLock}
           onSuccess={handleSolveLetterLock}
+          onClose={() => setActiveModal('main_door')}
+        />
+      )}
+
+      {activeModal === 'rusted_codelock' && (
+        <RustedCodeLockModal
+          isUnlocked={lockState.rustedCodeLock}
+          onSuccess={handleSolveRustedCodeLock}
           onClose={() => setActiveModal('main_door')}
         />
       )}

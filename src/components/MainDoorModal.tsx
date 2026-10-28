@@ -15,6 +15,7 @@ interface MainDoorModalProps {
   inventory: InventoryItem[];
   onOpenCodeLock: () => void;
   onOpenLetterLock: () => void;
+  onOpenRustedCodeLock: () => void;
   onUseToiletKey: () => void;
   onEscapeSuccess: () => void;
   onClose: () => void;
@@ -25,6 +26,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
   inventory,
   onOpenCodeLock,
   onOpenLetterLock,
+  onOpenRustedCodeLock,
   onUseToiletKey,
   onEscapeSuccess,
   onClose,
@@ -36,7 +38,8 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
     lockState.codeLock &&
     lockState.fuseLock &&
     lockState.toiletKeyLock &&
-    lockState.letterLock;
+    lockState.letterLock &&
+    lockState.rustedCodeLock;
 
   React.useEffect(() => {
     const unregister = horrorAudio.onDoorKnock(() => {
@@ -80,7 +83,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-amber-500" />
             <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              PUERTA PRINCIPAL ENCADENADA (4 CANDADOS)
+              PUERTA PRINCIPAL ENCADENADA (5 CANDADOS)
             </h2>
           </div>
           <button
@@ -98,7 +101,7 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               "Don't go out!! — Walter"
             </span>
             <span className="text-[11px] text-stone-400 mt-0.5 block">
-              Cadenas masivas cruzadas. Hay 4 seguros que te separan de la libertad.
+              Cadenas masivas cruzadas. Hay 5 seguros que te separan de la libertad.
             </span>
           </div>
 
@@ -212,6 +215,36 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               </button>
             )}
           </div>
+
+          {/* Lock 5: Rusted 4-Digit Code Lock (5413) */}
+          <div className="p-2.5 rounded-lg border border-stone-800 bg-stone-900/60 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              {lockState.rustedCodeLock ? (
+                <Unlock className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <Lock className="w-4 h-4 text-amber-500" />
+              )}
+              <div>
+                <p className="text-xs font-semibold text-stone-200">5. Candado Oxidado (4 Dígitos)</p>
+                <p className="text-[10px] text-stone-400">
+                  {lockState.rustedCodeLock ? 'Candado abierto' : 'Candado de combinación oxidado de 4 dígitos'}
+                </p>
+              </div>
+            </div>
+
+            {lockState.rustedCodeLock ? (
+              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5" /> ABIERTO
+              </span>
+            ) : (
+              <button
+                onClick={onOpenRustedCodeLock}
+                className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-200 font-mono text-xs transition-colors"
+              >
+                DIALES
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Footer & Escape Trigger */}
@@ -222,11 +255,11 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
               className="w-full py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-sm font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse transition-all"
             >
               <DoorOpen className="w-5 h-5" />
-              ¡LOS 4 CANDADOS ABIERTOS! ABRIR Y ESCAPAR
+              ¡LOS 5 CANDADOS ABIERTOS! ABRIR Y ESCAPAR
             </button>
           ) : (
             <p className="text-center text-[11px] font-mono text-stone-400">
-              Desbloquea los 4 seguros (2 de la sala y 2 del baño) para escapar.
+              Desbloquea los 5 seguros para escapar de la habitación.
             </p>
           )}
 

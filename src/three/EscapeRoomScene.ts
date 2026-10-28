@@ -65,12 +65,13 @@ export class EscapeRoomScene {
   private highlightMaterials: Map<InteractiveTargetId, THREE.MeshStandardMaterial> = new Map();
   private currentNearTarget: InteractiveTargetId = null;
 
-  // Chains & Locks meshes on main door (4 locks)
+  // Chains & Locks meshes on main door (5 locks)
   private chainGroup: THREE.Group = new THREE.Group();
   private codeLockMesh: THREE.Object3D | null = null;
   private fuseLockMesh: THREE.Object3D | null = null;
   private toiletLockMesh: THREE.Object3D | null = null;
   private letterLockMesh: THREE.Object3D | null = null;
+  private rustedCodeLockMesh: THREE.Object3D | null = null;
 
   // Bathroom dividing door
   private bathroomDoorPivot: THREE.Group = new THREE.Group();
@@ -1138,6 +1139,34 @@ export class EscapeRoomScene {
     letterLockGroup.add(letterLockBody, letterLockShackle);
     this.letterLockMesh = letterLockGroup;
     this.chainGroup.add(letterLockGroup);
+
+    // Padlock 6: Upper-Left 4-Digit Rusted Combination Padlock (opened with 5413 code)
+    const rustedCodeLockGroup = new THREE.Group();
+    rustedCodeLockGroup.position.set(-0.32, 0.42, 0.18);
+    rustedCodeLockGroup.rotation.z = -0.18;
+
+    const rustedBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.16, 0.055),
+      new THREE.MeshStandardMaterial({ color: 0x422d1a, metalness: 0.8, roughness: 0.6 })
+    );
+    const rustedShackle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.058, 0.016, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x5e452e, metalness: 0.85, roughness: 0.5 })
+    );
+    rustedShackle.position.set(0, 0.09, 0);
+
+    for (let r = 0; r < 4; r++) {
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.016, 0.016, 0.024, 12),
+        new THREE.MeshStandardMaterial({ color: 0xb39547, metalness: 0.8, roughness: 0.35 })
+      );
+      ring.rotation.z = Math.PI / 2;
+      ring.position.set(-0.04 + r * 0.027, 0, 0.028);
+      rustedCodeLockGroup.add(ring);
+    }
+    rustedCodeLockGroup.add(rustedBody, rustedShackle);
+    this.rustedCodeLockMesh = rustedCodeLockGroup;
+    this.chainGroup.add(rustedCodeLockGroup);
 
     doorGroup.add(this.chainGroup);
     this.scene.add(doorGroup);
@@ -3411,6 +3440,11 @@ export class EscapeRoomScene {
       this.letterLockMesh.visible = false;
     } else if (this.letterLockMesh) {
       this.letterLockMesh.visible = true;
+    }
+    if (lockState.rustedCodeLock && this.rustedCodeLockMesh) {
+      this.rustedCodeLockMesh.visible = false;
+    } else if (this.rustedCodeLockMesh) {
+      this.rustedCodeLockMesh.visible = true;
     }
     if (lockState.allChainsRemoved) {
       this.chainGroup.visible = false;
