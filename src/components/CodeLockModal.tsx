@@ -47,88 +47,108 @@ export const CodeLockModal: React.FC<CodeLockModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
-          <div className="flex items-center gap-2">
-            {isUnlocked ? (
-              <Unlock className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-500" />
-            )}
-            <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              CANDADO DE COMBINACIÓN
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 overflow-y-auto">
+      {/* Floating Close Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2.5 rounded-full bg-stone-900/90 text-stone-300 hover:text-white border border-stone-700/60 shadow-xl hover:scale-110 active:scale-95 transition-all z-50"
+        title="Cerrar"
+      >
+        <X className="w-6 h-6" />
+      </button>
 
-        {/* Padlock Body Visual */}
-        <div className="p-6 bg-gradient-to-b from-stone-900 to-stone-950 flex flex-col items-center">
-          {/* Shackle */}
-          <div
-            className={`w-28 h-20 border-4 border-stone-400 rounded-t-full transition-transform ${
-              isUnlocked ? '-translate-y-4 rotate-6 border-emerald-400' : ''
-            }`}
-          />
+      {/* Main Padlock Container (No interface frame/box) */}
+      <div className="relative w-full max-w-lg aspect-[4/3] flex flex-col items-center justify-center my-auto select-none">
+        {/* Lock Graphic Image */}
+        <img
+          src="/assets/aistudio/image_ab018794.png"
+          alt="Candado de combinación"
+          className={`w-full h-full object-contain filter drop-shadow-[0_25px_35px_rgba(0,0,0,0.95)] transition-all duration-500 ${
+            isUnlocked
+              ? '-translate-y-6 rotate-3 brightness-110 drop-shadow-[0_0_50px_rgba(16,185,129,0.6)]'
+              : 'hover:scale-[1.01]'
+          }`}
+        />
 
-          {/* Brass Dial Chamber */}
-          <div className="w-full p-4 bg-stone-800 border-2 border-stone-700 rounded-lg shadow-inner flex items-center justify-center gap-2.5">
-            {digits.map((digit, idx) => (
-              <div key={idx} className="flex flex-col items-center">
-                <button
-                  disabled={isUnlocked}
-                  onClick={() => handleDigitChange(idx, 1)}
-                  className="p-1 text-stone-400 hover:text-amber-400 active:scale-90 transition-transform disabled:opacity-30"
+        {/* Interactive 4 Tumbler Dials Overlay */}
+        <div className="absolute left-[31.5%] top-[51.5%] w-[37%] h-[20%] flex items-center justify-between gap-1 px-1">
+          {digits.map((digit, idx) => (
+            <div key={idx} className="relative w-[23%] h-full flex flex-col items-center justify-center group">
+              {/* Up button */}
+              <button
+                type="button"
+                disabled={isUnlocked}
+                onClick={() => handleDigitChange(idx, 1)}
+                className="absolute -top-8 text-amber-400/90 hover:text-amber-200 hover:scale-125 active:scale-90 transition-all z-20 p-0.5 disabled:opacity-0"
+                title="Aumentar número"
+              >
+                <ChevronUp className="w-6 h-6 stroke-[3] drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]" />
+              </button>
+
+              {/* Brass/Gold metallic cylinder dial */}
+              <div
+                onClick={() => !isUnlocked && handleDigitChange(idx, 1)}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  handleDigitChange(idx, e.deltaY > 0 ? -1 : 1);
+                }}
+                className={`w-full h-full bg-gradient-to-b from-[#695022] via-[#eed885] via-48% to-[#4d3814] border border-[#f0d075]/80 rounded-sm flex items-center justify-center cursor-pointer shadow-[inset_0_3px_5px_rgba(255,255,255,0.7),inset_0_-3px_5px_rgba(0,0,0,0.9),0_4px_8px_rgba(0,0,0,0.85)] ${
+                  isUnlocked
+                    ? 'border-emerald-400 bg-gradient-to-b from-[#2d523c] via-[#85eed0] to-[#173825]'
+                    : 'hover:brightness-125'
+                } transition-all relative overflow-hidden select-none`}
+                title="Haz clic o gira la rueda para cambiar"
+              >
+                {/* 3D shading overlays */}
+                <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-black/60 shadow-[0_1px_0_rgba(255,255,255,0.4)] pointer-events-none" />
+
+                <span
+                  className={`relative z-10 font-serif font-black text-xl sm:text-3xl ${
+                    isUnlocked ? 'text-emerald-950' : 'text-[#1c1305]'
+                  } drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] tracking-tighter`}
                 >
-                  <ChevronUp className="w-5 h-5" />
-                </button>
-
-                <div className="w-12 h-14 bg-stone-950 border border-stone-600 rounded flex items-center justify-center text-2xl font-mono font-bold text-amber-300 shadow-inner select-none">
                   {digit}
-                </div>
-
-                <button
-                  disabled={isUnlocked}
-                  onClick={() => handleDigitChange(idx, -1)}
-                  className="p-1 text-stone-400 hover:text-amber-400 active:scale-90 transition-transform disabled:opacity-30"
-                >
-                  <ChevronDown className="w-5 h-5" />
-                </button>
+                </span>
               </div>
-            ))}
-          </div>
 
-          {/* Status Message */}
-          <div className="mt-4 text-center">
-            {isUnlocked ? (
-              <p className="text-xs font-mono text-emerald-400 font-semibold tracking-wider animate-pulse">
-                ✓ ¡CANDADO ABIERTO! CADENA LIBERADA
-              </p>
-            ) : (
-              <p className="text-xs font-mono text-stone-400">
-                Ingresa la combinación de 4 dígitos para abrir este candado.
-              </p>
-            )}
-            {errorMsg && <p className="text-xs font-mono text-red-400 mt-1">{errorMsg}</p>}
-          </div>
+              {/* Down button */}
+              <button
+                type="button"
+                disabled={isUnlocked}
+                onClick={() => handleDigitChange(idx, -1)}
+                className="absolute -bottom-8 text-amber-400/90 hover:text-amber-200 hover:scale-125 active:scale-90 transition-all z-20 p-0.5 disabled:opacity-0"
+                title="Disminuir número"
+              >
+                <ChevronDown className="w-6 h-6 stroke-[3] drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]" />
+              </button>
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-stone-950 border-t border-stone-800 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
-          >
-            VOLVER A LA HABITACIÓN
-          </button>
-        </div>
+      {/* Floating Status & Back Label */}
+      <div className="mt-4 sm:mt-6 text-center z-10 flex flex-col items-center gap-3">
+        {isUnlocked ? (
+          <div className="px-5 py-2.5 rounded-full bg-emerald-950/90 border border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.4)] animate-pulse">
+            <p className="text-xs sm:text-sm font-mono text-emerald-300 font-bold tracking-widest uppercase flex items-center gap-2">
+              <Unlock className="w-4 h-4" /> ¡CANDADO ABIERTO! LA CADENA HA CEDIDO
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs sm:text-sm font-mono text-stone-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] bg-stone-950/60 px-4 py-1.5 rounded-full border border-stone-800/80">
+            Toca los cilindros o usa las flechas para ingresar la combinación
+          </p>
+        )}
+        {errorMsg && <p className="text-xs font-mono text-red-400 font-semibold">{errorMsg}</p>}
+
+        <button
+          onClick={onClose}
+          className="mt-1 px-6 py-2 rounded-full bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white text-xs font-mono transition-all border border-stone-700/60 shadow-lg"
+        >
+          VOLVER A LA PUERTA
+        </button>
       </div>
     </div>
   );

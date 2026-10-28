@@ -77,40 +77,29 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
-          <div className="flex items-center gap-2">
-            {isUnlocked ? (
-              <Unlock className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-500" />
-            )}
-            <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              CANDADO DE 5 LETRAS
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white"
-            title="Cerrar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 overflow-y-auto">
+      {/* Floating Close Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2.5 rounded-full bg-stone-900/90 text-stone-300 hover:text-white border border-stone-700/60 shadow-xl hover:scale-110 active:scale-95 transition-all z-50"
+        title="Cerrar"
+      >
+        <X className="w-6 h-6" />
+      </button>
 
-        {/* Body Visual */}
-        <div className="p-6 bg-gradient-to-b from-stone-900 to-stone-950 flex flex-col items-center">
-          {/* Shackle */}
-          <div
-            className={`w-32 h-16 border-4 border-stone-400 rounded-t-full transition-transform ${
-              isUnlocked ? '-translate-y-4 rotate-6 border-emerald-400' : ''
-            }`}
-          />
+      {/* Rustic Padlock Visual (No modal interface box) */}
+      <div className="relative w-full max-w-lg flex flex-col items-center justify-center my-auto select-none">
+        {/* Custom Shackle */}
+        <div
+          className={`w-40 sm:w-48 h-24 sm:h-28 border-[7px] sm:border-[8px] border-stone-600 rounded-t-full transition-all duration-500 drop-shadow-[0_10px_15px_rgba(0,0,0,0.9)] ${
+            isUnlocked ? '-translate-y-6 rotate-3 border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.5)]' : ''
+          }`}
+        />
 
-          {/* Dials Chamber */}
-          <div className="w-full p-3.5 bg-stone-950 border-2 border-stone-700 rounded-xl shadow-2xl flex items-center justify-center gap-2.5 sm:gap-3">
+        {/* Carved Dark Metal Body Chamber */}
+        <div className="-mt-4 w-full p-4 sm:p-6 bg-gradient-to-b from-stone-900 via-stone-950 to-stone-900 border-4 border-stone-800 rounded-3xl shadow-[inset_0_5px_15px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.95)] flex flex-col items-center">
+          {/* Dials Chamber Window */}
+          <div className="w-full p-3 sm:p-4 bg-stone-950 border-2 border-stone-800 rounded-2xl shadow-[inset_0_2px_10px_rgba(0,0,0,0.95)] flex items-center justify-center gap-2 sm:gap-3">
             {letters.map((letter, idx) => {
               const opts = DIAL_OPTIONS[idx];
               const currentOptIdx = Math.max(0, opts.indexOf(letter));
@@ -123,10 +112,10 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
                     type="button"
                     disabled={isUnlocked}
                     onClick={() => handleLetterChange(idx, -1)}
-                    className="p-1 text-stone-400 hover:text-amber-400 active:scale-90 transition-transform disabled:opacity-30"
+                    className="p-1 text-amber-400/80 hover:text-amber-200 hover:scale-125 active:scale-90 transition-transform disabled:opacity-0"
                     title="Anterior opción"
                   >
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-6 h-6 stroke-[3] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" />
                   </button>
 
                   <div
@@ -135,22 +124,28 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
                       e.preventDefault();
                       handleLetterChange(idx, e.deltaY > 0 ? 1 : -1);
                     }}
-                    className={`w-11 sm:w-12 h-24 bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 border-2 ${
-                      isUnlocked ? 'border-emerald-500/70' : 'border-stone-600'
-                    } rounded-lg flex flex-col items-center justify-between py-1 shadow-inner select-none cursor-pointer hover:border-amber-500/60 transition-colors`}
-                    title="Haz clic o usa la rueda para girar (5 opciones)"
+                    className={`w-11 sm:w-14 h-24 sm:h-28 bg-gradient-to-b from-[#695022] via-[#eed885] via-48% to-[#4d3814] border-2 ${
+                      isUnlocked
+                        ? 'border-emerald-400 bg-gradient-to-b from-[#2d523c] via-[#85eed0] to-[#173825]'
+                        : 'border-[#f0d075]/80 hover:brightness-125'
+                    } rounded-lg flex flex-col items-center justify-between py-1.5 shadow-[inset_0_3px_5px_rgba(255,255,255,0.7),inset_0_-3px_5px_rgba(0,0,0,0.9),0_4px_8px_rgba(0,0,0,0.85)] select-none cursor-pointer transition-all relative overflow-hidden`}
+                    title="Haz clic o usa la rueda para girar"
                   >
-                    <span className="text-[10px] font-mono font-semibold text-stone-500 opacity-60">
+                    <div className="absolute inset-x-0 top-0 h-3 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+                    <div className="absolute inset-x-0 bottom-0 h-3 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-black/60 shadow-[0_1px_0_rgba(255,255,255,0.4)] pointer-events-none" />
+
+                    <span className="text-[10px] sm:text-xs font-mono font-bold text-amber-950/70 opacity-60 relative z-10">
                       {prevLetter}
                     </span>
                     <span
-                      className={`text-2xl font-mono font-extrabold ${
-                        isUnlocked ? 'text-emerald-300' : 'text-amber-300'
-                      } drop-shadow-md`}
+                      className={`relative z-10 font-serif font-black text-2xl sm:text-3xl ${
+                        isUnlocked ? 'text-emerald-950' : 'text-[#1c1305]'
+                      } drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]`}
                     >
                       {letter}
                     </span>
-                    <span className="text-[10px] font-mono font-semibold text-stone-500 opacity-60">
+                    <span className="text-[10px] sm:text-xs font-mono font-bold text-amber-950/70 opacity-60 relative z-10">
                       {nextLetter}
                     </span>
                   </div>
@@ -159,14 +154,14 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
                     type="button"
                     disabled={isUnlocked}
                     onClick={() => handleLetterChange(idx, 1)}
-                    className="p-1 text-stone-400 hover:text-amber-400 active:scale-90 transition-transform disabled:opacity-30"
+                    className="p-1 text-amber-400/80 hover:text-amber-200 hover:scale-125 active:scale-90 transition-transform disabled:opacity-0"
                     title="Siguiente opción"
                   >
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-6 h-6 stroke-[3] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" />
                   </button>
 
                   {/* 5-slot dots indicator */}
-                  <div className="flex gap-1 mt-1.5" title={`Opción ${currentOptIdx + 1} de 5`}>
+                  <div className="flex gap-1.5 mt-2" title={`Opción ${currentOptIdx + 1} de 5`}>
                     {opts.map((_, oIdx) => (
                       <span
                         key={oIdx}
@@ -184,36 +179,30 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
               );
             })}
           </div>
+        </div>
+      </div>
 
-          {/* Status Message */}
-          <div className="mt-4 text-center">
-            {isUnlocked ? (
-              <p className="text-xs font-mono text-emerald-400 font-semibold tracking-wider animate-pulse">
-                ✓ ¡CANDADO DE 5 LETRAS ABIERTO! CADENA LIBERADA
-              </p>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs font-mono text-amber-400/90">
-                  Cada dial tiene 5 opciones de letras disponibles.
-                </p>
-                <p className="text-xs font-mono text-stone-400">
-                  Selecciona la combinación correcta de 5 letras para abrir este candado.
-                </p>
-              </div>
-            )}
-            {errorMsg && <p className="text-xs font-mono text-red-400 mt-1">{errorMsg}</p>}
+      {/* Floating Status & Return Controls */}
+      <div className="mt-4 sm:mt-6 text-center z-10 flex flex-col items-center gap-3">
+        {isUnlocked ? (
+          <div className="px-5 py-2.5 rounded-full bg-emerald-950/90 border border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.4)] animate-pulse">
+            <p className="text-xs sm:text-sm font-mono text-emerald-300 font-bold tracking-widest uppercase flex items-center gap-2">
+              <Unlock className="w-4 h-4" /> ¡CANDADO DE 5 LETRAS ABIERTO!
+            </p>
           </div>
-        </div>
+        ) : (
+          <p className="text-xs sm:text-sm font-mono text-stone-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] bg-stone-950/60 px-4 py-1.5 rounded-full border border-stone-800/80">
+            Gira los cilindros dorados para formar la palabra de 5 letras
+          </p>
+        )}
+        {errorMsg && <p className="text-xs font-mono text-red-400 font-semibold">{errorMsg}</p>}
 
-        {/* Footer */}
-        <div className="p-4 bg-stone-950 border-t border-stone-800 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
-          >
-            VOLVER A LA PUERTA
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="mt-1 px-6 py-2 rounded-full bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white text-xs font-mono transition-all border border-stone-700/60 shadow-lg"
+        >
+          VOLVER A LA PUERTA
+        </button>
       </div>
     </div>
   );
