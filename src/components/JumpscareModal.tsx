@@ -42,8 +42,8 @@ export const JumpscareModal: React.FC<JumpscareModalProps> = ({
     const img1 = new Image();
     img1.src = PRIMARY_SCREAMER;
 
-    // 1. Play bloodcurdling screamer audio
-    horrorAudio.playJumpscareScreamer();
+    // 1. Play bloodcurdling screamer audio (scream.mp3)
+    horrorAudio.playScream();
 
     // 2. Heavy haptic vibration sequence
     sensorManager.vibrate([400, 80, 500, 100, 800, 150, 600]);

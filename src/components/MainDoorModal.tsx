@@ -68,15 +68,21 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
     return () => unregister();
   }, []);
 
+  const handleCloseModal = () => {
+    horrorAudio.playMainDoorSound();
+    onClose();
+  };
+
   const handleUseToiletKey = () => {
     if (!hasToiletKey || lockState.toiletKeyLock) return;
-    horrorAudio.playUnlockClick();
+    horrorAudio.playPadlockSound();
     sensorManager.vibrate([70, 50, 90]);
     onUseToiletKey();
     setActiveNotice('¡Pestillo de hierro abierto con la llave!');
   };
 
   const handleFuseLockClick = () => {
+    horrorAudio.playPadlockSound();
     if (lockState.fuseLock) {
       setActiveNotice('El cerrojo electromagnético ya está desenergizado.');
       return;
@@ -93,9 +99,12 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
     onEscapeSuccess();
   };
 
-  // Helper function to safely execute button action if not panning
-  const safeAction = (action: () => void) => {
+  // Helper function to safely execute button action if not panning, playing padlock sound
+  const safeAction = (action: () => void, isPadlock: boolean = true) => {
     if (isPanningRef.current) return;
+    if (isPadlock) {
+      horrorAudio.playPadlockSound();
+    }
     action();
   };
 
@@ -218,22 +227,14 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex flex-col items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
-      {/* Floating Close Button Top Right */}
+      {/* Floating Close Button Centered at Top */}
       <button
-        onClick={onClose}
-        className="fixed top-4 right-4 z-40 px-3.5 py-2 rounded-full bg-stone-900/90 hover:bg-red-950 border border-stone-700 hover:border-red-600 text-stone-300 hover:text-white font-mono text-xs flex items-center gap-1.5 shadow-xl transition-all cursor-pointer backdrop-blur-md"
+        onClick={handleCloseModal}
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-stone-900/90 hover:bg-red-950 border border-stone-700 hover:border-red-600 text-stone-300 hover:text-white font-mono text-xs flex items-center gap-1.5 shadow-xl transition-all cursor-pointer backdrop-blur-md"
       >
         <X className="w-4 h-4" />
         <span>VOLVER AL CUARTO</span>
       </button>
-
-      {/* Floating Status Indicator Top Left */}
-      <div className="fixed top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-stone-900/90 border border-stone-800 text-stone-300 font-mono text-xs flex items-center gap-2 shadow-xl backdrop-blur-md">
-        <Lock className={`w-4 h-4 ${allUnlocked ? 'text-emerald-400' : 'text-amber-400'}`} />
-        <span className="font-bold tracking-wider">
-          {unlockedCount}/5 CANDADOS RETIRADOS
-        </span>
-      </div>
 
       {/* Floating Zoom Controls */}
       <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2 bg-stone-900/90 border border-stone-700/80 rounded-full px-3 py-1.5 shadow-2xl backdrop-blur-md text-stone-200">

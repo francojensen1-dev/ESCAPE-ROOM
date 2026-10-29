@@ -1,11 +1,14 @@
 /**
  * Dividing Bathroom Door Modal (Puerta Divisoria de Habitaciones)
- * Requires the brass key found inside the rotten refrigerator to unlock.
- * Separates the main room from the bathroom.
+ * Displays only the door lock based on user PNG: /imgs/cerraduraBaño1.png
+ * Respects transparency and displays with prominent sizing on screen.
+ * - If user does not have key: displays red text "esta cerrado busca la llave"
+ * - If user has key: displays button "insertar llave"
+ * - Clean frameless design without cards or boxes
  */
 
 import React, { useState } from 'react';
-import { X, Lock, Unlock, Key, DoorOpen, AlertCircle, ArrowRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
 
@@ -16,6 +19,9 @@ interface BathroomDoorModalProps {
   onClose: () => void;
 }
 
+const PRIMARY_LOCK_IMG = '/imgs/cerraduraBaño1.png';
+const ENCODED_LOCK_IMG = '/imgs/cerraduraBa%C3%B1o1.png';
+
 export const BathroomDoorModal: React.FC<BathroomDoorModalProps> = ({
   isUnlocked,
   hasFridgeKey,
@@ -24,148 +30,85 @@ export const BathroomDoorModal: React.FC<BathroomDoorModalProps> = ({
 }) => {
   const [unlocking, setUnlocking] = useState(false);
   const [justUnlocked, setJustUnlocked] = useState(false);
+  const [imgSrc, setImgSrc] = useState(PRIMARY_LOCK_IMG);
+
+  const handleClose = () => {
+    horrorAudio.playMainDoorSound();
+    onClose();
+  };
 
   const handleUseKey = () => {
     if (isUnlocked || !hasFridgeKey || unlocking) return;
 
     setUnlocking(true);
-    horrorAudio.playUnlockClick();
+    horrorAudio.playKeyCollect();
     sensorManager.vibrate([60, 40, 80]);
 
     setTimeout(() => {
-      horrorAudio.playCreak();
+      horrorAudio.playMainDoorSound();
       sensorManager.vibrate([100, 80, 150]);
       onUnlock();
       setJustUnlocked(true);
       setUnlocking(false);
-    }, 600);
+    }, 550);
   };
 
   const unlockedState = isUnlocked || justUnlocked;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
-          <div className="flex items-center gap-2">
-            <DoorOpen className="w-4 h-4 text-amber-500" />
-            <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              PUERTA DEL BAÑO (DIVISIÓN)
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none">
+      {/* Floating Close Button Top Right */}
+      <button
+        onClick={handleClose}
+        className="fixed top-4 right-4 z-40 p-2.5 rounded-full bg-stone-900/90 border border-stone-700 text-stone-300 hover:text-white hover:bg-stone-800 transition-colors shadow-2xl cursor-pointer hover:scale-105 active:scale-95"
+        title="Cerrar vista"
+      >
+        <X className="w-6 h-6" />
+      </button>
 
-        {/* Visual Inspection of the Door & Brass Lock */}
-        <div className="p-6 bg-gradient-to-b from-stone-900 to-stone-950 flex flex-col items-center text-center">
-          {/* Door Frame & Lockplate Graphic */}
-          <div className="relative w-48 h-48 rounded-xl border-4 border-stone-800 bg-[#1e1712] shadow-2xl flex flex-col items-center justify-center overflow-hidden mb-5">
-            {/* Wood panel background */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(45,32,22,0.9),_#100c09)]" />
+      {/* Center Lock Presentation (Transparent PNG) */}
+      <div className="relative flex flex-col items-center justify-center max-w-md w-full">
+        {/* Subtle blurred aura behind lock */}
+        <div className="absolute w-72 h-[32rem] bg-black/80 rounded-full blur-2xl pointer-events-none -z-10" />
 
-            {/* Brass escutcheon plate & keyhole */}
-            <div className="relative z-10 w-24 h-36 bg-gradient-to-b from-[#b89542] via-[#856525] to-[#594215] rounded-md border-2 border-[#d9b15b] shadow-lg flex flex-col items-center justify-between py-3">
-              {/* Top screw */}
-              <div className="w-2 h-2 rounded-full bg-stone-900 border border-amber-900" />
+        {/* Lock Transparent PNG Image */}
+        <img
+          src={imgSrc}
+          alt="Cerradura de la puerta del baño"
+          onError={() => {
+            if (imgSrc === PRIMARY_LOCK_IMG) {
+              setImgSrc(ENCODED_LOCK_IMG);
+            }
+          }}
+          className="max-h-[70vh] sm:max-h-[75vh] max-w-[85vw] sm:max-w-md w-auto h-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.95)] select-none pointer-events-none"
+        />
 
-              {/* Brass Lever Handle */}
-              <div className="relative w-16 h-3 bg-gradient-to-r from-[#d9b15b] to-[#6d511a] rounded-sm shadow-md flex items-center justify-end pr-1">
-                <div className="w-2.5 h-4 bg-[#b89542] rounded-full border border-stone-900" />
-              </div>
-
-              {/* Keyhole */}
-              <div className="flex flex-col items-center">
-                <div className="w-3.5 h-3.5 rounded-full bg-black border border-stone-950" />
-                <div className="w-1.5 h-4 bg-black -mt-1 rounded-b-sm border-x border-b border-stone-950" />
-              </div>
-
-              {/* Bottom screw */}
-              <div className="w-2 h-2 rounded-full bg-stone-900 border border-amber-900" />
-            </div>
-
-            {/* Lock Status Badge */}
-            <div className="absolute bottom-2 z-20">
-              {unlockedState ? (
-                <span className="px-2.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/60 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
-                  <Unlock className="w-3 h-3" /> DESTRABADA
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 rounded bg-red-950/90 border border-red-500/60 text-red-400 font-mono text-[10px] font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> CERRADA CON LLAVE
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Description & Status */}
-          <div className="space-y-2 max-w-sm">
-            {unlockedState ? (
-              <p className="text-xs text-emerald-300 font-sans leading-relaxed">
-                El cerrojo de latón ha cedido. La puerta divisoria está abierta y puedes acceder a la segunda habitación: el baño decrépito.
-              </p>
-            ) : hasFridgeKey ? (
-              <div className="space-y-2">
-                <p className="text-xs text-stone-300 font-sans leading-relaxed">
-                  Tienes en tu poder la <strong className="text-amber-400">Llave Antigua de Latón</strong>. El perfil de la llave coincide con este cerrojo.
-                </p>
-                <div className="p-2 rounded bg-amber-950/40 border border-amber-600/40 text-amber-300 text-[11px] font-mono flex items-center justify-center gap-2">
-                  <Key className="w-4 h-4 text-amber-400" />
-                  <span>LLAVE DE LATÓN LISTA PARA USAR</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-stone-300 font-sans leading-relaxed">
-                  Esta puerta de madera maciza divide la habitación principal del baño contiguo. La cerradura de latón está firmemente trabada.
-                </p>
-                <div className="p-2.5 rounded bg-stone-950 border border-amber-900/40 text-[11px] font-mono text-stone-400 flex items-start gap-2 text-left">
-                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <span>
-                    La cerradura de latón está cerrada. Requiere una llave para abrirse.
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Action Button */}
-          {!unlockedState && hasFridgeKey && (
+        {/* Dynamic State Feedback under the Lock */}
+        {!unlockedState ? (
+          !hasFridgeKey ? (
+            /* Player does NOT have the key: red text */
+            <p className="text-red-500 font-mono text-base sm:text-lg font-bold tracking-wider mt-5 text-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] animate-pulse uppercase">
+              esta cerrado busca la llave
+            </p>
+          ) : (
+            /* Player HAS the key: button to insert key */
             <button
               onClick={handleUseKey}
               disabled={unlocking}
-              className="mt-5 w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 active:scale-98 text-black font-mono text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2"
+              className="mt-5 px-8 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-mono text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.55)] transition-all active:scale-95 cursor-pointer"
             >
-              <Key className="w-4 h-4 text-black" />
-              {unlocking ? 'DESTRABANDO CERROJO...' : 'USAR LLAVE DE LATÓN Y ABRIR'}
+              {unlocking ? 'insertando llave...' : 'insertar llave'}
             </button>
-          )}
-
-          {unlockedState && (
-            <button
-              onClick={onClose}
-              className="mt-5 w-full py-2.5 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-600 active:scale-98 text-white font-mono text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-            >
-              <span>ENTRAR AL BAÑO</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 bg-stone-950 border-t border-stone-800 flex justify-end">
+          )
+        ) : (
+          /* Already unlocked: Enter button */
           <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
+            onClick={handleClose}
+            className="mt-5 px-8 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-mono text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-all active:scale-95 cursor-pointer"
           >
-            VOLVER
+            cerradura abierta - entrar
           </button>
-        </div>
+        )}
       </div>
     </div>
   );

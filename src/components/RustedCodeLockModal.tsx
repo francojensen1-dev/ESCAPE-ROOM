@@ -29,7 +29,7 @@ export const RustedCodeLockModal: React.FC<RustedCodeLockModalProps> = ({
   const handleDigitChange = (index: number, delta: number) => {
     if (isUnlocked) return;
 
-    horrorAudio.playDialTick();
+    horrorAudio.playSwitchClick();
     sensorManager.vibrate(25);
 
     const newDigits = [...digits];
@@ -40,7 +40,7 @@ export const RustedCodeLockModal: React.FC<RustedCodeLockModalProps> = ({
     // Check code
     if (newDigits.every((val, i) => val === CORRECT_CODE[i])) {
       setIsUnlocked(true);
-      horrorAudio.playUnlockClick();
+      horrorAudio.playPadlockSound();
       sensorManager.vibrate([80, 50, 120]);
       onSuccess();
     }

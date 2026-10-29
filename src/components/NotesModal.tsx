@@ -1,16 +1,27 @@
 /**
  * Diary Notes Modal (Diario del Investigador Atrapado)
  * Clues and atmospheric lore found on the study desk.
+ * Plays zero-latency Papel.mp3 sound upon interaction.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, BookOpen, AlertCircle } from 'lucide-react';
+import { horrorAudio } from '../audio/HorrorAudioManager';
 
 interface NotesModalProps {
   onClose: () => void;
 }
 
 export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
+  useEffect(() => {
+    horrorAudio.playPaperSound();
+  }, []);
+
+  const handleClose = () => {
+    horrorAudio.playPaperSound();
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl">
@@ -23,7 +34,7 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white"
           >
             <X className="w-5 h-5" />
@@ -53,7 +64,7 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
                 <span className="font-semibold text-amber-300">1. Candado Numérico:</span> El primer seguro responde a un año detenido en el tiempo... una fecha congelada en el papel de la pared.
               </li>
               <li>
-                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> La caja metálica de la pared oculta la combinación de palancas: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA]</strong>.
+                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> La caja metálica de la pared oculta la combinación de palancas: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA - ABAJO]</strong>.
               </li>
               <li>
                 <span className="font-semibold text-amber-300">3. Candado de Hierro:</span> La llave pesada del candado yace olvidada en lo más profundo de las fétidas aguas del baño.
@@ -72,7 +83,7 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
         {/* Footer */}
         <div className="p-4 bg-stone-950 flex justify-end">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
           >
             GUARDAR NOTA

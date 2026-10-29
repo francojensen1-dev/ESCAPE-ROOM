@@ -59,6 +59,8 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
   useEffect(() => {
     // Increase horror tension according to stage
     horrorAudio.updateTension(0.35 + pibeStage * 0.2);
+    // Pibe voice calls are heard much louder through the peephole
+    horrorAudio.setPeepholeActive(true);
     sensorManager.vibrate([40, 80, 40]);
 
     // Shake lens whenever door knock sound fires
@@ -82,6 +84,7 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
     }, 420);
 
     return () => {
+      horrorAudio.setPeepholeActive(false);
       unregisterKnock();
       clearInterval(flickerInterval);
       horrorAudio.updateTension(0.2);
@@ -236,10 +239,7 @@ export const PeepholeModal: React.FC<PeepholeModalProps> = ({
           }`}
         >
           <Volume2 className="w-4 h-4 animate-bounce" />
-          <span>LLAMAR AL PIBE</span>
-          <span className="text-xs px-2 py-0.5 rounded-md bg-black/40 font-mono">
-            {pibeCallCount} / 4
-          </span>
+          <span>Llamar al pibe</span>
         </button>
 
         {/* Threat Level Meter */}

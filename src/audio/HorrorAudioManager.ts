@@ -2,11 +2,42 @@
  * Horror Audio Manager
  * - "the illuminato": continuous background music loop
  * - "sonido de foco": lower volume ambient electrical hum synchronized with ceiling light flicker
- * - "sonido de puerta": random heavy door knocks ("golpes en la puerta") when "el pibe" is near the door
+ * - Random outside ambient horror sounds: GRITO1, GRITO2, PUERTA2, PUERTA3, RISA 1, TENSION2..8, TocanPuerta, risa
+ * - Main door interface open/close: Puerta.mp3
+ * - Padlock manipulation: Candado.mp3
+ * - Fridge interaction: cerrarHeladera.mp3
+ * - Fridge motor loop: motorHeladera.mp3 (positional)
+ * - Key collect: KeyCollect.mp3
+ * - Living room radio: LaRadio.mp3 & TENSION10.mp3 (positional)
+ * - 1 minute countdown tension: TENSION1.mp3
+ * - Pibe door voices: AbrimeLaPuerta1..24.mp3 (positional & boosted in peephole)
+ * - Screamer: scream.mp3
+ * - Fuse box breaker switches: ClickPerilla.mp3
  * - Integrates Web Audio API, AnalyserNode for reactive HUD audio metrics, and spatial audio effects.
  */
 
 import { AudioMetrics } from '../types/game';
+
+// Ambience random horror sounds (played randomly with intervals from outside)
+const AMBIENT_HORROR_SOUNDS = [
+  '/audio/GRITO1.mp3',
+  '/audio/GRITO2.mp3',
+  '/audio/PUERTA2.mp3',
+  '/audio/PUERTA3.mp3',
+  '/audio/RISA 1.mp3',
+  '/audio/TENSION2.mp3',
+  '/audio/TENSION3.mp3',
+  '/audio/TENSION4.mp3',
+  '/audio/TENSION5.mp3',
+  '/audio/TENSION6.mp3',
+  '/audio/TENSION7.mp3',
+  '/audio/TENSION8.mp3',
+  '/audio/TocanPuerta.mp3',
+  '/audio/risa.mp3',
+];
+
+// 24 Voice lines for "El Pibe" behind his door
+const ABRIME_LA_PUERTA_TRACKS = Array.from({ length: 24 }, (_, i) => `/audio/AbrimeLaPuerta${i + 1}.mp3`);
 
 class HorrorAudioManager {
   private ctx: AudioContext | null = null;
@@ -21,8 +52,6 @@ class HorrorAudioManager {
   // Ceiling Light Bulb Sound ("sonido de foco")
   private focoAudio: HTMLAudioElement | null = null;
   private focoGain: GainNode | null = null;
-  private focoSynthOsc: OscillatorNode | null = null;
-  private focoSynthGain: GainNode | null = null;
 
   // Door Knocks Sound ("sonido de puerta / golpes")
   private doorBuffer: AudioBuffer | null = null;
@@ -35,11 +64,44 @@ class HorrorAudioManager {
   private isCryPlaying: boolean = false;
   private bathroomCryAudio: HTMLAudioElement | null = null;
 
+  // Random Ambient Horror Sounds Loop (outside noises)
+  private ambientHorrorAudio: HTMLAudioElement | null = null;
+  private ambientHorrorTimer: number | null = null;
+  private isAmbientHorrorActive: boolean = false;
+  private lastAmbientIndex: number = -1;
+
+  // Zero-latency pre-instantiated SFX players
+  private mainDoorAudio: HTMLAudioElement | null = null;
+  private fridgeAudio: HTMLAudioElement | null = null;
+  private padlockAudio: HTMLAudioElement | null = null;
+  private paperAudio: HTMLAudioElement | null = null;
+  private switchClickAudio: HTMLAudioElement | null = null;
+
+  // Fridge Motor Positional Audio
+  private fridgeMotorAudio: HTMLAudioElement | null = null;
+  private fridgeMotorBaseVol: number = 0.55;
+
+  // Room Table Radio (LaRadio.mp3 & TENSION10.mp3 continuous loop)
+  private radioAudio: HTMLAudioElement | null = null;
+  private radioTracks: string[] = ['/audio/LaRadio.mp3', '/audio/TENSION10.mp3'];
+  private currentRadioTrackIndex: number = 0;
+  private radioBaseVol: number = 0.65;
+
+  // 1-Minute Remaining Countdown Tension Audio (TENSION1.mp3)
+  private oneMinuteAudio: HTMLAudioElement | null = null;
+  private isOneMinutePlaying: boolean = false;
+
+  // Pibe Door Voice Lines (AbrimeLaPuerta1..24)
+  private pibeVoiceAudio: HTMLAudioElement | null = null;
+  private pibeVoiceTimer: number | null = null;
+  private isPibeVoiceActive: boolean = false;
+  private isAtPeephole: boolean = false;
+  private pibeVoiceDist: number = 6.0;
+  private pibeVoiceAvailable: number[] = [];
+
   // Procedural tension elements
   private droneOsc: OscillatorNode | null = null;
   private droneGain: GainNode | null = null;
-  private fridgeGain: GainNode | null = null;
-  private fridgeOsc: OscillatorNode | null = null;
   private heartbeatTimer: number | null = null;
   private isMuted: boolean = false;
 
@@ -52,11 +114,10 @@ class HorrorAudioManager {
   private freqData: Uint8Array | null = null;
   private timeData: Uint8Array | null = null;
 
-  // Door knock listeners (e.g. for visual door rumble / camera jolt)
+  // Door knock listeners
   private knockListeners: Array<() => void> = [];
 
   constructor() {
-    // Setup gesture listener to unblock audio on first interaction
     this.setupGestureUnlock();
   }
 
@@ -87,6 +148,7 @@ class HorrorAudioManager {
       }
       this.startBackgroundMusic();
       this.startCeilingFocoSound();
+      this.startAmbientLayers();
       return true;
     }
 
@@ -116,27 +178,22 @@ class HorrorAudioManager {
       this.focoGain.gain.setValueAtTime(0.10, this.ctx.currentTime);
       this.focoGain.connect(this.masterGain);
 
-      // Preload door knock audio buffer
+      // Preload door knock and baby cry audio buffers
       this.loadDoorBuffer();
-
-      // Preload sink baby weeping audio buffer for 3D positional audio
       this.loadCryBuffer();
 
-      // Start "the illuminato" background loop directly
+      // Start all background audio streams
       this.startBackgroundMusic();
-
-      // Start "sonido de foco" synchronized with ceiling light
       this.startCeilingFocoSound();
-
-      // Start subtle atmospheric ambient synth layers
+      this.startAmbientLayers();
       this.startAmbientDrone();
-      this.startFridgeHum();
 
       return true;
     } catch (err) {
       console.warn('AudioContext failed to initialize:', err);
       this.startBackgroundMusic();
       this.startCeilingFocoSound();
+      this.startAmbientLayers();
       return false;
     }
   }
@@ -154,6 +211,25 @@ class HorrorAudioManager {
     if (this.focoAudio && this.focoAudio.paused && !this.isMuted) {
       this.focoAudio.play().catch(() => {});
     }
+    if (this.fridgeMotorAudio && this.fridgeMotorAudio.paused && !this.isMuted) {
+      this.fridgeMotorAudio.play().catch(() => {});
+    }
+    if (this.radioAudio && this.radioAudio.paused && !this.isMuted) {
+      this.radioAudio.play().catch(() => {});
+    }
+    if (!this.isAmbientHorrorActive) {
+      this.startRandomAmbientHorrorSounds();
+    }
+    if (!this.isPibeVoiceActive) {
+      this.startPibeVoiceLoop();
+    }
+  }
+
+  private startAmbientLayers() {
+    this.startRandomAmbientHorrorSounds();
+    this.startFridgeMotorLoop();
+    this.startRadioLoop();
+    this.startPibeVoiceLoop();
   }
 
   public setMuted(muted: boolean) {
@@ -163,19 +239,28 @@ class HorrorAudioManager {
     }
     if (this.bgmAudio) {
       this.bgmAudio.volume = muted ? 0 : this.bgmVolume;
-      if (muted) {
-        this.bgmAudio.pause();
-      } else {
-        this.bgmAudio.play().catch(() => {});
-      }
+      if (muted) this.bgmAudio.pause();
+      else this.bgmAudio.play().catch(() => {});
     }
     if (this.focoAudio) {
-      this.focoAudio.volume = muted ? 0 : 0.025;
-      if (muted) {
-        this.focoAudio.pause();
-      } else {
-        this.focoAudio.play().catch(() => {});
-      }
+      this.focoAudio.volume = muted ? 0 : 0.008;
+      if (muted) this.focoAudio.pause();
+      else this.focoAudio.play().catch(() => {});
+    }
+    if (this.fridgeMotorAudio) {
+      this.fridgeMotorAudio.volume = muted ? 0 : this.fridgeMotorBaseVol;
+      if (muted) this.fridgeMotorAudio.pause();
+      else this.fridgeMotorAudio.play().catch(() => {});
+    }
+    if (this.radioAudio) {
+      this.radioAudio.volume = muted ? 0 : this.radioBaseVol;
+      if (muted) this.radioAudio.pause();
+      else this.radioAudio.play().catch(() => {});
+    }
+    if (this.oneMinuteAudio) {
+      this.oneMinuteAudio.volume = muted ? 0 : 0.70;
+      if (muted) this.oneMinuteAudio.pause();
+      else this.oneMinuteAudio.play().catch(() => {});
     }
     if (this.bathroomCryAudio) {
       if (muted) {
@@ -198,32 +283,415 @@ class HorrorAudioManager {
     return this.isBgmPlaying;
   }
 
-  /**
-   * Preload door knock buffer for zero-latency audio
-   */
-  private async loadDoorBuffer() {
-    if (!this.ctx) return;
+  // =========================================================================
+  // 1. RANDOM AMBIENT HORROR SOUNDS (GRITO, PUERTA, RISA, TENSION, etc.)
+  // =========================================================================
+  public startRandomAmbientHorrorSounds() {
+    if (this.isAmbientHorrorActive) return;
+    this.isAmbientHorrorActive = true;
+    this.scheduleNextAmbientHorrorSound(4000);
+  }
+
+  private scheduleNextAmbientHorrorSound(delayMs: number) {
+    if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
+    this.ambientHorrorTimer = window.setTimeout(() => {
+      this.playRandomAmbientHorrorSound();
+    }, delayMs);
+  }
+
+  private playRandomAmbientHorrorSound() {
+    if (!this.isAmbientHorrorActive || this.isMuted) {
+      this.scheduleNextAmbientHorrorSound(8000);
+      return;
+    }
+
+    // Pick a random track avoiding direct repeat
+    let nextIndex = Math.floor(Math.random() * AMBIENT_HORROR_SOUNDS.length);
+    if (nextIndex === this.lastAmbientIndex) {
+      nextIndex = (nextIndex + 1) % AMBIENT_HORROR_SOUNDS.length;
+    }
+    this.lastAmbientIndex = nextIndex;
+    const trackSrc = AMBIENT_HORROR_SOUNDS[nextIndex];
+
     try {
-      const resp = await fetch('/audio/golpes_puerta.mp3');
-      if (resp.ok) {
-        const arrayBuf = await resp.arrayBuffer();
-        if (this.ctx) {
-          this.doorBuffer = await this.ctx.decodeAudioData(arrayBuf);
-        }
+      this.ambientHorrorAudio = new Audio(trackSrc);
+      // Soft, outside the room volume (0.08 - subtle distant ambiance)
+      this.ambientHorrorAudio.volume = 0.08;
+      this.ambientHorrorAudio.preload = 'auto';
+
+      const cleanupAndScheduleNext = () => {
+        // Pause between 7 and 16 seconds so sounds don't overlap
+        const pause = Math.floor(Math.random() * 9000) + 7000;
+        this.scheduleNextAmbientHorrorSound(pause);
+      };
+
+      this.ambientHorrorAudio.onended = cleanupAndScheduleNext;
+      this.ambientHorrorAudio.onerror = cleanupAndScheduleNext;
+
+      const p = this.ambientHorrorAudio.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          cleanupAndScheduleNext();
+        });
       }
     } catch {
-      // Procedural fallback available
+      this.scheduleNextAmbientHorrorSound(8000);
     }
   }
 
-  /**
-   * Start "the illuminato" background music in a continuous seamless loop
-   */
+  // =========================================================================
+  // 2. MAIN DOOR OPEN/CLOSE SOUND ("Puerta.mp3")
+  // =========================================================================
+  public playMainDoorSound() {
+    if (this.isMuted) return;
+    try {
+      if (!this.mainDoorAudio) {
+        this.mainDoorAudio = new Audio('/audio/Puerta.mp3');
+        this.mainDoorAudio.preload = 'auto';
+      }
+      this.mainDoorAudio.currentTime = 0;
+      this.mainDoorAudio.volume = 0.85;
+      const p = this.mainDoorAudio.play();
+      if (p !== undefined) p.catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // 3. PADLOCK INTERACTION SOUND ("Candado.mp3")
+  // =========================================================================
+  public playPadlockSound() {
+    if (this.isMuted) return;
+    try {
+      if (!this.padlockAudio) {
+        this.padlockAudio = new Audio('/audio/Candado.mp3');
+        this.padlockAudio.preload = 'auto';
+      }
+      this.padlockAudio.currentTime = 0;
+      this.padlockAudio.volume = 0.80;
+      const p = this.padlockAudio.play();
+      if (p !== undefined) p.catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // 4. FRIDGE OPEN / CLOSE / INTERACT SOUND ("cerrarHeladera.mp3")
+  // =========================================================================
+  public playFridgeSound() {
+    if (this.isMuted) return;
+    try {
+      if (!this.fridgeAudio) {
+        this.fridgeAudio = new Audio('/audio/cerrarHeladera.mp3');
+        this.fridgeAudio.preload = 'auto';
+      }
+      this.fridgeAudio.currentTime = 0;
+      this.fridgeAudio.volume = 0.80;
+      const p = this.fridgeAudio.play();
+      if (p !== undefined) p.catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // 5. FRIDGE MOTOR POSITIONAL CONTINUOUS LOOP ("motorHeladera.mp3")
+  // =========================================================================
+  private startFridgeMotorLoop() {
+    if (!this.fridgeMotorAudio) {
+      this.fridgeMotorAudio = new Audio('/audio/motorHeladera.mp3');
+      this.fridgeMotorAudio.loop = true;
+      this.fridgeMotorAudio.volume = this.isMuted ? 0 : 0.08;
+      this.fridgeMotorAudio.preload = 'auto';
+    }
+    this.fridgeMotorAudio.play().catch(() => {});
+  }
+
+  public updateFridgeMotorDistance(dist: number) {
+    if (this.isMuted || !this.fridgeMotorAudio) return;
+
+    // Attenuation based on distance to the fridge in meters
+    // At fridge (< 1.5m): 0.55
+    // Near fridge (1.5m - 3.5m): 0.55 -> 0.25
+    // Across room (3.5m - 7m): 0.25 -> 0.04
+    // Far (> 7m): 0.02
+    let vol = 0.02;
+    if (dist < 1.5) {
+      vol = 0.55;
+    } else if (dist < 3.5) {
+      const t = (dist - 1.5) / 2.0;
+      vol = 0.55 - t * 0.30;
+    } else if (dist < 7.0) {
+      const t = (dist - 3.5) / 3.5;
+      vol = 0.25 - t * 0.21;
+    }
+
+    this.fridgeMotorBaseVol = vol;
+    this.fridgeMotorAudio.volume = Math.max(0, Math.min(1, vol));
+    if (this.fridgeMotorAudio.paused && !this.isMuted) {
+      this.fridgeMotorAudio.play().catch(() => {});
+    }
+  }
+
+  // =========================================================================
+  // 6. KEY COLLECT SOUND ("KeyCollect.mp3")
+  // =========================================================================
+  public playKeyCollect() {
+    if (this.isMuted) return;
+    try {
+      const audio = new Audio('/audio/KeyCollect.mp3');
+      audio.volume = 0.90;
+      audio.play().catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // 7. ROOM RADIO CONTINUOUS LOOP ("LaRadio.mp3" & "TENSION10.mp3")
+  // =========================================================================
+  private startRadioLoop() {
+    this.playNextRadioTrack();
+  }
+
+  private playNextRadioTrack() {
+    const src = this.radioTracks[this.currentRadioTrackIndex];
+    this.radioAudio = new Audio(src);
+    this.radioAudio.volume = this.isMuted ? 0 : this.radioBaseVol;
+    this.radioAudio.preload = 'auto';
+
+    const onFinish = () => {
+      this.currentRadioTrackIndex = (this.currentRadioTrackIndex + 1) % this.radioTracks.length;
+      this.playNextRadioTrack();
+    };
+
+    this.radioAudio.onended = onFinish;
+    this.radioAudio.onerror = onFinish;
+
+    if (!this.isMuted) {
+      this.radioAudio.play().catch(() => {
+        setTimeout(onFinish, 4000);
+      });
+    }
+  }
+
+  public updateRadioDistance(dist: number) {
+    if (this.isMuted || !this.radioAudio) return;
+
+    // Increased audible distance for the radio across the room
+    // Close to desk (< 1.8m): volume 0.38
+    // Across the room (1.8m - 6.5m): smooth attenuation 0.38 -> 0.04
+    // Beyond 6.5m: 0
+    let vol = 0;
+    if (dist < 1.8) {
+      vol = 0.38;
+    } else if (dist < 6.5) {
+      const t = (dist - 1.8) / 4.7;
+      vol = 0.38 - t * 0.34;
+    } else {
+      vol = 0;
+    }
+
+    this.radioBaseVol = vol;
+    this.radioAudio.volume = Math.max(0, Math.min(1, vol));
+  }
+
+  // =========================================================================
+  // 8. 1-MINUTE REMAINING TENSION ("TENSION1.mp3")
+  // =========================================================================
+  public startOneMinuteTension() {
+    if (this.isOneMinutePlaying) return;
+    this.isOneMinutePlaying = true;
+
+    try {
+      if (!this.oneMinuteAudio) {
+        this.oneMinuteAudio = new Audio('/audio/TENSION1.mp3');
+        this.oneMinuteAudio.loop = true;
+        this.oneMinuteAudio.volume = this.isMuted ? 0 : 0.70;
+        this.oneMinuteAudio.preload = 'auto';
+      }
+      this.oneMinuteAudio.play().catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  public stopOneMinuteTension() {
+    this.isOneMinutePlaying = false;
+    if (this.oneMinuteAudio) {
+      this.oneMinuteAudio.pause();
+      this.oneMinuteAudio.currentTime = 0;
+    }
+  }
+
+  // =========================================================================
+  // 9. PIBE DOOR VOICE CALLS ("AbrimeLaPuerta1..24.mp3")
+  // =========================================================================
+  public startPibeVoiceLoop() {
+    if (this.isPibeVoiceActive) return;
+    this.isPibeVoiceActive = true;
+    this.refillPibeVoiceTracks();
+    this.scheduleNextPibeVoice(3000);
+  }
+
+  private refillPibeVoiceTracks() {
+    this.pibeVoiceAvailable = Array.from({ length: 24 }, (_, i) => i + 1);
+    // Shuffle array
+    for (let i = this.pibeVoiceAvailable.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.pibeVoiceAvailable[i], this.pibeVoiceAvailable[j]] = [
+        this.pibeVoiceAvailable[j],
+        this.pibeVoiceAvailable[i],
+      ];
+    }
+  }
+
+  private scheduleNextPibeVoice(delayMs: number) {
+    if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
+    this.pibeVoiceTimer = window.setTimeout(() => {
+      this.playNextPibeVoice();
+    }, delayMs);
+  }
+
+  private playNextPibeVoice() {
+    if (!this.isPibeVoiceActive) return;
+
+    if (this.pibeVoiceAvailable.length === 0) {
+      this.refillPibeVoiceTracks();
+    }
+
+    const trackNum = this.pibeVoiceAvailable.pop() || 1;
+    const src = `/audio/AbrimeLaPuerta${trackNum}.mp3`;
+
+    try {
+      this.pibeVoiceAudio = new Audio(src);
+      this.updatePibeVoiceVolume();
+      this.pibeVoiceAudio.preload = 'auto';
+
+      const handleDone = () => {
+        // Pausas de 2 segundos entre audios
+        this.scheduleNextPibeVoice(2000);
+      };
+
+      this.pibeVoiceAudio.onended = handleDone;
+      this.pibeVoiceAudio.onerror = handleDone;
+
+      if (!this.isMuted) {
+        this.pibeVoiceAudio.play().catch(() => {
+          this.scheduleNextPibeVoice(2000);
+        });
+      } else {
+        this.scheduleNextPibeVoice(2000);
+      }
+    } catch {
+      this.scheduleNextPibeVoice(2000);
+    }
+  }
+
+  public updatePibeDoorDistance(dist: number, isAtPeephole: boolean = false) {
+    this.pibeVoiceDist = dist;
+    this.isAtPeephole = isAtPeephole;
+    this.updatePibeVoiceVolume();
+  }
+
+  public setPeepholeActive(active: boolean) {
+    this.isAtPeephole = active;
+    this.updatePibeVoiceVolume();
+  }
+
+  private updatePibeVoiceVolume() {
+    if (!this.pibeVoiceAudio) return;
+    if (this.isMuted) {
+      this.pibeVoiceAudio.volume = 0;
+      return;
+    }
+
+    // When looking through the peephole, voice is at maximum impact!
+    if (this.isAtPeephole) {
+      this.pibeVoiceAudio.volume = 1.0;
+      return;
+    }
+
+    // Enhanced distance volume from Pibe Door
+    // Close (< 2m): 0.95
+    // Mid (2m - 5m): 0.95 -> 0.65
+    // Far (> 5m): 0.50
+    let vol = 0.50;
+    if (this.pibeVoiceDist < 2.0) {
+      vol = 0.95;
+    } else if (this.pibeVoiceDist < 5.0) {
+      const t = (this.pibeVoiceDist - 2.0) / 3.0;
+      vol = 0.95 - t * 0.30;
+    } else {
+      vol = 0.50;
+    }
+
+    this.pibeVoiceAudio.volume = Math.max(0, Math.min(1, vol));
+  }
+
+  // =========================================================================
+  // 10. SCREAMER SOUND ("scream.mp3")
+  // =========================================================================
+  public playScream() {
+    this.resume();
+    try {
+      const screamAudio = new Audio('/audio/scream.mp3');
+      screamAudio.volume = 1.0;
+      screamAudio.play().catch(() => {
+        this.playJumpscareScreamer();
+      });
+    } catch {
+      this.playJumpscareScreamer();
+    }
+  }
+
+  // =========================================================================
+  // 11. FUSE BOX / DIAL SWITCH CLICK SOUND ("ClickPerilla.mp3")
+  // =========================================================================
+  public playSwitchClick() {
+    if (this.isMuted) return;
+    try {
+      if (!this.switchClickAudio) {
+        this.switchClickAudio = new Audio('/audio/ClickPerilla.mp3');
+        this.switchClickAudio.preload = 'auto';
+      }
+      this.switchClickAudio.currentTime = 0;
+      this.switchClickAudio.volume = 0.85;
+      const p = this.switchClickAudio.play();
+      if (p !== undefined) p.catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // 12. PAPER INTERACTION SOUND ("Papel.mp3")
+  // =========================================================================
+  public playPaperSound() {
+    if (this.isMuted) return;
+    try {
+      if (!this.paperAudio) {
+        this.paperAudio = new Audio('/audio/Papel.mp3');
+        this.paperAudio.preload = 'auto';
+      }
+      this.paperAudio.currentTime = 0;
+      this.paperAudio.volume = 0.85;
+      const p = this.paperAudio.play();
+      if (p !== undefined) p.catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+
+  // =========================================================================
+  // LEGACY & WEB AUDIO UTILITIES
+  // =========================================================================
   public startBackgroundMusic() {
     if (this.isMuted) return;
 
     if (!this.bgmAudio) {
-      // Use clean standard HTML5 Audio element without CORS-hijacking createMediaElementSource
       this.bgmAudio = new Audio('/audio/the_illuminato.mp3');
       this.bgmAudio.loop = true;
       this.bgmAudio.volume = this.bgmVolume;
@@ -236,7 +704,7 @@ class HorrorAudioManager {
         this.isBgmPlaying = false;
       });
       this.bgmAudio.addEventListener('error', (e) => {
-        console.warn('the_illuminato.wav error, switching to illuminato.wav:', e);
+        console.warn('the_illuminato error, fallback to illuminato.wav:', e);
         if (this.bgmAudio) {
           this.bgmAudio.src = '/audio/illuminato.wav';
           this.bgmAudio.play().catch(() => {});
@@ -249,20 +717,16 @@ class HorrorAudioManager {
       p.then(() => {
         this.isBgmPlaying = true;
       }).catch((err) => {
-        console.warn('Autoplay waiting for user gesture to play BGM:', err);
+        console.warn('Autoplay waiting for user gesture:', err);
       });
     }
   }
 
-  /**
-   * Start "sonido de foco" - Lower volume electrical hum synchronized with ceiling light
-   * Strictly calibrated at very low levels (0.006 - 0.014) to eliminate harsh static or hiss
-   */
   public startCeilingFocoSound() {
     if (!this.focoAudio) {
       this.focoAudio = new Audio('/audio/sonido_foco.wav');
       this.focoAudio.loop = true;
-      this.focoAudio.volume = this.isMuted ? 0 : 0.008; // Muy suave, sin estática molesta
+      this.focoAudio.volume = this.isMuted ? 0 : 0.008;
       this.focoAudio.preload = 'auto';
 
       this.focoAudio.addEventListener('error', () => {
@@ -276,12 +740,7 @@ class HorrorAudioManager {
     this.focoAudio.play().catch(() => {});
   }
 
-  /**
-   * Synchronize "sonido de foco" with ceiling light flicker
-   * Soft volume modulation without any harsh static or clicks
-   */
   public syncCeilingLight(lightIntensity: number, isFlickerDip: boolean) {
-    // Very subtle, quiet background hum: 0.005 to 0.014 max
     const targetVol = this.isMuted
       ? 0
       : isFlickerDip
@@ -298,9 +757,21 @@ class HorrorAudioManager {
     }
   }
 
-  /**
-   * Preload baby weeping audio buffer for 3D positional audio
-   */
+  private async loadDoorBuffer() {
+    if (!this.ctx) return;
+    try {
+      const resp = await fetch('/audio/golpes_puerta.mp3');
+      if (resp.ok) {
+        const arrayBuf = await resp.arrayBuffer();
+        if (this.ctx) {
+          this.doorBuffer = await this.ctx.decodeAudioData(arrayBuf);
+        }
+      }
+    } catch {
+      // Procedural fallback
+    }
+  }
+
   private async loadCryBuffer() {
     if (!this.ctx) return;
     try {
@@ -313,13 +784,10 @@ class HorrorAudioManager {
         }
       }
     } catch (e) {
-      console.warn('Could not decode llanto.wav buffer, using HTMLAudioElement fallback:', e);
+      console.warn('Could not decode llanto.wav buffer:', e);
     }
   }
 
-  /**
-   * Start continuous sink crying audio loop via Web Audio API with StereoPanner
-   */
   private startSinkCryLoop() {
     if (!this.ctx || !this.cryBuffer || this.isCryPlaying) return;
 
@@ -348,12 +816,6 @@ class HorrorAudioManager {
     }
   }
 
-  /**
-   * Modulate baby weeping audio specifically emanating from the Silent Hill Sink
-   * @param distToSink Distance in meters from player camera to the sink
-   * @param pan Horizontal audio panning (-1.0 left, 0 center, +1.0 right) based on player look angle
-   * @param isDoorOpen Whether bathroom door is open or closed
-   */
   public updateSinkCryAudio(distToSink: number, pan: number = 0, isDoorOpen: boolean = false) {
     if (this.isMuted) {
       if (this.cryGain && this.ctx) {
@@ -365,33 +827,26 @@ class HorrorAudioManager {
       return;
     }
 
-    // Distance attenuation from the sink:
-    // Right at sink (< 1.5m): loudest and clearest (0.85)
-    // In bathroom (1.5m - 4.5m): 0.50 - 0.75
-    // Near bathroom entrance (4.5m - 7.5m): 0.20 - 0.45
-    // Across main room (> 7.5m): faint creepy murmur (0.02 - 0.15)
     let baseVolume = 0;
     if (distToSink < 1.5) {
       baseVolume = 0.85;
     } else if (distToSink < 4.5) {
       const t = (distToSink - 1.5) / 3.0;
-      baseVolume = 0.85 - t * 0.35; // 0.85 -> 0.50
+      baseVolume = 0.85 - t * 0.35;
     } else if (distToSink < 8.0) {
       const t = (distToSink - 4.5) / 3.5;
-      baseVolume = 0.50 - t * 0.32; // 0.50 -> 0.18
+      baseVolume = 0.50 - t * 0.32;
     } else if (distToSink < 13.0) {
       const t = (distToSink - 8.0) / 5.0;
-      baseVolume = 0.18 - t * 0.15; // 0.18 -> 0.03
+      baseVolume = 0.18 - t * 0.15;
     } else {
       baseVolume = 0.02;
     }
 
-    // If door is closed/locked and player is outside, muffle the sound
     if (!isDoorOpen && distToSink > 3.8) {
       baseVolume *= 0.40;
     }
 
-    // 1. Web Audio API with real-time 3D stereo panning
     if (this.ctx && this.cryGain && this.isCryPlaying) {
       const now = this.ctx.currentTime;
       this.cryGain.gain.setTargetAtTime(baseVolume, now, 0.08);
@@ -399,7 +854,6 @@ class HorrorAudioManager {
         this.cryPanner.pan.setTargetAtTime(pan, now, 0.06);
       }
     } else {
-      // 2. HTMLAudioElement Fallback
       if (!this.bathroomCryAudio) {
         this.bathroomCryAudio = new Audio('/audio/llanto.wav');
         this.bathroomCryAudio.loop = true;
@@ -414,23 +868,14 @@ class HorrorAudioManager {
     }
   }
 
-  /**
-   * Backwards compatibility helper
-   */
   public updateBathroomDistance(distanceToBathroom: number) {
     this.updateSinkCryAudio(distanceToBathroom, 0, true);
   }
 
-  /**
-   * Play heavy wooden door knocks ("golpes en la puerta")
-   * Called randomly when "el pibe" is near the door
-   * @param volumeFactor 0.0 to 1.0 (scales with proximity to door)
-   */
   public playDoorKnocks(volumeFactor: number = 0.85) {
     if (this.isMuted) return;
     this.resume();
 
-    // Trigger registered UI & camera shake listeners asynchronously
     this.knockListeners.forEach((fn) => {
       try {
         setTimeout(fn, 0);
@@ -439,7 +884,6 @@ class HorrorAudioManager {
       }
     });
 
-    // Play dedicated Audio instance for overlapping distinct knocks
     try {
       const knockAudio = new Audio('/audio/golpes_puerta.mp3');
       knockAudio.volume = Math.max(0.25, Math.min(1.0, volumeFactor * 0.95));
@@ -473,9 +917,6 @@ class HorrorAudioManager {
     this.synthesizeDoorKnocks(volumeFactor);
   }
 
-  /**
-   * Procedural door knock fallback (4 rapid wooden thuds)
-   */
   private synthesizeDoorKnocks(volumeFactor: number) {
     if (!this.ctx || !this.masterGain) return;
 
@@ -519,7 +960,7 @@ class HorrorAudioManager {
       this.droneGain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
 
-      this.droneOsc.type = 'sine'; // Pure smooth sine (zero harsh buzz)
+      this.droneOsc.type = 'sine';
       this.droneOsc.frequency.setValueAtTime(46.25, this.ctx.currentTime);
 
       filter.type = 'lowpass';
@@ -533,33 +974,6 @@ class HorrorAudioManager {
       this.droneGain.connect(this.masterGain);
 
       this.droneOsc.start();
-    } catch {
-      // Ignore
-    }
-  }
-
-  private startFridgeHum() {
-    if (!this.ctx || !this.masterGain) return;
-
-    try {
-      this.fridgeOsc = this.ctx.createOscillator();
-      this.fridgeGain = this.ctx.createGain();
-      const filter = this.ctx.createBiquadFilter();
-
-      this.fridgeOsc.type = 'sine';
-      this.fridgeOsc.frequency.setValueAtTime(60, this.ctx.currentTime);
-
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(120, this.ctx.currentTime);
-      filter.Q.setValueAtTime(1.5, this.ctx.currentTime);
-
-      this.fridgeGain.gain.setValueAtTime(0.02, this.ctx.currentTime);
-
-      this.fridgeOsc.connect(filter);
-      filter.connect(this.fridgeGain);
-      this.fridgeGain.connect(this.masterGain);
-
-      this.fridgeOsc.start();
     } catch {
       // Ignore
     }
@@ -683,21 +1097,6 @@ class HorrorAudioManager {
 
     osc.start(now);
     osc.stop(now + 0.09);
-
-    setTimeout(() => {
-      if (!this.ctx || !this.masterGain) return;
-      const rattleNow = this.ctx.currentTime;
-      const osc2 = this.ctx.createOscillator();
-      const gain2 = this.ctx.createGain();
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(450, rattleNow);
-      gain2.gain.setValueAtTime(0.2, rattleNow);
-      gain2.gain.exponentialRampToValueAtTime(0.001, rattleNow + 0.15);
-      osc2.connect(gain2);
-      gain2.connect(this.masterGain);
-      osc2.start(rattleNow);
-      osc2.stop(rattleNow + 0.16);
-    }, 90);
   }
 
   public playDialTick() {
@@ -823,6 +1222,9 @@ class HorrorAudioManager {
 
   public dispose() {
     if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+    if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
+    if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
+
     if (this.bgmAudio) {
       this.bgmAudio.pause();
       this.bgmAudio = null;
@@ -834,6 +1236,26 @@ class HorrorAudioManager {
     if (this.bathroomCryAudio) {
       this.bathroomCryAudio.pause();
       this.bathroomCryAudio = null;
+    }
+    if (this.fridgeMotorAudio) {
+      this.fridgeMotorAudio.pause();
+      this.fridgeMotorAudio = null;
+    }
+    if (this.radioAudio) {
+      this.radioAudio.pause();
+      this.radioAudio = null;
+    }
+    if (this.oneMinuteAudio) {
+      this.oneMinuteAudio.pause();
+      this.oneMinuteAudio = null;
+    }
+    if (this.ambientHorrorAudio) {
+      this.ambientHorrorAudio.pause();
+      this.ambientHorrorAudio = null;
+    }
+    if (this.pibeVoiceAudio) {
+      this.pibeVoiceAudio.pause();
+      this.pibeVoiceAudio = null;
     }
     if (this.micStream) {
       this.micStream.getTracks().forEach((track) => track.stop());

@@ -2016,13 +2016,13 @@ export class EscapeRoomScene {
     yellowStripe.position.set(0, 0.08, 0.052);
     fuseBoxGroup.add(yellowStripe);
 
-    // 3 Fuse Lever slots
-    for (let i = 0; i < 3; i++) {
+    // 4 Fuse Lever slots (4 líneas rojas)
+    for (let i = 0; i < 4; i++) {
       const lever = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8),
-        new THREE.MeshStandardMaterial({ color: 0xc43d2b })
+        new THREE.CylinderGeometry(0.010, 0.010, 0.06, 8),
+        new THREE.MeshStandardMaterial({ color: 0xc43d2b, roughness: 0.4 })
       );
-      lever.position.set(-0.08 + i * 0.08, -0.10, 0.055);
+      lever.position.set(-0.09 + i * 0.06, -0.10, 0.055);
       fuseBoxGroup.add(lever);
     }
 
@@ -3954,6 +3954,16 @@ export class EscapeRoomScene {
     const pan = Math.max(-1.0, Math.min(1.0, rightHoriz.dot(toSinkHoriz)));
 
     horrorAudio.updateSinkCryAudio(distToSink, pan, this.isBathroomUnlocked);
+
+    // Positional audio updates for fridge motor, table radio, and pibe door voices
+    const distToFridge = playerPos.distanceTo(new THREE.Vector3(3.6, 1.2, -4.6));
+    horrorAudio.updateFridgeMotorDistance(distToFridge);
+
+    const distToRadio = playerPos.distanceTo(new THREE.Vector3(-2.8, 0.9, -1.2));
+    horrorAudio.updateRadioDistance(distToRadio);
+
+    const distToPibeDoor = playerPos.distanceTo(new THREE.Vector3(0.5, 1.35, this.pibeDoorBaseZ));
+    horrorAudio.updatePibeDoorDistance(distToPibeDoor);
 
     // Subtle organic breathing / twitch for the fetus resting inside the sink
     if (this.fetoModel) {

@@ -19,7 +19,7 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
 
   useEffect(() => {
     mountTimeRef.current = Date.now();
-    horrorAudio.playCreak();
+    horrorAudio.playPaperSound();
     sensorManager.vibrate([40, 30, 60]);
 
     if (!hasDiscoveredCode) {

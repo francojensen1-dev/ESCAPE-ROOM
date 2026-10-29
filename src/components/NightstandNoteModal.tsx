@@ -1,11 +1,12 @@
 /**
  * Nightstand Note Modal (Nota de la Mesa de Luz)
- * Displays the handwritten parchment note ("nota.jpg") found on the nightstand
- * in the bedroom with the bed.
+ * Frameless fullscreen presentation matching the bathroom note (BrokenTileModal.tsx).
+ * Displays the handwritten parchment note (/imgs/nota.png with fallback /imgs/nota.jpg)
+ * with zoom controls, background tap to close, and responsive mobile scaling.
  */
 
-import React, { useEffect, useState } from 'react';
-import { X, FileText, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
 
@@ -19,99 +20,79 @@ const FALLBACK_NOTE_PATH = '/imgs/nota.jpg';
 export const NightstandNoteModal: React.FC<NightstandNoteModalProps> = ({ onClose }) => {
   const [currentSrc, setCurrentSrc] = useState<string>(PRIMARY_NOTE_PATH);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
-  const [hasError, setHasError] = useState<boolean>(false);
+  const mountTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    // Play eerie page rustle sound and light haptic feedback
-    horrorAudio.playCreak();
+    mountTimeRef.current = Date.now();
+    horrorAudio.playPaperSound();
     sensorManager.vibrate([40, 30, 60]);
   }, []);
 
   const handleImageError = () => {
     if (currentSrc === PRIMARY_NOTE_PATH) {
       setCurrentSrc(FALLBACK_NOTE_PATH);
-    } else {
-      setHasError(true);
     }
   };
 
+  const handleBackdropClick = () => {
+    // Prevent synthetic touch taps (< 350ms) from immediately dismissing modal
+    if (Date.now() - mountTimeRef.current < 350) {
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 select-none animate-in fade-in duration-200">
-      {/* Container Card */}
-      <div className="relative w-full max-w-lg max-h-[92vh] bg-stone-950/90 border border-amber-900/40 rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.9),0_0_30px_rgba(180,83,9,0.15)] flex flex-col overflow-hidden">
-        
-        {/* Header Bar */}
-        <div className="px-4 py-3 border-b border-stone-800/80 bg-stone-950/95 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-950/60 border border-amber-700/40 text-amber-400">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-amber-200">
-                NOTA DE LA MESA DE LUZ
-              </h2>
-              <p className="text-[10px] text-stone-400 font-mono">
-                Papel amarillento y desgastado con manchas de sangre
-              </p>
-            </div>
-          </div>
+    <div
+      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen"
+    >
+      {/* Top Floating Controls for Mobile Usability */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-4 right-4 z-20 flex items-center gap-2"
+      >
+        <button
+          onClick={() => setIsZoomed((prev) => !prev)}
+          className="p-2.5 rounded-full bg-stone-900/90 border border-amber-600/50 text-amber-200 hover:text-white active:scale-95 transition-all shadow-lg cursor-pointer"
+          title={isZoomed ? 'Alejar' : 'Acercar'}
+        >
+          {isZoomed ? <ZoomOut className="w-5 h-5" /> : <ZoomIn className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={onClose}
+          className="p-2.5 rounded-full bg-stone-900/90 border border-stone-700/80 text-stone-300 hover:text-red-400 active:scale-95 transition-all shadow-lg cursor-pointer"
+          title="Cerrar"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsZoomed((prev) => !prev)}
-              title={isZoomed ? 'Alejar' : 'Acercar'}
-              className="p-1.5 rounded-lg bg-stone-900/80 hover:bg-stone-800 border border-stone-700/60 text-stone-300 hover:text-white transition-colors cursor-pointer"
-            >
-              {isZoomed ? <ZoomOut className="w-4 h-4" /> : <ZoomIn className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={onClose}
-              title="Cerrar nota"
-              className="p-1.5 rounded-lg bg-stone-900/80 hover:bg-red-950/80 border border-stone-700/60 hover:border-red-700/60 text-stone-400 hover:text-red-200 transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      {/* Floating Guidance Text at Bottom */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-center">
+        <span className="px-3.5 py-1.5 rounded-full bg-stone-950/80 border border-amber-500/30 text-amber-300/90 text-xs font-mono font-medium backdrop-blur-sm shadow-md">
+          Toca fuera o la X para cerrar
+        </span>
+      </div>
 
-        {/* Note Image Viewport */}
-        <div className="relative flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_rgba(40,25,15,0.4)_0%,_rgba(10,8,6,0.95)_100%)]">
-          {!hasError ? (
-            <div
-              onClick={() => setIsZoomed((prev) => !prev)}
-              className={`relative cursor-pointer transition-transform duration-300 ${
-                isZoomed ? 'scale-125 sm:scale-135 py-8' : 'scale-100 hover:scale-[1.02]'
-              }`}
-            >
-              <img
-                src={currentSrc}
-                alt="Nota en la mesa de luz"
-                onError={handleImageError}
-                className="max-h-[64vh] max-w-[84vw] sm:max-w-md w-auto h-auto object-contain rounded-lg filter drop-shadow-[0_15px_35px_rgba(0,0,0,0.85)] contrast-105 brightness-95"
-              />
-              <div className="absolute inset-0 pointer-events-none rounded-lg bg-[radial-gradient(circle_at_50%_40%,_transparent_60%,_rgba(30,15,5,0.25)_100%)]" />
-            </div>
-          ) : (
-            <div className="p-8 text-center text-stone-400 font-mono text-xs">
-              <FileText className="w-12 h-12 mx-auto text-amber-600/60 mb-2" />
-              <p>No se pudo cargar la imagen de la nota.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer info & Close Action */}
-        <div className="px-4 py-3 border-t border-stone-800/80 bg-stone-950/95 flex items-center justify-between text-xs font-mono">
-          <span className="text-stone-400 text-[11px] hidden sm:inline">
-            Toca la nota para ampliarla / reducirla
-          </span>
-          <button
-            onClick={onClose}
-            className="ml-auto px-4 py-2 rounded-xl bg-amber-900/60 hover:bg-amber-800 border border-amber-600/50 text-amber-100 font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
-          >
-            Guardar Nota
-          </button>
-        </div>
-
+      {/* Parchment Note Image without any frame or box */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          if (Date.now() - mountTimeRef.current >= 350) {
+            setIsZoomed((prev) => !prev);
+          }
+        }}
+        className={`relative transition-transform duration-300 cursor-pointer ${
+          isZoomed ? 'scale-125 sm:scale-150' : 'scale-100 hover:scale-105'
+        }`}
+      >
+        <img
+          src={currentSrc}
+          alt="Nota de la mesa de luz"
+          onError={handleImageError}
+          className="max-w-[92vw] max-h-[78dvh] object-contain filter drop-shadow-[0_20px_50px_rgba(0,0,0,0.95)] contrast-110 brightness-105 select-none"
+        />
       </div>
     </div>
   );

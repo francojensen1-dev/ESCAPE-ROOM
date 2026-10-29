@@ -55,7 +55,7 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
   const handleLetterChange = (index: number, delta: number) => {
     if (isUnlocked) return;
 
-    horrorAudio.playDialTick();
+    horrorAudio.playSwitchClick();
     sensorManager.vibrate(25);
 
     const options = DIAL_OPTIONS[index];
@@ -70,7 +70,7 @@ export const LetterLockModal: React.FC<LetterLockModalProps> = ({
     // Check code
     if (nextLetters.every((l, i) => l === TARGET_WORD[i])) {
       setIsUnlocked(true);
-      horrorAudio.playUnlockClick();
+      horrorAudio.playPadlockSound();
       sensorManager.vibrate([100, 60, 150]);
       onSuccess();
     }

@@ -230,7 +230,9 @@ export default function App() {
                 : 'Puerta Cerrada con Llave',
             };
       case 'rotten_fridge':
-        return { title: 'Heladera Vintage (1950s)', action: 'Abrir y Buscar en el Interior' };
+        return inventory.some((i) => i.id === 'key_fridge')
+          ? { title: 'Heladera Vintage', action: 'Nada que ver aquí' }
+          : { title: 'Heladera Vintage (1950s)', action: 'Abrir y Buscar en el Interior' };
       case 'study_desk':
         return { title: 'Mesa con Diario del Investigador', action: 'Leer Pistas del Diario' };
       case 'fuse_box':
@@ -254,22 +256,30 @@ export default function App() {
   const handleOpenTarget = useCallback((targetId: InteractiveTargetId) => {
     if (!targetId) return;
     sensorManager.vibrate(35);
-    horrorAudio.playCreak();
 
     switch (targetId) {
       case 'main_door':
+        horrorAudio.playMainDoorSound();
         setActiveModal('main_door');
         break;
       case 'door_peephole':
         setActiveModal('peephole');
         break;
       case 'bathroom_door':
+        horrorAudio.playMainDoorSound();
         setActiveModal('bathroom_door');
         break;
       case 'rotten_fridge':
+        horrorAudio.playFridgeSound();
+        if (inventory.some((i) => i.id === 'key_fridge')) {
+          showToast('Nada que ver aquí');
+          sensorManager.vibrate(20);
+          break;
+        }
         setActiveModal('fridge');
         break;
       case 'study_desk':
+        horrorAudio.playPaperSound();
         setActiveModal('notes');
         break;
       case 'fuse_box':
@@ -284,9 +294,11 @@ export default function App() {
         setActiveModal('toilet');
         break;
       case 'broken_tile':
+        horrorAudio.playPaperSound();
         setActiveModal('broken_tile');
         break;
       case 'nightstand_note':
+        horrorAudio.playPaperSound();
         setActiveModal('nightstand_note');
         break;
     }
@@ -435,6 +447,7 @@ export default function App() {
    * Victory escape
    */
   const handleEscapeSuccess = () => {
+    horrorAudio.stopOneMinuteTension();
     setActiveModal(null);
     setGameStage('escaped');
   };
@@ -443,6 +456,7 @@ export default function App() {
    * Screamer jumpscare trigger
    */
   const handleTriggerScreamer = (reason: 'called_too_much' | 'timeout') => {
+    horrorAudio.stopOneMinuteTension();
     setJumpscareReason(reason);
     setActiveModal(null);
     setGameStage('jumpscare');
@@ -452,6 +466,7 @@ export default function App() {
    * Restart game
    */
   const handleRestart = () => {
+    horrorAudio.stopOneMinuteTension();
     setTimeLeft(900);
     setTimeElapsed(0);
     setPibeCallCount(0);
@@ -522,8 +537,12 @@ export default function App() {
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
+        if (prev <= 60 && prev > 1) {
+          horrorAudio.startOneMinuteTension();
+        }
         if (prev <= 1) {
           clearInterval(interval);
+          horrorAudio.stopOneMinuteTension();
           setJumpscareReason('timeout');
           setActiveModal(null);
           setGameStage('jumpscare');
