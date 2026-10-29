@@ -34,7 +34,7 @@ export const NightstandNoteModal: React.FC<NightstandNoteModalProps> = ({ onClos
     }
   };
 
-  const handleBackdropClick = () => {
+  const handleBackdropInteraction = (e: React.MouseEvent | React.TouchEvent) => {
     // Prevent synthetic touch taps (< 350ms) from immediately dismissing modal
     if (Date.now() - mountTimeRef.current < 350) {
       return;
@@ -44,13 +44,15 @@ export const NightstandNoteModal: React.FC<NightstandNoteModalProps> = ({ onClos
 
   return (
     <div
-      onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen"
+      onClick={handleBackdropInteraction}
+      onTouchEnd={handleBackdropInteraction}
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen cursor-pointer touch-auto"
     >
       {/* Top Floating Controls for Mobile Usability */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-20 flex items-center gap-2"
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="absolute top-4 right-4 z-20 flex items-center gap-2 cursor-default"
       >
         <button
           onClick={() => setIsZoomed((prev) => !prev)}
@@ -82,6 +84,9 @@ export const NightstandNoteModal: React.FC<NightstandNoteModalProps> = ({ onClos
           if (Date.now() - mountTimeRef.current >= 350) {
             setIsZoomed((prev) => !prev);
           }
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
         }}
         className={`relative transition-transform duration-300 cursor-pointer ${
           isZoomed ? 'scale-125 sm:scale-150' : 'scale-100 hover:scale-105'

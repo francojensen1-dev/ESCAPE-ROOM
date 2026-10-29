@@ -70,6 +70,9 @@ class HorrorAudioManager {
   private isAmbientHorrorActive: boolean = false;
   private lastAmbientIndex: number = -1;
 
+  // Zero-latency Web Audio API pre-decoded buffers
+  private sfxBuffers: Map<string, AudioBuffer> = new Map();
+
   // Zero-latency pre-instantiated SFX players
   private mainDoorAudio: HTMLAudioElement | null = null;
   private fridgeAudio: HTMLAudioElement | null = null;
@@ -119,6 +122,96 @@ class HorrorAudioManager {
 
   constructor() {
     this.setupGestureUnlock();
+    this.preloadSFXAudioElements();
+  }
+
+  private preloadSFXAudioElements() {
+    try {
+      this.fridgeAudio = new Audio('/audio/cerrarHeladera.mp3');
+      this.fridgeAudio.preload = 'auto';
+
+      this.mainDoorAudio = new Audio('/audio/Puerta.mp3');
+      this.mainDoorAudio.preload = 'auto';
+
+      this.padlockAudio = new Audio('/audio/Candado.mp3');
+      this.padlockAudio.preload = 'auto';
+
+      this.paperAudio = new Audio('/audio/Papel.mp3');
+      this.paperAudio.preload = 'auto';
+
+      this.switchClickAudio = new Audio('/audio/ClickPerilla.mp3');
+      this.switchClickAudio.preload = 'auto';
+    } catch {
+      // Ignore
+    }
+  }
+
+  private async loadSFXBuffer(url: string) {
+    if (!this.ctx) return;
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const arrayBuf = await resp.arrayBuffer();
+        if (this.ctx) {
+          const decoded = await this.ctx.decodeAudioData(arrayBuf);
+          this.sfxBuffers.set(url, decoded);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  private preloadSFXBuffers() {
+    const urls = [
+      '/audio/cerrarHeladera.mp3',
+      '/audio/Puerta.mp3',
+      '/audio/Candado.mp3',
+      '/audio/Papel.mp3',
+      '/audio/ClickPerilla.mp3',
+      '/audio/KeyCollect.mp3',
+    ];
+    urls.forEach((url) => {
+      if (!this.sfxBuffers.has(url)) {
+        this.loadSFXBuffer(url);
+      }
+    });
+  }
+
+  private playZeroLatencySFX(url: string, fallbackAudio: HTMLAudioElement | null, volume: number = 0.8) {
+    if (this.isMuted) return;
+    this.resume();
+
+    const buffer = this.sfxBuffers.get(url);
+    if (this.ctx && this.masterGain && buffer) {
+      try {
+        const src = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        src.buffer = buffer;
+        gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+        src.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(0);
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+
+    try {
+      if (fallbackAudio) {
+        fallbackAudio.currentTime = 0;
+        fallbackAudio.volume = volume;
+        const p = fallbackAudio.play();
+        if (p !== undefined) p.catch(() => {});
+      } else {
+        const audio = new Audio(url);
+        audio.volume = volume;
+        audio.play().catch(() => {});
+      }
+    } catch {
+      // Ignore
+    }
   }
 
   private setupGestureUnlock() {
@@ -146,6 +239,7 @@ class HorrorAudioManager {
       if (this.ctx.state === 'suspended') {
         this.ctx.resume().catch(() => {});
       }
+      this.preloadSFXBuffers();
       this.startBackgroundMusic();
       this.startCeilingFocoSound();
       this.startAmbientLayers();
@@ -178,9 +272,10 @@ class HorrorAudioManager {
       this.focoGain.gain.setValueAtTime(0.10, this.ctx.currentTime);
       this.focoGain.connect(this.masterGain);
 
-      // Preload door knock and baby cry audio buffers
+      // Preload door knock, baby cry, and zero-latency SFX buffers
       this.loadDoorBuffer();
       this.loadCryBuffer();
+      this.preloadSFXBuffers();
 
       // Start all background audio streams
       this.startBackgroundMusic();
@@ -343,57 +438,21 @@ class HorrorAudioManager {
   // 2. MAIN DOOR OPEN/CLOSE SOUND ("Puerta.mp3")
   // =========================================================================
   public playMainDoorSound() {
-    if (this.isMuted) return;
-    try {
-      if (!this.mainDoorAudio) {
-        this.mainDoorAudio = new Audio('/audio/Puerta.mp3');
-        this.mainDoorAudio.preload = 'auto';
-      }
-      this.mainDoorAudio.currentTime = 0;
-      this.mainDoorAudio.volume = 0.85;
-      const p = this.mainDoorAudio.play();
-      if (p !== undefined) p.catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/Puerta.mp3', this.mainDoorAudio, 0.85);
   }
 
   // =========================================================================
   // 3. PADLOCK INTERACTION SOUND ("Candado.mp3")
   // =========================================================================
   public playPadlockSound() {
-    if (this.isMuted) return;
-    try {
-      if (!this.padlockAudio) {
-        this.padlockAudio = new Audio('/audio/Candado.mp3');
-        this.padlockAudio.preload = 'auto';
-      }
-      this.padlockAudio.currentTime = 0;
-      this.padlockAudio.volume = 0.80;
-      const p = this.padlockAudio.play();
-      if (p !== undefined) p.catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/Candado.mp3', this.padlockAudio, 0.80);
   }
 
   // =========================================================================
   // 4. FRIDGE OPEN / CLOSE / INTERACT SOUND ("cerrarHeladera.mp3")
   // =========================================================================
   public playFridgeSound() {
-    if (this.isMuted) return;
-    try {
-      if (!this.fridgeAudio) {
-        this.fridgeAudio = new Audio('/audio/cerrarHeladera.mp3');
-        this.fridgeAudio.preload = 'auto';
-      }
-      this.fridgeAudio.currentTime = 0;
-      this.fridgeAudio.volume = 0.80;
-      const p = this.fridgeAudio.play();
-      if (p !== undefined) p.catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/cerrarHeladera.mp3', this.fridgeAudio, 0.85);
   }
 
   // =========================================================================
@@ -439,14 +498,7 @@ class HorrorAudioManager {
   // 6. KEY COLLECT SOUND ("KeyCollect.mp3")
   // =========================================================================
   public playKeyCollect() {
-    if (this.isMuted) return;
-    try {
-      const audio = new Audio('/audio/KeyCollect.mp3');
-      audio.volume = 0.90;
-      audio.play().catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/KeyCollect.mp3', null, 0.90);
   }
 
   // =========================================================================
@@ -651,38 +703,14 @@ class HorrorAudioManager {
   // 11. FUSE BOX / DIAL SWITCH CLICK SOUND ("ClickPerilla.mp3")
   // =========================================================================
   public playSwitchClick() {
-    if (this.isMuted) return;
-    try {
-      if (!this.switchClickAudio) {
-        this.switchClickAudio = new Audio('/audio/ClickPerilla.mp3');
-        this.switchClickAudio.preload = 'auto';
-      }
-      this.switchClickAudio.currentTime = 0;
-      this.switchClickAudio.volume = 0.85;
-      const p = this.switchClickAudio.play();
-      if (p !== undefined) p.catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/ClickPerilla.mp3', this.switchClickAudio, 0.85);
   }
 
   // =========================================================================
   // 12. PAPER INTERACTION SOUND ("Papel.mp3")
   // =========================================================================
   public playPaperSound() {
-    if (this.isMuted) return;
-    try {
-      if (!this.paperAudio) {
-        this.paperAudio = new Audio('/audio/Papel.mp3');
-        this.paperAudio.preload = 'auto';
-      }
-      this.paperAudio.currentTime = 0;
-      this.paperAudio.volume = 0.85;
-      const p = this.paperAudio.play();
-      if (p !== undefined) p.catch(() => {});
-    } catch {
-      // Ignore
-    }
+    this.playZeroLatencySFX('/audio/Papel.mp3', this.paperAudio, 0.85);
   }
 
   // =========================================================================

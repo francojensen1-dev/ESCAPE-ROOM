@@ -23,8 +23,16 @@ export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl">
+    <div 
+      onClick={handleClose} 
+      onTouchEnd={handleClose} 
+      className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 cursor-pointer touch-auto"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()} 
+        onTouchEnd={(e) => e.stopPropagation()} 
+        className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl cursor-default"
+      >
         {/* Header */}
         <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
           <div className="flex items-center gap-2">

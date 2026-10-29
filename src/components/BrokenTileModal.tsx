@@ -27,8 +27,8 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
     }
   }, [hasDiscoveredCode, onDiscoverCode]);
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    // Ignore synthetic clicks from mobile tap that opened the modal (< 350ms)
+  const handleBackdropInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+    // Ignore synthetic clicks/taps from mobile tap that opened the modal (< 350ms)
     if (Date.now() - mountTimeRef.current < 350) {
       return;
     }
@@ -37,13 +37,15 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
 
   return (
     <div
-      onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen"
+      onClick={handleBackdropInteraction}
+      onTouchEnd={handleBackdropInteraction}
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen cursor-pointer touch-auto"
     >
       {/* Top Floating Controls for Mobile Usability */}
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-20 flex items-center gap-2"
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="absolute top-4 right-4 z-20 flex items-center gap-2 cursor-default"
       >
         <button
           onClick={() => setIsZoomed((prev) => !prev)}
@@ -76,6 +78,9 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
           if (Date.now() - mountTimeRef.current >= 350) {
             setIsZoomed((prev) => !prev);
           }
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
         }}
         className={`relative transition-transform duration-300 cursor-pointer ${
           isZoomed ? 'scale-125 sm:scale-150' : 'scale-100 hover:scale-105'
