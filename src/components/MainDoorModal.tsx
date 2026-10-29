@@ -273,15 +273,8 @@ export const MainDoorModal: React.FC<MainDoorModalProps> = ({
         <span>Toca 2 veces o pellizca para Zoom</span>
       </div>
 
-      {/* Knock Impact Banner */}
-      {knockImpact && (
-        <div className="fixed top-16 z-40 bg-red-950/90 border border-red-600 py-1.5 px-4 rounded-full text-xs font-mono text-red-300 font-bold tracking-widest animate-pulse shadow-2xl">
-          ⚠️ ¡SE ESCUCHAN GOLPES VIOLENTOS EN LA PUERTA!
-        </div>
-      )}
-
       {/* Interactive Notice Bar */}
-      {activeNotice && !knockImpact && (
+      {activeNotice && (
         <div className="fixed top-16 z-40 bg-amber-950/90 border border-amber-600/80 py-1.5 px-4 rounded-full text-xs font-mono text-amber-200 font-semibold flex items-center gap-2 shadow-2xl animate-fadeIn backdrop-blur-md">
           <Info className="w-4 h-4 text-amber-400 shrink-0" />
           <span>{activeNotice}</span>

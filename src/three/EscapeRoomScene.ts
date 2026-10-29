@@ -3338,19 +3338,7 @@ export class EscapeRoomScene {
    * Wall decorations: Blood graffiti & 1986 Calendar
    */
   private buildWallDecorations() {
-    // 1. Blood graffiti on South wall
-    const graffitiTex = TextureGenerator.createGraffitiTexture();
-    const graffitiMat = new THREE.MeshBasicMaterial({
-      map: graffitiTex,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const graffiti = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.8), graffitiMat);
-    graffiti.position.set(-2.4, 1.8, 5.94);
-    graffiti.rotation.y = Math.PI;
-    this.scene.add(graffiti);
-
-    // 2. 1986 Calendar (moved to East Wall opposite the new fuse box position)
+    // 1986 Calendar (moved to East Wall opposite the new fuse box position)
     const calTex = TextureGenerator.createCalendarTexture();
     const calMat = new THREE.MeshStandardMaterial({
       map: calTex,

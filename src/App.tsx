@@ -38,10 +38,16 @@ import { RustedCodeLockModal } from './components/RustedCodeLockModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NightstandNoteModal } from './components/NightstandNoteModal';
 import { Eye, Flashlight, Sliders } from 'lucide-react';
+import { preloadAllGameImages } from './utils/imagePreloader';
 
 export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<EscapeRoomScene | null>(null);
+
+  // Preload all game interface assets on initial launch
+  useEffect(() => {
+    preloadAllGameImages();
+  }, []);
 
   // Game Lifecycle
   const [gameStage, setGameStage] = useState<'intro' | 'playing' | 'jumpscare' | 'escaped'>('intro');
