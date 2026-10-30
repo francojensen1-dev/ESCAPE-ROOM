@@ -10,6 +10,8 @@ export const GAME_IMAGES_TO_PRELOAD: string[] = [
   '/imgs/llave.png',
   '/imgs/nota.jpg',
   '/imgs/nota.png',
+  '/imgs/nota-diario.png',
+  '/imgs/calendario.png',
   '/imgs/papel.png',
   '/imgs/refrijerador_1.png',
   '/imgs/refrijerador_2.png',

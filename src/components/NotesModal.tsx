@@ -4,99 +4,108 @@
  * Plays zero-latency Papel.mp3 sound upon interaction.
  */
 
-import React, { useEffect } from 'react';
-import { X, BookOpen, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
+import { sensorManager } from '../sensors/SensorManager';
 
 interface NotesModalProps {
   onClose: () => void;
 }
 
+const PRIMARY_NOTE_PATH = '/imgs/nota-diario.png';
+const FALLBACK_NOTE_PATH = '/imgs/nota.png';
+
 export const NotesModal: React.FC<NotesModalProps> = ({ onClose }) => {
+  const [currentSrc, setCurrentSrc] = useState<string>(PRIMARY_NOTE_PATH);
+  const [isZoomed, setIsZoomed] = useState<boolean>(false);
+  const mountTimeRef = useRef<number>(Date.now());
+
   useEffect(() => {
+    mountTimeRef.current = Date.now();
     horrorAudio.playPaperSound();
+    sensorManager.vibrate([40, 30, 60]);
+
+    // Preload image to guarantee zero latency
+    const img = new Image();
+    img.src = PRIMARY_NOTE_PATH;
   }, []);
+
+  const handleImageError = () => {
+    if (currentSrc === PRIMARY_NOTE_PATH) {
+      setCurrentSrc(FALLBACK_NOTE_PATH);
+    }
+  };
 
   const handleClose = () => {
     horrorAudio.playPaperSound();
     onClose();
   };
 
+  const handleBackdropInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+    // Prevent synthetic touch taps (< 350ms) from immediately dismissing modal
+    if (Date.now() - mountTimeRef.current < 350) {
+      return;
+    }
+    handleClose();
+  };
+
   return (
-    <div 
-      onClick={handleClose} 
-      onTouchEnd={handleClose} 
-      className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 cursor-pointer touch-auto"
+    <div
+      onClick={handleBackdropInteraction}
+      onTouchEnd={handleBackdropInteraction}
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200 h-[100dvh] w-screen cursor-pointer touch-auto"
     >
-      <div 
-        onClick={(e) => e.stopPropagation()} 
-        onTouchEnd={(e) => e.stopPropagation()} 
-        className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-2xl cursor-default"
+      {/* Top Floating Controls for Mobile Usability */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="absolute top-4 right-4 z-20 flex items-center gap-2 cursor-default"
       >
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-stone-800 flex items-center justify-between bg-stone-950">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-amber-500" />
-            <h2 className="text-sm font-mono uppercase tracking-wider text-stone-200">
-              PÁGINA ARRANCADA DE UN DIARIO
-            </h2>
-          </div>
-          <button
-            onClick={handleClose}
-            className="p-1 rounded bg-stone-800 text-stone-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={() => setIsZoomed((prev) => !prev)}
+          className="p-2.5 rounded-full bg-stone-900/90 border border-amber-600/50 text-amber-200 hover:text-white active:scale-95 transition-all shadow-lg cursor-pointer"
+          title={isZoomed ? 'Alejar' : 'Acercar'}
+        >
+          {isZoomed ? <ZoomOut className="w-5 h-5" /> : <ZoomIn className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={handleClose}
+          className="p-2.5 rounded-full bg-stone-900/90 border border-stone-700/80 text-stone-300 hover:text-red-400 active:scale-95 transition-all shadow-lg cursor-pointer"
+          title="Cerrar"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
 
-        {/* Paper visual */}
-        <div className="p-6 bg-[#211d16] text-[#dfd7c2] border-y border-stone-800 shadow-inner relative overflow-hidden font-serif">
-          {/* Blood/dirt stain */}
-          <div className="absolute top-2 right-2 w-28 h-28 rounded-full bg-red-950/20 blur-xl pointer-events-none" />
+      {/* Floating Guidance Text at Bottom */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-center">
+        <span className="px-3.5 py-1.5 rounded-full bg-stone-950/80 border border-amber-500/30 text-amber-300/90 text-xs font-mono font-medium backdrop-blur-sm shadow-md">
+          Toca fuera o la X para cerrar
+        </span>
+      </div>
 
-          <div className="text-xs font-mono text-amber-500/80 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5" />
-            DÍA 14 - NO PUEDO SALIR DE AQUÍ
-          </div>
-
-          <div className="space-y-3 text-sm leading-relaxed text-stone-300">
-            <p>
-              La <strong className="text-amber-400 font-semibold">Puerta Principal</strong> está bloqueada con cadenas macizas y cuatro seguros. Además, la habitación del baño está cerrada con llave:
-            </p>
-
-            <ul className="list-disc list-inside space-y-2 text-xs text-stone-300 font-sans pl-1">
-              <li>
-                <span className="font-semibold text-amber-300">🚪 Paso al Baño:</span> Escondí la pequeña llave de latón en el único lugar helado de esta sala... entre la escarcha y los restos podridos.
-              </li>
-              <li>
-                <span className="font-semibold text-amber-300">1. Candado Numérico:</span> El primer seguro responde a un año detenido en el tiempo... una fecha congelada en el papel de la pared.
-              </li>
-              <li>
-                <span className="font-semibold text-amber-300">2. Cortacorriente 220V:</span> La caja metálica de la pared oculta la combinación de palancas: <strong className="text-amber-400 font-mono">[ARRIBA - ABAJO - ARRIBA - ABAJO]</strong>.
-              </li>
-              <li>
-                <span className="font-semibold text-amber-300">3. Candado de Hierro:</span> La llave pesada del candado yace olvidada en lo más profundo de las fétidas aguas del baño.
-              </li>
-              <li>
-                <span className="font-semibold text-amber-300">4. Candado de 5 Letras:</span> En las paredes cerámicas del baño, busca la grieta suelta donde quedó grabado el destino final.
-              </li>
-            </ul>
-
-            <p className="text-xs text-red-400/90 italic pt-2 border-t border-stone-700/50 font-sans">
-              "No te demores más de 15 minutos. El Pibe merodea por el pasillo exterior. Si te acercas a la puerta, mira por la mirilla para ver qué tan cerca está..."
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 bg-stone-950 flex justify-end">
-          <button
-            onClick={handleClose}
-            className="px-5 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono transition-colors"
-          >
-            GUARDAR NOTA
-          </button>
-        </div>
+      {/* Parchment Note Image (/imgs/nota-diario.png) */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          if (Date.now() - mountTimeRef.current >= 350) {
+            setIsZoomed((prev) => !prev);
+          }
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+        }}
+        className={`relative transition-transform duration-300 cursor-pointer ${
+          isZoomed ? 'scale-125 sm:scale-150' : 'scale-100 hover:scale-105'
+        }`}
+      >
+        <img
+          src={currentSrc}
+          alt="Diario del Investigador"
+          onError={handleImageError}
+          className="max-w-[92vw] max-h-[78dvh] object-contain filter drop-shadow-[0_20px_50px_rgba(0,0,0,0.95)] contrast-105 brightness-105 select-none"
+        />
       </div>
     </div>
   );

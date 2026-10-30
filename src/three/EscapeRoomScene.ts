@@ -1541,26 +1541,32 @@ export class EscapeRoomScene {
     tableGroup.add(tableShadow);
 
     // 5. "Diario del Investigador" Clue Note Sheet (Interactive Target)
+    const deskNoteTexLoader = new THREE.TextureLoader();
+    const deskNoteTex = deskNoteTexLoader.load('/imgs/nota-diario.png', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+    });
+
     const noteMat = new THREE.MeshStandardMaterial({
-      color: 0xa89f88,
-      roughness: 0.9,
+      map: deskNoteTex,
+      transparent: true,
+      alphaTest: 0.05,
+      roughness: 0.88,
+      metalness: 0.04,
+      side: THREE.DoubleSide,
       emissive: new THREE.Color(0x000000),
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     });
     this.highlightMaterials.set('study_desk', noteMat);
 
-    const noteSheet = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.015, 0.50), noteMat);
-    noteSheet.position.set(-0.35, 0.805, 0.12);
-    noteSheet.rotation.y = 0.22;
+    // Flat paper sheet lying directly flush on tabletop with zero background box or border
+    const noteSheet = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.50), noteMat);
+    noteSheet.rotation.x = -Math.PI / 2;
+    noteSheet.rotation.z = 0.22;
+    noteSheet.position.set(-0.35, 0.798, 0.12);
     tableGroup.add(noteSheet);
-
-    // Blood stains on the note sheet
-    const bloodNoteDecal = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.24, 0.18),
-      new THREE.MeshBasicMaterial({ color: 0x6e0e0e, transparent: true, opacity: 0.7 })
-    );
-    bloodNoteDecal.rotation.x = -Math.PI / 2;
-    bloodNoteDecal.position.set(-0.33, 0.814, 0.12);
-    tableGroup.add(bloodNoteDecal);
 
     // 6. Vintage 1970s Wood-Cased AM Radio Receiver
     const radioMat = new THREE.MeshStandardMaterial({ color: 0x3d2719, roughness: 0.65 });
@@ -3338,14 +3344,31 @@ export class EscapeRoomScene {
    * Wall decorations: Blood graffiti & 1986 Calendar
    */
   private buildWallDecorations() {
-    // 1986 Calendar (moved to East Wall opposite the new fuse box position)
-    const calTex = TextureGenerator.createCalendarTexture();
+    // 1986 Calendar (using /imgs/calendario.png texture)
+    const calTexLoader = new THREE.TextureLoader();
+    const calTex = calTexLoader.load('/imgs/calendario.png', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+    }, undefined, () => {
+      const proceduralTex = TextureGenerator.createCalendarTexture();
+      calMat.map = proceduralTex;
+      calMat.needsUpdate = true;
+    });
+    calTex.colorSpace = THREE.SRGBColorSpace;
+
     const calMat = new THREE.MeshStandardMaterial({
       map: calTex,
-      roughness: 0.9,
+      transparent: true,
+      alphaTest: 0.05,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     });
     const calendar = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9), calMat);
-    calendar.position.set(4.94, 1.65, -0.6);
+    // Positioned flush against East wall (X = 4.991)
+    calendar.position.set(4.991, 1.65, -0.6);
     calendar.rotation.y = -Math.PI / 2;
     this.scene.add(calendar);
   }
