@@ -6,6 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Trophy, RotateCcw, Clock, Key, Check } from 'lucide-react';
 
+import { horrorAudio } from '../audio/HorrorAudioManager';
+
 interface VictoryModalProps {
   timeElapsed: number; // in seconds
   onRestart: () => void;
@@ -18,6 +20,8 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   const [stage, setStage] = useState<number>(0);
 
   useEffect(() => {
+    horrorAudio.stopAllSounds();
+
     // Cinematic phase 0 -> 1 -> 2
     const t1 = setTimeout(() => setStage(1), 800);
     const t2 = setTimeout(() => setStage(2), 2200);

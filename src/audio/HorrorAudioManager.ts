@@ -101,6 +101,8 @@ class HorrorAudioManager {
   private isAtPeephole: boolean = false;
   private pibeVoiceDist: number = 6.0;
   private pibeVoiceAvailable: number[] = [];
+  private currentPibeSource: AudioBufferSourceNode | null = null;
+  private pibeVoiceGain: GainNode | null = null;
 
   // Procedural tension elements
   private droneOsc: OscillatorNode | null = null;
@@ -149,12 +151,14 @@ class HorrorAudioManager {
   private async loadSFXBuffer(url: string) {
     if (!this.ctx) return;
     try {
-      const resp = await fetch(url);
+      const cleanUrl = encodeURI(url);
+      const resp = await fetch(cleanUrl);
       if (resp.ok) {
         const arrayBuf = await resp.arrayBuffer();
         if (this.ctx) {
           const decoded = await this.ctx.decodeAudioData(arrayBuf);
           this.sfxBuffers.set(url, decoded);
+          this.sfxBuffers.set(cleanUrl, decoded);
         }
       }
     } catch {
@@ -170,9 +174,20 @@ class HorrorAudioManager {
       '/audio/Papel.mp3',
       '/audio/ClickPerilla.mp3',
       '/audio/KeyCollect.mp3',
+      '/audio/golpes_puerta.mp3',
+      '/audio/TocanPuerta.mp3',
+      '/audio/scream.mp3',
+      '/audio/GRITO1.mp3',
+      '/audio/GRITO2.mp3',
+      '/audio/RISA 1.mp3',
+      '/audio/risa.mp3',
+      '/audio/PUERTA2.mp3',
+      '/audio/PUERTA3.mp3',
+      ...ABRIME_LA_PUERTA_TRACKS,
     ];
     urls.forEach((url) => {
-      if (!this.sfxBuffers.has(url)) {
+      const cleanUrl = encodeURI(url);
+      if (!this.sfxBuffers.has(cleanUrl) && !this.sfxBuffers.has(url)) {
         this.loadSFXBuffer(url);
       }
     });
@@ -297,6 +312,9 @@ class HorrorAudioManager {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+    if (this.masterGain && this.ctx && !this.isMuted) {
+      this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
+    }
     if (!this.isCryPlaying && this.cryBuffer) {
       this.startSinkCryLoop();
     }
@@ -317,6 +335,77 @@ class HorrorAudioManager {
     }
     if (!this.isPibeVoiceActive) {
       this.startPibeVoiceLoop();
+    } else if (!this.currentPibeSource && (!this.pibeVoiceAudio || this.pibeVoiceAudio.paused)) {
+      this.playNextPibeVoice();
+    }
+  }
+
+  public stopBackgroundLoops() {
+    if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+    if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
+    if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
+    this.heartbeatTimer = null;
+    this.ambientHorrorTimer = null;
+    this.pibeVoiceTimer = null;
+
+    this.isAmbientHorrorActive = false;
+    this.isPibeVoiceActive = false;
+    this.isOneMinutePlaying = false;
+
+    if (this.currentPibeSource) {
+      try { this.currentPibeSource.stop(); } catch {}
+      this.currentPibeSource = null;
+    }
+
+    if (this.crySource) {
+      try { this.crySource.stop(); } catch {}
+      this.crySource = null;
+    }
+    this.isCryPlaying = false;
+
+    if (this.bgmAudio) {
+      this.bgmAudio.pause();
+      this.bgmAudio.currentTime = 0;
+    }
+    if (this.focoAudio) {
+      this.focoAudio.pause();
+      this.focoAudio.currentTime = 0;
+    }
+    if (this.bathroomCryAudio) {
+      this.bathroomCryAudio.pause();
+      this.bathroomCryAudio.currentTime = 0;
+    }
+    if (this.fridgeMotorAudio) {
+      this.fridgeMotorAudio.pause();
+      this.fridgeMotorAudio.currentTime = 0;
+    }
+    if (this.radioAudio) {
+      this.radioAudio.pause();
+      this.radioAudio.currentTime = 0;
+    }
+    if (this.oneMinuteAudio) {
+      this.oneMinuteAudio.pause();
+      this.oneMinuteAudio.currentTime = 0;
+    }
+    if (this.ambientHorrorAudio) {
+      this.ambientHorrorAudio.pause();
+      this.ambientHorrorAudio.currentTime = 0;
+    }
+    if (this.pibeVoiceAudio) {
+      this.pibeVoiceAudio.pause();
+      this.pibeVoiceAudio.currentTime = 0;
+    }
+
+    if (this.droneOsc) {
+      try { this.droneOsc.stop(); } catch {}
+      this.droneOsc = null;
+    }
+  }
+
+  public stopAllSounds() {
+    this.stopBackgroundLoops();
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
     }
   }
 
@@ -408,17 +497,31 @@ class HorrorAudioManager {
     this.lastAmbientIndex = nextIndex;
     const trackSrc = AMBIENT_HORROR_SOUNDS[nextIndex];
 
-    try {
-      this.ambientHorrorAudio = new Audio(trackSrc);
-      // Soft, outside the room volume (0.08 - subtle distant ambiance)
-      this.ambientHorrorAudio.volume = 0.08;
-      this.ambientHorrorAudio.preload = 'auto';
+    const cleanupAndScheduleNext = () => {
+      // Pause between 7 and 16 seconds so sounds don't overlap
+      const pause = Math.floor(Math.random() * 9000) + 7000;
+      this.scheduleNextAmbientHorrorSound(pause);
+    };
 
-      const cleanupAndScheduleNext = () => {
-        // Pause between 7 and 16 seconds so sounds don't overlap
-        const pause = Math.floor(Math.random() * 9000) + 7000;
-        this.scheduleNextAmbientHorrorSound(pause);
-      };
+    const buffer = this.sfxBuffers.get(trackSrc) || this.sfxBuffers.get(encodeURI(trackSrc));
+    if (this.ctx && this.masterGain && buffer) {
+      try {
+        const src = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        src.buffer = buffer;
+        gain.gain.setValueAtTime(0.20, this.ctx.currentTime);
+        src.connect(gain);
+        gain.connect(this.masterGain);
+        src.onended = cleanupAndScheduleNext;
+        src.start(0);
+        return;
+      } catch {}
+    }
+
+    try {
+      this.ambientHorrorAudio = new Audio(encodeURI(trackSrc));
+      this.ambientHorrorAudio.volume = 0.15;
+      this.ambientHorrorAudio.preload = 'auto';
 
       this.ambientHorrorAudio.onended = cleanupAndScheduleNext;
       this.ambientHorrorAudio.onerror = cleanupAndScheduleNext;
@@ -585,7 +688,7 @@ class HorrorAudioManager {
     if (this.isPibeVoiceActive) return;
     this.isPibeVoiceActive = true;
     this.refillPibeVoiceTracks();
-    this.scheduleNextPibeVoice(3000);
+    this.scheduleNextPibeVoice(1500);
   }
 
   private refillPibeVoiceTracks() {
@@ -607,6 +710,22 @@ class HorrorAudioManager {
     }, delayMs);
   }
 
+  private calculatePibeVoiceVolume(): number {
+    if (this.isMuted) return 0;
+    if (this.isAtPeephole) return 1.0;
+
+    let vol = 0.50;
+    if (this.pibeVoiceDist < 2.0) {
+      vol = 0.95;
+    } else if (this.pibeVoiceDist < 5.0) {
+      const t = (this.pibeVoiceDist - 2.0) / 3.0;
+      vol = 0.95 - t * 0.30;
+    } else {
+      vol = 0.50;
+    }
+    return Math.max(0, Math.min(1, vol));
+  }
+
   private playNextPibeVoice() {
     if (!this.isPibeVoiceActive) return;
 
@@ -617,15 +736,43 @@ class HorrorAudioManager {
     const trackNum = this.pibeVoiceAvailable.pop() || 1;
     const src = `/audio/AbrimeLaPuerta${trackNum}.mp3`;
 
-    try {
-      this.pibeVoiceAudio = new Audio(src);
-      this.updatePibeVoiceVolume();
-      this.pibeVoiceAudio.preload = 'auto';
+    const handleDone = () => {
+      this.currentPibeSource = null;
+      this.scheduleNextPibeVoice(2000);
+    };
 
-      const handleDone = () => {
-        // Pausas de 2 segundos entre audios
-        this.scheduleNextPibeVoice(2000);
-      };
+    const buffer = this.sfxBuffers.get(src) || this.sfxBuffers.get(encodeURI(src));
+    if (this.ctx && this.masterGain && buffer) {
+      try {
+        if (this.currentPibeSource) {
+          try { this.currentPibeSource.stop(); } catch {}
+        }
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+
+        if (!this.pibeVoiceGain) {
+          this.pibeVoiceGain = this.ctx.createGain();
+          this.pibeVoiceGain.connect(this.masterGain);
+        }
+
+        const vol = this.calculatePibeVoiceVolume();
+        this.pibeVoiceGain.gain.setValueAtTime(vol, this.ctx.currentTime);
+
+        source.connect(this.pibeVoiceGain);
+        source.onended = handleDone;
+        this.currentPibeSource = source;
+        source.start(0);
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+
+    try {
+      this.pibeVoiceAudio = new Audio(encodeURI(src));
+      const vol = this.calculatePibeVoiceVolume();
+      this.pibeVoiceAudio.volume = vol;
+      this.pibeVoiceAudio.preload = 'auto';
 
       this.pibeVoiceAudio.onended = handleDone;
       this.pibeVoiceAudio.onerror = handleDone;
@@ -654,33 +801,15 @@ class HorrorAudioManager {
   }
 
   private updatePibeVoiceVolume() {
-    if (!this.pibeVoiceAudio) return;
-    if (this.isMuted) {
-      this.pibeVoiceAudio.volume = 0;
-      return;
+    const vol = this.calculatePibeVoiceVolume();
+
+    if (this.pibeVoiceGain && this.ctx) {
+      this.pibeVoiceGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.05);
     }
 
-    // When looking through the peephole, voice is at maximum impact!
-    if (this.isAtPeephole) {
-      this.pibeVoiceAudio.volume = 1.0;
-      return;
+    if (this.pibeVoiceAudio) {
+      this.pibeVoiceAudio.volume = vol;
     }
-
-    // Enhanced distance volume from Pibe Door
-    // Close (< 2m): 0.95
-    // Mid (2m - 5m): 0.95 -> 0.65
-    // Far (> 5m): 0.50
-    let vol = 0.50;
-    if (this.pibeVoiceDist < 2.0) {
-      vol = 0.95;
-    } else if (this.pibeVoiceDist < 5.0) {
-      const t = (this.pibeVoiceDist - 2.0) / 3.0;
-      vol = 0.95 - t * 0.30;
-    } else {
-      vol = 0.50;
-    }
-
-    this.pibeVoiceAudio.volume = Math.max(0, Math.min(1, vol));
   }
 
   // =========================================================================
@@ -688,8 +817,24 @@ class HorrorAudioManager {
   // =========================================================================
   public playScream() {
     this.resume();
+    const screamUrl = '/audio/scream.mp3';
+    const buffer = this.sfxBuffers.get(screamUrl) || this.sfxBuffers.get('/audio/GRITO1.mp3');
+
+    if (this.ctx && this.masterGain && buffer) {
+      try {
+        const src = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        src.buffer = buffer;
+        gain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        src.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(0);
+        return;
+      } catch {}
+    }
+
     try {
-      const screamAudio = new Audio('/audio/scream.mp3');
+      const screamAudio = new Audio(encodeURI(screamUrl));
       screamAudio.volume = 1.0;
       screamAudio.play().catch(() => {
         this.playJumpscareScreamer();
@@ -912,17 +1057,38 @@ class HorrorAudioManager {
       }
     });
 
+    const knockUrls = ['/audio/golpes_puerta.mp3', '/audio/TocanPuerta.mp3'];
+    const chosenUrl = knockUrls[Math.floor(Math.random() * knockUrls.length)];
+    const buffer = this.sfxBuffers.get(chosenUrl) || this.sfxBuffers.get('/audio/golpes_puerta.mp3') || this.doorBuffer;
+
+    if (this.ctx && this.masterGain && buffer) {
+      try {
+        const src = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        src.buffer = buffer;
+        src.playbackRate.setValueAtTime(0.95 + Math.random() * 0.10, this.ctx.currentTime);
+        const finalVol = Math.max(0.35, Math.min(1.0, volumeFactor * 0.95));
+        gain.gain.setValueAtTime(finalVol, this.ctx.currentTime);
+        src.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(0);
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+
     try {
-      const knockAudio = new Audio('/audio/golpes_puerta.mp3');
+      const knockAudio = new Audio(encodeURI(chosenUrl));
       knockAudio.volume = Math.max(0.25, Math.min(1.0, volumeFactor * 0.95));
       const p = knockAudio.play();
       if (p !== undefined) {
         p.catch(() => {
-          this.playDoorKnockBuffer(volumeFactor);
+          this.synthesizeDoorKnocks(volumeFactor);
         });
       }
     } catch {
-      this.playDoorKnockBuffer(volumeFactor);
+      this.synthesizeDoorKnocks(volumeFactor);
     }
   }
 

@@ -447,7 +447,7 @@ export default function App() {
    * Victory escape
    */
   const handleEscapeSuccess = () => {
-    horrorAudio.stopOneMinuteTension();
+    horrorAudio.stopAllSounds();
     setActiveModal(null);
     setGameStage('escaped');
   };
@@ -456,7 +456,7 @@ export default function App() {
    * Screamer jumpscare trigger
    */
   const handleTriggerScreamer = (reason: 'called_too_much' | 'timeout') => {
-    horrorAudio.stopOneMinuteTension();
+    horrorAudio.stopBackgroundLoops();
     setJumpscareReason(reason);
     setActiveModal(null);
     setGameStage('jumpscare');
@@ -466,7 +466,7 @@ export default function App() {
    * Restart game
    */
   const handleRestart = () => {
-    horrorAudio.stopOneMinuteTension();
+    horrorAudio.stopAllSounds();
     setTimeLeft(900);
     setTimeElapsed(0);
     setPibeCallCount(0);
@@ -492,6 +492,7 @@ export default function App() {
     ]);
     setActiveModal(null);
     setGameStage('playing');
+    horrorAudio.resume();
     if (sceneRef.current) {
       sceneRef.current.recenterCamera();
       sceneRef.current.updateLocks({
@@ -574,6 +575,17 @@ export default function App() {
 
     return () => clearInterval(metricsInterval);
   }, [gameStage, timeLeft]);
+
+  /**
+   * Stop audio when game ends (victory or defeat)
+   */
+  useEffect(() => {
+    if (gameStage === 'escaped') {
+      horrorAudio.stopAllSounds();
+    } else if (gameStage === 'jumpscare') {
+      horrorAudio.stopBackgroundLoops();
+    }
+  }, [gameStage]);
 
   /**
    * "El Pibe" Stalker Proximity & Dynamic Approach/Retreat Cycle

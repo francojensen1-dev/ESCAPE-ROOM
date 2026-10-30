@@ -38,9 +38,8 @@ export const JumpscareModal: React.FC<JumpscareModalProps> = ({
   const [isFlashing, setIsFlashing] = useState<boolean>(true);
 
   useEffect(() => {
-    // 0. Preload screamer image
-    const img1 = new Image();
-    img1.src = PRIMARY_SCREAMER;
+    // 0. Stop background music and horror loops
+    horrorAudio.stopBackgroundLoops();
 
     // 1. Play bloodcurdling screamer audio (scream.mp3)
     horrorAudio.playScream();
