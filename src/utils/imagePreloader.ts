@@ -14,6 +14,7 @@ export const GAME_IMAGES_TO_PRELOAD: string[] = [
   '/imgs/refrijerador_1.png',
   '/imgs/refrijerador_2.png',
   '/imgs/screamer.jpg',
+  '/imgs/cerraduraBaño1.png',
   '/imgs/Elpibe_1.jpg',
   '/imgs/Elpibe_2.jpg',
   '/imgs/Elpibe_3.jpg',
