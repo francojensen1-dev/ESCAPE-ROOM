@@ -279,7 +279,6 @@ export default function App() {
         setActiveModal('fridge');
         break;
       case 'study_desk':
-        horrorAudio.playPaperSound();
         setActiveModal('notes');
         break;
       case 'fuse_box':
@@ -294,11 +293,9 @@ export default function App() {
         setActiveModal('toilet');
         break;
       case 'broken_tile':
-        horrorAudio.playPaperSound();
         setActiveModal('broken_tile');
         break;
       case 'nightstand_note':
-        horrorAudio.playPaperSound();
         setActiveModal('nightstand_note');
         break;
     }

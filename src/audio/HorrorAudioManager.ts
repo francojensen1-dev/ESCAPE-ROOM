@@ -109,6 +109,7 @@ class HorrorAudioManager {
   private droneGain: GainNode | null = null;
   private heartbeatTimer: number | null = null;
   private isMuted: boolean = false;
+  private isStopped: boolean = false;
 
   // Microphone
   private micStream: MediaStream | null = null;
@@ -309,6 +310,7 @@ class HorrorAudioManager {
   }
 
   public resume() {
+    this.isStopped = false;
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
@@ -341,6 +343,8 @@ class HorrorAudioManager {
   }
 
   public stopBackgroundLoops() {
+    this.isStopped = true;
+
     if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
     if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
     if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
@@ -363,6 +367,12 @@ class HorrorAudioManager {
     }
     this.isCryPlaying = false;
 
+    if (this.cryGain && this.ctx) {
+      try {
+        this.cryGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      } catch {}
+    }
+
     if (this.bgmAudio) {
       this.bgmAudio.pause();
       this.bgmAudio.currentTime = 0;
@@ -372,14 +382,17 @@ class HorrorAudioManager {
       this.focoAudio.currentTime = 0;
     }
     if (this.bathroomCryAudio) {
+      this.bathroomCryAudio.volume = 0;
       this.bathroomCryAudio.pause();
       this.bathroomCryAudio.currentTime = 0;
     }
     if (this.fridgeMotorAudio) {
+      this.fridgeMotorAudio.volume = 0;
       this.fridgeMotorAudio.pause();
       this.fridgeMotorAudio.currentTime = 0;
     }
     if (this.radioAudio) {
+      this.radioAudio.volume = 0;
       this.radioAudio.pause();
       this.radioAudio.currentTime = 0;
     }
@@ -403,6 +416,7 @@ class HorrorAudioManager {
   }
 
   public stopAllSounds() {
+    this.isStopped = true;
     this.stopBackgroundLoops();
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
@@ -572,7 +586,15 @@ class HorrorAudioManager {
   }
 
   public updateFridgeMotorDistance(dist: number) {
-    if (this.isMuted || !this.fridgeMotorAudio) return;
+    if (this.isMuted || this.isStopped || !this.fridgeMotorAudio) {
+      if (this.fridgeMotorAudio) {
+        this.fridgeMotorAudio.volume = 0;
+        if (!this.fridgeMotorAudio.paused) {
+          this.fridgeMotorAudio.pause();
+        }
+      }
+      return;
+    }
 
     // Attenuation based on distance to the fridge in meters
     // At fridge (< 1.5m): 0.55
@@ -633,7 +655,15 @@ class HorrorAudioManager {
   }
 
   public updateRadioDistance(dist: number) {
-    if (this.isMuted || !this.radioAudio) return;
+    if (this.isMuted || this.isStopped || !this.radioAudio) {
+      if (this.radioAudio) {
+        this.radioAudio.volume = 0;
+        if (!this.radioAudio.paused) {
+          this.radioAudio.pause();
+        }
+      }
+      return;
+    }
 
     // Increased audible distance for the radio across the room
     // Close to desk (< 1.8m): volume 0.38
@@ -990,12 +1020,15 @@ class HorrorAudioManager {
   }
 
   public updateSinkCryAudio(distToSink: number, pan: number = 0, isDoorOpen: boolean = false) {
-    if (this.isMuted) {
+    if (this.isMuted || this.isStopped) {
       if (this.cryGain && this.ctx) {
         this.cryGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
       }
       if (this.bathroomCryAudio) {
         this.bathroomCryAudio.volume = 0;
+        if (!this.bathroomCryAudio.paused) {
+          this.bathroomCryAudio.pause();
+        }
       }
       return;
     }

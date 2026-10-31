@@ -590,41 +590,7 @@ export class EscapeRoomScene {
     rightUnderHole.position.set(1.55, 1.35, -5.985);
     wearGroup.add(rightUnderHole);
 
-    // 3. Frantic Scratch Gouge Decal beside Door Lock Area
-    // A desperate survivor clawed the wall right beside the locks!
-    const scratchCanvas = document.createElement('canvas');
-    scratchCanvas.width = 256;
-    scratchCanvas.height = 256;
-    const sctx = scratchCanvas.getContext('2d')!;
-    sctx.clearRect(0, 0, 256, 256);
-
-    // Deep jagged claw marks and scraped wall plaster
-    sctx.strokeStyle = '#380c0c';
-    sctx.lineWidth = 3.5;
-    for (let c = 0; c < 5; c++) {
-      sctx.beginPath();
-      const sx = 40 + c * 35;
-      sctx.moveTo(sx, 20);
-      sctx.bezierCurveTo(sx + 20, 80, sx - 15, 150, sx + 25, 230);
-      sctx.stroke();
-    }
-    // Blood-stained plaster smudge
-    sctx.fillStyle = 'rgba(70, 12, 12, 0.45)';
-    sctx.beginPath();
-    sctx.ellipse(128, 140, 75, 45, 0.3, 0, Math.PI * 2);
-    sctx.fill();
-
-    const scratchTex = new THREE.CanvasTexture(scratchCanvas);
-    const scratchMat = new THREE.MeshBasicMaterial({
-      map: scratchTex,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const scratchMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.65), scratchMat);
-    scratchMesh.position.set(-1.08, 1.5, -5.955);
-    wearGroup.add(scratchMesh);
-
-    // 4. Overhead Sagging Rusty Conduit & Detached Drooping Wires (Image 1 reference)
+    // 3. Overhead Sagging Rusty Conduit & Detached Drooping Wires (Image 1 reference)
     const conduitMat = new THREE.MeshStandardMaterial({ color: 0x242220, metalness: 0.9, roughness: 0.35 });
     const wireMat = new THREE.MeshBasicMaterial({ color: 0x0c0c0c });
 
@@ -1315,30 +1281,7 @@ export class EscapeRoomScene {
       pGroup.add(strap);
     });
 
-    // 6. Sinister Claw Scratches & Warning Decal
-    const scratchCanvas = document.createElement('canvas');
-    scratchCanvas.width = 256;
-    scratchCanvas.height = 256;
-    const sctx = scratchCanvas.getContext('2d')!;
-    sctx.clearRect(0, 0, 256, 256);
-    sctx.strokeStyle = '#3e0606';
-    sctx.lineWidth = 3.5;
-    for (let c = 0; c < 4; c++) {
-      sctx.beginPath();
-      const sx = 60 + c * 35;
-      sctx.moveTo(sx, 15);
-      sctx.bezierCurveTo(sx + 15, 75, sx - 20, 140, sx + 20, 240);
-      sctx.stroke();
-    }
-    const scratchTex = new THREE.CanvasTexture(scratchCanvas);
-    const scratchMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.55, 0.55),
-      new THREE.MeshBasicMaterial({ map: scratchTex, transparent: true, opacity: 0.85 })
-    );
-    scratchMesh.position.set(-0.35, 0.25, 0.056);
-    pGroup.add(scratchMesh);
-
-    // 7. Dedicated Subtle Horror Downlight above La Puerta del Pibe
+    // 6. Dedicated Subtle Horror Downlight above La Puerta del Pibe
     const pibeDoorLight = new THREE.PointLight(0xa63a24, 1.4, 5.0, 1.8);
     pibeDoorLight.position.set(0, 1.55, 0.45);
     pGroup.add(pibeDoorLight);

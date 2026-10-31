@@ -17,7 +17,12 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const mountTimeRef = useRef<number>(Date.now());
 
+  const hasInitializedRef = useRef<boolean>(false);
+
   useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
     mountTimeRef.current = Date.now();
     horrorAudio.playPaperSound();
     sensorManager.vibrate([40, 30, 60]);
@@ -25,7 +30,7 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
     if (!hasDiscoveredCode) {
       onDiscoverCode();
     }
-  }, [hasDiscoveredCode, onDiscoverCode]);
+  }, []);
 
   const handleBackdropInteraction = (e: React.MouseEvent | React.TouchEvent) => {
     // Ignore synthetic clicks/taps from mobile tap that opened the modal (< 350ms)

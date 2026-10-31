@@ -441,33 +441,7 @@ export class TextureGenerator {
     ctx.arc(504, peepholeY - 8, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Scrawled Blood Message under Peephole: "Don't go out!!" and "Walter"
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 44px "Creepster", cursive, "Comic Sans MS", cursive, sans-serif';
-    ctx.fillStyle = '#8f0d0d';
-    ctx.shadowColor = '#380404';
-    ctx.shadowBlur = 6;
-    ctx.fillText("Don't go Out!!", 512, 1040);
-
-    // Secondary line: "Walter" (and subtle "El Pibe")
-    ctx.font = 'italic bold 28px serif';
-    ctx.fillStyle = '#7a0b0b';
-    ctx.fillText('Walter', 512, 1085);
-
-    // Blood drips from letters
-    ctx.strokeStyle = '#800a0a';
-    ctx.lineWidth = 3;
-    const dripPositions = [385, 450, 520, 590, 640];
-    dripPositions.forEach((dx) => {
-      ctx.beginPath();
-      ctx.moveTo(dx, 1040);
-      ctx.lineTo(dx + (Math.random() - 0.5) * 6, 1040 + 20 + Math.random() * 35);
-      ctx.stroke();
-    });
-    ctx.restore();
-
-    // 6. Deadbolt latch plate on the right middle edge
+    // 5. Deadbolt latch plate on the right middle edge
     ctx.fillStyle = '#2b2a29';
     ctx.fillRect(860, 930, 90, 48);
     ctx.strokeStyle = '#4a4845';
