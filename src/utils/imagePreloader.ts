@@ -34,8 +34,34 @@ export const GAME_IMAGES_TO_PRELOAD: string[] = [
 ];
 
 const preloadedCache: HTMLImageElement[] = [];
+let cachedVideoBlobUrl: string | null = null;
+
+export function preloadVictoryVideo(): Promise<string> {
+  if (cachedVideoBlobUrl) return Promise.resolve(cachedVideoBlobUrl);
+
+  return fetch('/videos/final.mp4')
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch video');
+      return res.blob();
+    })
+    .then((blob) => {
+      cachedVideoBlobUrl = URL.createObjectURL(blob);
+      return cachedVideoBlobUrl;
+    })
+    .catch((err) => {
+      console.warn('Video preload fetch error, fallback to direct path:', err);
+      return '/videos/final.mp4';
+    });
+}
+
+export function getVictoryVideoUrl(): string {
+  return cachedVideoBlobUrl || '/videos/final.mp4';
+}
 
 export function preloadAllGameImages(): Promise<void[]> {
+  // Start preloading video in background
+  preloadVictoryVideo().catch(() => {});
+
   const promises = GAME_IMAGES_TO_PRELOAD.map((src) => {
     return new Promise<void>((resolve) => {
       const img = new Image();
