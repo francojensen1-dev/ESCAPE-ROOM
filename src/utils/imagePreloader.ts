@@ -27,6 +27,8 @@ export const GAME_IMAGES_TO_PRELOAD: string[] = [
   '/imgs/textura_madera6.jpg',
   '/imgs/pared_cuarto1.jpg',
   '/imgs/piso_cuarto1.jpg',
+  '/imgs/pared_bano.jpg',
+  '/imgs/piso_bano.jpg',
 ];
 
 const preloadedCache: HTMLImageElement[] = [];

@@ -1330,6 +1330,49 @@ export class TextureGenerator {
   }
 
   /**
+   * Applies subtle aged porcelain patina and fine micro-mottling
+   * over the user's bathroom wall image (/imgs/pared_bano.jpg).
+   */
+  public static createDirtyBathroomWallTexture(imgSource?: HTMLImageElement): THREE.CanvasTexture {
+    const w = 1024;
+    const h = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    // 1. Draw base image if provided, or default tile background
+    if (imgSource && imgSource.complete && imgSource.naturalWidth > 0) {
+      ctx.drawImage(imgSource, 0, 0, w, h);
+    } else {
+      ctx.fillStyle = '#c2bdb2';
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // 2. Soft aged yellowed-porcelain patina wash (subtle aged tone without streaks, lines, or circles)
+    const patinaGrad = ctx.createLinearGradient(0, 0, 0, h);
+    patinaGrad.addColorStop(0, 'rgba(38, 30, 20, 0.14)');
+    patinaGrad.addColorStop(0.5, 'rgba(28, 22, 14, 0.08)');
+    patinaGrad.addColorStop(1, 'rgba(22, 18, 10, 0.16)');
+    ctx.fillStyle = patinaGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // 3. Fine organic micro-mottling noise (subtle texture depth, zero streaks, zero lines, zero circles)
+    for (let s = 0; s < 1200; s++) {
+      const sx = Math.random() * w;
+      const sy = Math.random() * h;
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(25, 20, 14, 0.12)' : 'rgba(15, 22, 18, 0.08)';
+      ctx.fillRect(sx, sy, 2 + Math.random() * 2, 2 + Math.random() * 2);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
    * Water heater / Boiler label ("Postmeslip")
    */
   public static createWaterHeaterTexture(): THREE.CanvasTexture {
@@ -1423,23 +1466,27 @@ export class TextureGenerator {
    * Clearly visible crack fracture lines, chipped ceramic edge exposing dark void,
    * natural grime and moisture stains, NO artificial red markers or red squares.
    */
-  public static createSubtleBrokenTileTexture(): THREE.CanvasTexture {
+  public static createSubtleBrokenTileTexture(imgSource?: HTMLImageElement): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // 1. Base aged porcelain glaze (matching surrounding bathroom tiles)
-    ctx.fillStyle = '#dcd7cb';
-    ctx.fillRect(0, 0, 512, 512);
+    // 1. Draw base user bathroom wall image (/imgs/pared_bano.jpg) if provided, or default porcelain tile
+    if (imgSource && imgSource.complete && imgSource.naturalWidth > 0) {
+      ctx.drawImage(imgSource, 0, 0, 512, 512);
+    } else {
+      ctx.fillStyle = '#dcd7cb';
+      ctx.fillRect(0, 0, 512, 512);
 
-    // Subtle glaze variation & grime gradient
-    const grad = ctx.createLinearGradient(0, 0, 512, 512);
-    grad.addColorStop(0, 'rgba(245, 242, 235, 0.4)');
-    grad.addColorStop(0.5, 'rgba(215, 208, 195, 0.2)');
-    grad.addColorStop(1, 'rgba(165, 155, 140, 0.45)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 512);
+      // Subtle glaze variation & grime gradient
+      const grad = ctx.createLinearGradient(0, 0, 512, 512);
+      grad.addColorStop(0, 'rgba(245, 242, 235, 0.4)');
+      grad.addColorStop(0.5, 'rgba(215, 208, 195, 0.2)');
+      grad.addColorStop(1, 'rgba(165, 155, 140, 0.45)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+    }
 
     // 2. Dirty dark grout border around tile
     ctx.strokeStyle = '#231f1a';

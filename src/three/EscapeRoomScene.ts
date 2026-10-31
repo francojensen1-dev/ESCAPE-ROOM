@@ -2018,6 +2018,52 @@ export class EscapeRoomScene {
       metalness: 0.08,
     });
 
+    const bathroomTexLoader = new THREE.TextureLoader();
+
+    // Load custom user bathroom wall texture (/imgs/pared_bano.jpg) with added dirt & larger scale
+    const wallImg = new Image();
+    wallImg.crossOrigin = 'anonymous';
+    wallImg.onload = () => {
+      const dirtyWallTex = TextureGenerator.createDirtyBathroomWallTexture(wallImg);
+      dirtyWallTex.repeat.set(1.5, 1.0); // Make wall texture much larger!
+      whiteTileMat.map = dirtyWallTex;
+      whiteTileMat.bumpMap = dirtyWallTex;
+      whiteTileMat.bumpScale = 0.055;
+      whiteTileMat.roughness = 0.65;
+      whiteTileMat.needsUpdate = true;
+
+      // Update broken tile texture to match /imgs/pared_bano.jpg!
+      const brokenWallTex = TextureGenerator.createSubtleBrokenTileTexture(wallImg);
+      brokenTileMat.map = brokenWallTex;
+      brokenTileMat.needsUpdate = true;
+    };
+    wallImg.onerror = () => {
+      const dirtyFallbackTex = TextureGenerator.createDirtyBathroomWallTexture();
+      dirtyFallbackTex.repeat.set(1.5, 1.0);
+      whiteTileMat.map = dirtyFallbackTex;
+      whiteTileMat.needsUpdate = true;
+    };
+    wallImg.src = '/imgs/pared_bano.jpg';
+
+    // Load custom user bathroom floor texture (/imgs/piso_bano.jpg)
+    bathroomTexLoader.load(
+      '/imgs/piso_bano.jpg',
+      (loadedFloor) => {
+        loadedFloor.wrapS = THREE.RepeatWrapping;
+        loadedFloor.wrapT = THREE.RepeatWrapping;
+        loadedFloor.repeat.set(4, 4);
+        loadedFloor.colorSpace = THREE.SRGBColorSpace;
+        floorMat.map = loadedFloor;
+        floorMat.bumpMap = loadedFloor;
+        floorMat.bumpScale = 0.045;
+        floorMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load /imgs/piso_bano.jpg:', err);
+      }
+    );
+
     const subtleBrokenTex = TextureGenerator.createSubtleBrokenTileTexture();
     const brokenTileBump = TextureGenerator.createBrokenTileBumpTexture();
     const brokenTileMat = new THREE.MeshStandardMaterial({
