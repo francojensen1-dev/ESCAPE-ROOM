@@ -69,8 +69,8 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
       </div>
 
       {/* Floating Guidance Text at Bottom */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-center">
-        <span className="px-3.5 py-1.5 rounded-full bg-stone-950/80 border border-amber-500/30 text-amber-300/90 text-xs font-mono font-medium backdrop-blur-sm shadow-md">
+      <div className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none text-center w-full max-w-[92vw] px-2 flex justify-center pb-[env(safe-area-inset-bottom)]">
+        <span className="inline-block px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-stone-950/90 border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-mono font-medium whitespace-nowrap backdrop-blur-md shadow-xl truncate">
           Toca fuera o la X para cerrar
         </span>
       </div>
@@ -94,7 +94,7 @@ export const BrokenTileModal: React.FC<BrokenTileModalProps> = ({
         <img
           src="/imgs/papel.png"
           alt="Papel del azulejo"
-          className="max-w-[92vw] max-h-[78dvh] object-contain filter drop-shadow-[0_20px_50px_rgba(0,0,0,0.95)] contrast-110 brightness-105 select-none"
+          className="max-w-[90vw] max-h-[70dvh] sm:max-h-[78dvh] object-contain filter drop-shadow-[0_20px_50px_rgba(0,0,0,0.95)] contrast-110 brightness-105 select-none"
         />
       </div>
     </div>
