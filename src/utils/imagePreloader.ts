@@ -30,6 +30,7 @@ export const GAME_IMAGES_TO_PRELOAD: string[] = [
   '/imgs/pared_bano.jpg',
   '/imgs/piso_bano.jpg',
   '/imgs/piso_bano_final.jpg',
+  '/imgs/alfombra.jpg',
 ];
 
 const preloadedCache: HTMLImageElement[] = [];

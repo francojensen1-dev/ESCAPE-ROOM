@@ -2635,17 +2635,86 @@ export class EscapeRoomScene {
     floor.rotation.x = -Math.PI / 2;
     bedroomGroup.add(floor);
 
-    // Area Rug (Matching Image 2 vintage patterned carpet)
+    // Area Rug Group (Bedroom Carpet with distinct dark border and contact shadow)
+    const rugGroup = new THREE.Group();
+    rugGroup.position.set(-8.1, 0.008, 2.5);
+
+    // 1. Contact shadow on wood floor beneath rug
+    const rugShadowMat = new THREE.MeshBasicMaterial({
+      color: 0x0a0908,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    const rugShadow = new THREE.Mesh(new THREE.PlaneGeometry(3.80, 4.40), rugShadowMat);
+    rugShadow.rotation.x = -Math.PI / 2;
+    rugShadow.position.y = 0.001;
+    rugGroup.add(rugShadow);
+
+    // 2. Dark woven fabric border frame (borde/cenefa) around the rug
+    const rugBorderMat = new THREE.MeshStandardMaterial({
+      color: 0x1d1712,
+      roughness: 0.95,
+      metalness: 0.02,
+    });
+    const rugBorder = new THREE.Mesh(new THREE.PlaneGeometry(3.72, 4.32), rugBorderMat);
+    rugBorder.rotation.x = -Math.PI / 2;
+    rugBorder.position.y = 0.003;
+    rugGroup.add(rugBorder);
+
+    // 3. Main Rug Mesh
     const rugTex = TextureGenerator.createBedroomRugTexture();
     const rugMat = new THREE.MeshStandardMaterial({
       map: rugTex,
       roughness: 0.92,
       metalness: 0.02,
     });
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 4.2), rugMat);
-    rug.position.set(-8.1, 0.012, 2.5);
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.60, 4.20), rugMat);
     rug.rotation.x = -Math.PI / 2;
-    bedroomGroup.add(rug);
+    rug.position.y = 0.005;
+    rugGroup.add(rug);
+
+    bedroomGroup.add(rugGroup);
+
+    // Load custom /imgs/alfombra.jpg and composite a dark stitched border trim
+    const rugImg = new Image();
+    rugImg.crossOrigin = 'anonymous';
+    rugImg.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(rugImg, 0, 0, 1024, 1024);
+
+      // Dark woven stitched border trim
+      ctx.strokeStyle = '#18120d';
+      ctx.lineWidth = 32;
+      ctx.strokeRect(16, 16, 992, 992);
+
+      // Inner subtle accent line
+      ctx.strokeStyle = '#5a462d';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(36, 36, 952, 952);
+
+      const customRugTex = new THREE.CanvasTexture(canvas);
+      customRugTex.wrapS = THREE.ClampToEdgeWrapping;
+      customRugTex.wrapT = THREE.ClampToEdgeWrapping;
+      customRugTex.colorSpace = THREE.SRGBColorSpace;
+      rugMat.map = customRugTex;
+      rugMat.bumpMap = customRugTex;
+      rugMat.bumpScale = 0.035;
+      rugMat.needsUpdate = true;
+    };
+    rugImg.onerror = () => {
+      bedroomTexLoader.load('/imgs/alfombra.jpg', (loadedRug) => {
+        loadedRug.wrapS = THREE.ClampToEdgeWrapping;
+        loadedRug.wrapT = THREE.ClampToEdgeWrapping;
+        loadedRug.colorSpace = THREE.SRGBColorSpace;
+        rugMat.map = loadedRug;
+        rugMat.needsUpdate = true;
+      });
+    };
+    rugImg.src = '/imgs/alfombra.jpg';
 
     // Ceiling (Y = 3.395)
     const ceilGeo = new THREE.PlaneGeometry(6.4, 7.2);
