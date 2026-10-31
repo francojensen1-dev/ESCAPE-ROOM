@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { RotateCcw, Skull, AlertTriangle } from 'lucide-react';
+import { RotateCcw, Skull } from 'lucide-react';
 import { horrorAudio } from '../audio/HorrorAudioManager';
 import { sensorManager } from '../sensors/SensorManager';
 
@@ -133,11 +133,6 @@ export const JumpscareModal: React.FC<JumpscareModalProps> = ({
 
       {/* Screamer Title & Cause */}
       <div className="relative z-20 mt-6 text-center px-4 max-w-lg">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/90 border border-red-600/80 text-red-400 text-xs font-mono font-bold tracking-widest uppercase mb-2 animate-bounce">
-          <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-          {isCalledTooMuch ? 'PROVOCACIÓN MORTAL' : 'LÍMITE DE TIEMPO AGOTADO'}
-        </div>
-
         <h1 className="text-3xl sm:text-5xl font-mono font-black text-red-600 uppercase tracking-widest drop-shadow-[0_0_25px_rgba(239,68,68,0.9)]">
           {isCalledTooMuch ? 'EL PIBE DERRIBÓ LA PUERTA' : 'EL PIBE TE ATRAPÓ'}
         </h1>

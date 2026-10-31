@@ -2512,12 +2512,34 @@ export class EscapeRoomScene {
     });
 
     const bedroomTexLoader = new THREE.TextureLoader();
+
+    // Load custom user wall texture (/imgs/pared_cuarto1.jpg)
     bedroomTexLoader.load(
-      '/assets/aistudio/textura_madera6_4d492d66.jpg',
+      '/imgs/pared_cuarto1.jpg',
+      (loadedWall) => {
+        loadedWall.wrapS = THREE.RepeatWrapping;
+        loadedWall.wrapT = THREE.RepeatWrapping;
+        loadedWall.repeat.set(2, 1);
+        loadedWall.colorSpace = THREE.SRGBColorSpace;
+        bedroomWallMat.map = loadedWall;
+        bedroomWallMat.bumpMap = loadedWall;
+        bedroomWallMat.bumpScale = 0.05;
+        bedroomWallMat.roughness = 0.85;
+        bedroomWallMat.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load /imgs/pared_cuarto1.jpg:', err);
+      }
+    );
+
+    // Load custom user floor texture (/imgs/piso_cuarto1.jpg)
+    bedroomTexLoader.load(
+      '/imgs/piso_cuarto1.jpg',
       (loadedBedFloor) => {
         loadedBedFloor.wrapS = THREE.RepeatWrapping;
         loadedBedFloor.wrapT = THREE.RepeatWrapping;
-        loadedBedFloor.repeat.set(1.92, 2.4); // Matching physical floorboard width & length
+        loadedBedFloor.repeat.set(2, 2);
         loadedBedFloor.colorSpace = THREE.SRGBColorSpace;
         bedroomFloorMat.map = loadedBedFloor;
         bedroomFloorMat.bumpMap = loadedBedFloor;
@@ -2527,17 +2549,8 @@ export class EscapeRoomScene {
         bedroomFloorMat.needsUpdate = true;
       },
       undefined,
-      () => {
-        bedroomTexLoader.load('/imgs/textura_madera6.jpg', (fallbackBed) => {
-          fallbackBed.wrapS = THREE.RepeatWrapping;
-          fallbackBed.wrapT = THREE.RepeatWrapping;
-          fallbackBed.repeat.set(1.92, 2.4);
-          fallbackBed.colorSpace = THREE.SRGBColorSpace;
-          bedroomFloorMat.map = fallbackBed;
-          bedroomFloorMat.bumpMap = fallbackBed;
-          bedroomFloorMat.bumpScale = 0.055;
-          bedroomFloorMat.needsUpdate = true;
-        });
+      (err) => {
+        console.warn('Could not load /imgs/piso_cuarto1.jpg:', err);
       }
     );
 

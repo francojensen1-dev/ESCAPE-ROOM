@@ -1259,20 +1259,68 @@ export class TextureGenerator {
       }
     }
 
-    // Water stains and muddy footsteps on the floor
-    for (let p = 0; p < 8; p++) {
-      ctx.fillStyle = 'rgba(25, 18, 12, 0.4)';
+    // Organic, irregular water & dirt stain splatters (opacity 0.52 with abrupt outer fade)
+    for (let p = 0; p < 9; p++) {
+      const cx = Math.random() * 512;
+      const cy = Math.random() * 512;
+      const baseR = 32 + Math.random() * 45;
+      const numPoints = 8 + Math.floor(Math.random() * 5); // 8-12 irregular vertices
+
+      // Generate perturbed radial points for organic asymmetry
+      const points: { x: number; y: number }[] = [];
+      for (let i = 0; i < numPoints; i++) {
+        const angle = (i / numPoints) * Math.PI * 2;
+        // Fluctuate radius randomly between 0.4x and 1.3x baseR
+        const r = baseR * (0.45 + Math.random() * 0.85);
+        points.push({
+          x: cx + Math.cos(angle) * r,
+          y: cy + Math.sin(angle) * r,
+        });
+      }
+
+      ctx.save();
+      const radGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.35);
+      radGrad.addColorStop(0, 'rgba(10, 7, 4, 0.52)');
+      radGrad.addColorStop(0.70, 'rgba(10, 7, 4, 0.48)');
+      radGrad.addColorStop(0.88, 'rgba(10, 7, 4, 0.12)');
+      radGrad.addColorStop(1, 'rgba(10, 7, 4, 0)');
+
+      ctx.fillStyle = radGrad;
       ctx.beginPath();
-      ctx.ellipse(
-        Math.random() * 512,
-        Math.random() * 512,
-        30 + Math.random() * 50,
-        20 + Math.random() * 30,
-        Math.random() * Math.PI,
-        0,
-        Math.PI * 2
-      );
+      // Draw smooth organic curve through irregular points
+      const firstMidX = (points[0].x + points[numPoints - 1].x) / 2;
+      const firstMidY = (points[0].y + points[numPoints - 1].y) / 2;
+      ctx.moveTo(firstMidX, firstMidY);
+      for (let i = 0; i < numPoints; i++) {
+        const current = points[i];
+        const next = points[(i + 1) % numPoints];
+        const midX = (current.x + next.x) / 2;
+        const midY = (current.y + next.y) / 2;
+        ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+      }
+      ctx.closePath();
       ctx.fill();
+
+      // Small secondary splash droplets around the stain
+      for (let d = 0; d < 3; d++) {
+        const dropAngle = Math.random() * Math.PI * 2;
+        const dropDist = baseR * (0.85 + Math.random() * 0.65);
+        const dropR = 2.5 + Math.random() * 7;
+        const dx = cx + Math.cos(dropAngle) * dropDist;
+        const dy = cy + Math.sin(dropAngle) * dropDist;
+
+        const dropGrad = ctx.createRadialGradient(dx, dy, 0, dx, dy, dropR);
+        dropGrad.addColorStop(0, 'rgba(10, 7, 4, 0.45)');
+        dropGrad.addColorStop(0.70, 'rgba(10, 7, 4, 0.18)');
+        dropGrad.addColorStop(1, 'rgba(10, 7, 4, 0)');
+
+        ctx.fillStyle = dropGrad;
+        ctx.beginPath();
+        ctx.arc(dx, dy, dropR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
     }
 
     const tex = new THREE.CanvasTexture(canvas);
