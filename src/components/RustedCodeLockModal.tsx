@@ -1,7 +1,7 @@
 /**
  * Rusted 4-Digit Combination Padlock Modal (Candado Oxidado de 4 Dígitos)
  * Features revolving dials (0-9) with click sounds and haptic feedback.
- * Correct code: 5-4-1-3
+ * Correct code: 5-4-7-3
  */
 
 import React, { useState } from 'react';
@@ -24,7 +24,7 @@ export const RustedCodeLockModal: React.FC<RustedCodeLockModalProps> = ({
   const [isUnlocked, setIsUnlocked] = useState<boolean>(initialUnlocked);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const CORRECT_CODE = [5, 4, 1, 3];
+  const CORRECT_CODE = [5, 4, 7, 3];
 
   const handleDigitChange = (index: number, delta: number) => {
     if (isUnlocked) return;

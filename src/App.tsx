@@ -81,7 +81,7 @@ export default function App() {
     {
       id: 'note_clues',
       name: 'Diario del Investigador',
-      description: 'Página con anotaciones sobre las 4 cerraduras, la puerta divisoria y el baño contiguo.',
+      description: 'Página con anotaciones sobre las 5 cerraduras, la puerta divisoria y el baño contiguo.',
       icon: 'note',
     },
   ]);
@@ -432,7 +432,7 @@ export default function App() {
   };
 
   /**
-   * Solve 4-digit rusted combination padlock (Lock 6: 5413)
+   * Solve 4-digit rusted combination padlock (Lock 6: 5473)
    */
   const handleSolveRustedCodeLock = () => {
     setLockState((prev) => {
@@ -486,7 +486,7 @@ export default function App() {
       {
         id: 'note_clues',
         name: 'Diario del Investigador',
-        description: 'Página con anotaciones sobre las 4 cerraduras, la puerta divisoria y el baño contiguo.',
+        description: 'Página con anotaciones sobre las 5 cerraduras, la puerta divisoria y el baño contiguo.',
         icon: 'note',
       },
     ]);
