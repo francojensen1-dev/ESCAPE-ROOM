@@ -2045,13 +2045,13 @@ export class EscapeRoomScene {
     };
     wallImg.src = '/imgs/pared_bano.jpg';
 
-    // Load custom user bathroom floor texture (/imgs/piso_bano.jpg)
+    // Load custom user bathroom floor texture (/imgs/piso_bano_final.jpg)
     bathroomTexLoader.load(
-      '/imgs/piso_bano.jpg',
+      '/imgs/piso_bano_final.jpg',
       (loadedFloor) => {
-        loadedFloor.wrapS = THREE.RepeatWrapping;
-        loadedFloor.wrapT = THREE.RepeatWrapping;
-        loadedFloor.repeat.set(4, 4);
+        loadedFloor.wrapS = THREE.ClampToEdgeWrapping;
+        loadedFloor.wrapT = THREE.ClampToEdgeWrapping;
+        loadedFloor.repeat.set(1, 1);
         loadedFloor.colorSpace = THREE.SRGBColorSpace;
         floorMat.map = loadedFloor;
         floorMat.bumpMap = loadedFloor;
@@ -2060,7 +2060,16 @@ export class EscapeRoomScene {
       },
       undefined,
       (err) => {
-        console.warn('Could not load /imgs/piso_bano.jpg:', err);
+        console.warn('Could not load /imgs/piso_bano_final.jpg, trying fallback /imgs/piso_bano.jpg:', err);
+        bathroomTexLoader.load('/imgs/piso_bano.jpg', (fallbackFloor) => {
+          fallbackFloor.wrapS = THREE.ClampToEdgeWrapping;
+          fallbackFloor.wrapT = THREE.ClampToEdgeWrapping;
+          fallbackFloor.repeat.set(1, 1);
+          fallbackFloor.colorSpace = THREE.SRGBColorSpace;
+          floorMat.map = fallbackFloor;
+          floorMat.bumpMap = fallbackFloor;
+          floorMat.needsUpdate = true;
+        });
       }
     );
 
