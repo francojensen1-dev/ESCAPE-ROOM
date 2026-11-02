@@ -60,7 +60,7 @@ export const FuseBoxModal: React.FC<FuseBoxModalProps> = ({
     if (nextSwitches.every((val, i) => val === TARGET[i])) {
       setIsSolved(true);
       setVoltage(0);
-      horrorAudio.playUnlockClick();
+      horrorAudio.playPowerDownSound();
       sensorManager.vibrate([120, 60, 200]);
       onSuccess();
     }

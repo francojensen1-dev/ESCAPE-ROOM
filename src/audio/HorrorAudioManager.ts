@@ -891,6 +891,87 @@ class HorrorAudioManager {
     this.playZeroLatencySFX('/audio/ClickPerilla.mp3', this.switchClickAudio, 0.85);
   }
 
+  /**
+   * Electrical panel power-down & electromagnetic lock de-energize sound effect.
+   * Plays a heavy industrial breaker clunk, electrical discharge pitch slide (380Hz -> 28Hz),
+   * and metallic lock release thud.
+   */
+  public playPowerDownSound() {
+    this.resume();
+
+    // Web Audio API synthesis for realistic electrical power down & lock de-energize
+    if (this.ctx && this.masterGain && !this.isMuted) {
+      try {
+        const now = this.ctx.currentTime;
+
+        // 1. Electrical Discharge Power-Down Slide (380Hz -> 28Hz)
+        const disOsc = this.ctx.createOscillator();
+        const disGain = this.ctx.createGain();
+        const disFilter = this.ctx.createBiquadFilter();
+
+        disOsc.type = 'sawtooth';
+        disOsc.frequency.setValueAtTime(380, now);
+        disOsc.frequency.exponentialRampToValueAtTime(28, now + 0.55);
+
+        disFilter.type = 'lowpass';
+        disFilter.frequency.setValueAtTime(800, now);
+        disFilter.frequency.exponentialRampToValueAtTime(90, now + 0.55);
+
+        disGain.gain.setValueAtTime(0.40, now);
+        disGain.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+
+        disOsc.connect(disFilter);
+        disFilter.connect(disGain);
+        disGain.connect(this.masterGain);
+
+        disOsc.start(now);
+        disOsc.stop(now + 0.60);
+
+        // 2. Heavy Breaker Mechanical Thud / Relé Clunk (Low 95Hz -> 20Hz)
+        const thudOsc = this.ctx.createOscillator();
+        const thudGain = this.ctx.createGain();
+
+        thudOsc.type = 'sine';
+        thudOsc.frequency.setValueAtTime(95, now);
+        thudOsc.frequency.exponentialRampToValueAtTime(20, now + 0.22);
+
+        thudGain.gain.setValueAtTime(0.65, now);
+        thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+        thudOsc.connect(thudGain);
+        thudGain.connect(this.masterGain);
+
+        thudOsc.start(now);
+        thudOsc.stop(now + 0.25);
+
+        // 3. Sharp Relay Contact Click at the beginning
+        const clickOsc = this.ctx.createOscillator();
+        const clickGain = this.ctx.createGain();
+
+        clickOsc.type = 'square';
+        clickOsc.frequency.setValueAtTime(1400, now);
+        clickOsc.frequency.exponentialRampToValueAtTime(120, now + 0.04);
+
+        clickGain.gain.setValueAtTime(0.50, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+        clickOsc.connect(clickGain);
+        clickGain.connect(this.masterGain);
+
+        clickOsc.start(now);
+        clickOsc.stop(now + 0.05);
+
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+
+    // Fallback
+    this.playSwitchClick();
+    setTimeout(() => this.playUnlockClick(), 80);
+  }
+
   // =========================================================================
   // 12. PAPER INTERACTION SOUND ("Papel.mp3")
   // =========================================================================
