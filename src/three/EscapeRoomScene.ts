@@ -3521,7 +3521,8 @@ export class EscapeRoomScene {
    * vector: x (-1..1) for strafe, y (-1..1) for forward/back
    */
   public applyMovement(vector: { x: number; y: number }, delta: number) {
-    const moveSpeed = 2.4 * delta;
+    const clampedDelta = Math.min(0.04, delta);
+    const moveSpeed = 2.4 * clampedDelta;
 
     // Movement forward/back & left/right relative to camera's horizontal yaw
     const currentYaw = this.touchYaw + this.gyroYaw;

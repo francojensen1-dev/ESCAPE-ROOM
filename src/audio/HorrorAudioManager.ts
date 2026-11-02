@@ -344,17 +344,23 @@ class HorrorAudioManager {
 
   public stopBackgroundLoops() {
     this.isStopped = true;
-
-    if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
-    if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
-    if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
-    this.heartbeatTimer = null;
-    this.ambientHorrorTimer = null;
-    this.pibeVoiceTimer = null;
-
     this.isAmbientHorrorActive = false;
     this.isPibeVoiceActive = false;
+    this.isCryPlaying = false;
     this.isOneMinutePlaying = false;
+
+    if (this.ambientHorrorTimer) {
+      clearTimeout(this.ambientHorrorTimer);
+      this.ambientHorrorTimer = null;
+    }
+    if (this.pibeVoiceTimer) {
+      clearTimeout(this.pibeVoiceTimer);
+      this.pibeVoiceTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearTimeout(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
 
     if (this.currentPibeSource) {
       try { this.currentPibeSource.stop(); } catch {}
@@ -365,7 +371,6 @@ class HorrorAudioManager {
       try { this.crySource.stop(); } catch {}
       this.crySource = null;
     }
-    this.isCryPlaying = false;
 
     if (this.cryGain && this.ctx) {
       try {
@@ -373,41 +378,33 @@ class HorrorAudioManager {
       } catch {}
     }
 
-    if (this.bgmAudio) {
-      this.bgmAudio.pause();
-      this.bgmAudio.currentTime = 0;
-    }
-    if (this.focoAudio) {
-      this.focoAudio.pause();
-      this.focoAudio.currentTime = 0;
-    }
-    if (this.bathroomCryAudio) {
-      this.bathroomCryAudio.volume = 0;
-      this.bathroomCryAudio.pause();
-      this.bathroomCryAudio.currentTime = 0;
-    }
-    if (this.fridgeMotorAudio) {
-      this.fridgeMotorAudio.volume = 0;
-      this.fridgeMotorAudio.pause();
-      this.fridgeMotorAudio.currentTime = 0;
-    }
-    if (this.radioAudio) {
-      this.radioAudio.volume = 0;
-      this.radioAudio.pause();
-      this.radioAudio.currentTime = 0;
-    }
-    if (this.oneMinuteAudio) {
-      this.oneMinuteAudio.pause();
-      this.oneMinuteAudio.currentTime = 0;
-    }
-    if (this.ambientHorrorAudio) {
-      this.ambientHorrorAudio.pause();
-      this.ambientHorrorAudio.currentTime = 0;
-    }
-    if (this.pibeVoiceAudio) {
-      this.pibeVoiceAudio.pause();
-      this.pibeVoiceAudio.currentTime = 0;
-    }
+    const killAudio = (audio: HTMLAudioElement | null) => {
+      if (audio) {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.volume = 0;
+        } catch {}
+      }
+    };
+
+    killAudio(this.bgmAudio);
+    killAudio(this.focoAudio);
+    killAudio(this.bathroomCryAudio);
+    killAudio(this.fridgeMotorAudio);
+    killAudio(this.radioAudio);
+    killAudio(this.oneMinuteAudio);
+    killAudio(this.ambientHorrorAudio);
+    killAudio(this.pibeVoiceAudio);
+
+    this.bgmAudio = null;
+    this.focoAudio = null;
+    this.bathroomCryAudio = null;
+    this.fridgeMotorAudio = null;
+    this.radioAudio = null;
+    this.oneMinuteAudio = null;
+    this.ambientHorrorAudio = null;
+    this.pibeVoiceAudio = null;
 
     if (this.droneOsc) {
       try { this.droneOsc.stop(); } catch {}
@@ -417,9 +414,14 @@ class HorrorAudioManager {
 
   public stopAllSounds() {
     this.isStopped = true;
+    this.isAmbientHorrorActive = false;
+    this.isPibeVoiceActive = false;
+    this.isCryPlaying = false;
     this.stopBackgroundLoops();
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      try {
+        this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      } catch {}
     }
   }
 
@@ -491,15 +493,20 @@ class HorrorAudioManager {
   }
 
   private scheduleNextAmbientHorrorSound(delayMs: number) {
+    if (this.isStopped || !this.isAmbientHorrorActive) return;
     if (this.ambientHorrorTimer) clearTimeout(this.ambientHorrorTimer);
     this.ambientHorrorTimer = window.setTimeout(() => {
-      this.playRandomAmbientHorrorSound();
+      if (!this.isStopped && this.isAmbientHorrorActive) {
+        this.playRandomAmbientHorrorSound();
+      }
     }, delayMs);
   }
 
   private playRandomAmbientHorrorSound() {
-    if (!this.isAmbientHorrorActive || this.isMuted) {
-      this.scheduleNextAmbientHorrorSound(8000);
+    if (this.isStopped || !this.isAmbientHorrorActive || this.isMuted) {
+      if (!this.isStopped && this.isAmbientHorrorActive) {
+        this.scheduleNextAmbientHorrorSound(8000);
+      }
       return;
     }
 
@@ -734,14 +741,17 @@ class HorrorAudioManager {
   }
 
   private scheduleNextPibeVoice(delayMs: number) {
+    if (this.isStopped || !this.isPibeVoiceActive) return;
     if (this.pibeVoiceTimer) clearTimeout(this.pibeVoiceTimer);
     this.pibeVoiceTimer = window.setTimeout(() => {
-      this.playNextPibeVoice();
+      if (!this.isStopped && this.isPibeVoiceActive) {
+        this.playNextPibeVoice();
+      }
     }, delayMs);
   }
 
   private calculatePibeVoiceVolume(): number {
-    if (this.isMuted) return 0;
+    if (this.isMuted || this.isStopped) return 0;
     if (this.isAtPeephole) return 1.0;
 
     let vol = 0.50;
@@ -757,7 +767,7 @@ class HorrorAudioManager {
   }
 
   private playNextPibeVoice() {
-    if (!this.isPibeVoiceActive) return;
+    if (this.isStopped || !this.isPibeVoiceActive) return;
 
     if (this.pibeVoiceAvailable.length === 0) {
       this.refillPibeVoiceTracks();
@@ -1021,9 +1031,14 @@ class HorrorAudioManager {
 
   public updateSinkCryAudio(distToSink: number, pan: number = 0, isDoorOpen: boolean = false) {
     if (this.isMuted || this.isStopped) {
-      if (this.cryGain && this.ctx) {
-        this.cryGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      if (this.crySource) {
+        try { this.crySource.stop(); } catch {}
+        this.crySource = null;
       }
+      if (this.cryGain && this.ctx) {
+        try { this.cryGain.gain.setValueAtTime(0, this.ctx.currentTime); } catch {}
+      }
+      this.isCryPlaying = false;
       if (this.bathroomCryAudio) {
         this.bathroomCryAudio.volume = 0;
         if (!this.bathroomCryAudio.paused) {

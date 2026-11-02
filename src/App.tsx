@@ -121,6 +121,7 @@ export default function App() {
 
   // Movement & Look Refs
   const joystickVector = useRef({ x: 0, y: 0 });
+  const smoothJoystick = useRef({ x: 0, y: 0 });
   const keyboardKeys = useRef<{ [key: string]: boolean }>({});
   const isPointerDown = useRef(false);
   const lastPointerPos = useRef({ x: 0, y: 0 });
@@ -676,17 +677,27 @@ export default function App() {
 
       if (sceneRef.current && activeModal === null) {
         // Player displacement strictly with analog joystick and keyboard
-        let vx = joystickVector.current.x;
-        let vy = joystickVector.current.y;
+        let rawVx = joystickVector.current.x;
+        let rawVy = joystickVector.current.y;
 
-        if (keyboardKeys.current['KeyW'] || keyboardKeys.current['ArrowUp']) vy += 1;
-        if (keyboardKeys.current['KeyS'] || keyboardKeys.current['ArrowDown']) vy -= 1;
-        if (keyboardKeys.current['KeyA'] || keyboardKeys.current['ArrowLeft']) vx -= 1;
-        if (keyboardKeys.current['KeyD'] || keyboardKeys.current['ArrowRight']) vx += 1;
+        if (keyboardKeys.current['KeyW'] || keyboardKeys.current['ArrowUp']) rawVy += 1;
+        if (keyboardKeys.current['KeyS'] || keyboardKeys.current['ArrowDown']) rawVy -= 1;
+        if (keyboardKeys.current['KeyA'] || keyboardKeys.current['ArrowLeft']) rawVx -= 1;
+        if (keyboardKeys.current['KeyD'] || keyboardKeys.current['ArrowRight']) rawVx += 1;
 
         // Clamp
-        vx = Math.max(-1, Math.min(1, vx));
-        vy = Math.max(-1, Math.min(1, vy));
+        rawVx = Math.max(-1, Math.min(1, rawVx));
+        rawVy = Math.max(-1, Math.min(1, rawVy));
+
+        // Smooth interpolation for analog movement (eliminates stuttering on mobile touch polling)
+        smoothJoystick.current.x += (rawVx - smoothJoystick.current.x) * 0.35;
+        smoothJoystick.current.y += (rawVy - smoothJoystick.current.y) * 0.35;
+
+        if (Math.abs(smoothJoystick.current.x) < 0.005) smoothJoystick.current.x = 0;
+        if (Math.abs(smoothJoystick.current.y) < 0.005) smoothJoystick.current.y = 0;
+
+        const vx = smoothJoystick.current.x;
+        const vy = smoothJoystick.current.y;
 
         if (vx !== 0 || vy !== 0) {
           sceneRef.current.applyMovement({ x: vx, y: vy }, delta);
